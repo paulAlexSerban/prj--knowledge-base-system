@@ -10,7 +10,7 @@
 ## Problem
 - how to access, ingest, embed and retrieve data from distributed sources with different formats, access methods, and ownership
 
-## Lernings
+## Learnings
 - storage layer can combine semantic similarity with lexical matching - @TODO: adr on possible sotorage solution
 - connector layer can benefit from Plug-in style architecture to extend to new sources without code changes - keeps orchestration logic (scheduling, retry handling, deduplication agains prior sync) separate from source specific extraction logic
 - for access control - should follow NIST guidance on ABAC (Attribute-Based Access Control) - normalize each source's permissins into a set of attributes and principles (at ingestion time) and let retrival layer evaluate access as a policy decision at query time
