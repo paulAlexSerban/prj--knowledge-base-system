@@ -125,6 +125,10 @@ Finance and other departments beyond the four. Real OAuth against Google, Notion
 | Infra | Docker Compose. Terraform with floci endpoint overrides for queues, buckets, and secrets. |
 | Observability | OpenTelemetry, Prometheus, Grafana. One dashboard. |
 
+
+![Container Diagram](00-c4-l2--container-diagram--knowledge-base-system.png)
+
+
 ```mermaid
 flowchart LR
   subgraph harness [DemoHarness]
