@@ -94,6 +94,7 @@ testpaths = [
   "backend/libs/connector-core/tests",
   "backend/apis/knowledge-api/tests",
   "backend/connectors/hr/tests",
+  "backend/workers/ingestion-worker/tests",
   "backend/tests/integration",
   "demo-harness/hr/tests",
   "notebooks/tests",

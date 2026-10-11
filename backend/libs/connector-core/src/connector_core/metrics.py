@@ -79,9 +79,14 @@ DEPENDENCY = Gauge(
     "1 when a dependency answered",
     ["dependency"],
 )
+PUBLISHED = Counter(
+    "kbs_events_published_total",
+    "Change events sent to the tier queue",
+    ["source_id", "event_type"],
+)
 
-# stage label values
-STAGES = ("list", "fetch", "contract", "s3_put", "state", "delete")
+# stage label values. enqueue is a send that failed after the snapshot write.
+STAGES = ("list", "fetch", "contract", "s3_put", "state", "delete", "enqueue")
 
 METRIC_LABELS = {
     "kbs_connector_sync_runs_total": ("source_id", "result"),
@@ -99,4 +104,5 @@ METRIC_LABELS = {
     "kbs_snapshot_objects": ("source_id",),
     "kbs_reconcile_drift": ("source_id",),
     "kbs_connector_dependency_up": ("dependency",),
+    "kbs_events_published_total": ("source_id", "event_type"),
 }

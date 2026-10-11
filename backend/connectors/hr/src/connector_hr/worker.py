@@ -19,22 +19,25 @@ import boto3
 import httpx
 from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
-from prometheus_client import Gauge, start_http_server
+from prometheus_client import REGISTRY, Gauge, start_http_server
 from sqlalchemy import create_engine
 from sqlalchemy.exc import SQLAlchemyError
 
 from connector_core import metrics
+from connector_core.queue import SqsPublisher
 from connector_core.state import State
 from connector_core.store import SnapshotStore
 from connector_core.sync import Syncer
 from connector_hr.client import HrConnector
-from ingest_contract.events import RAW_BUCKET
+from ingest_contract.events import RAW_BUCKET, TIER_QUEUES
 from shared.contracts.source_contract import SourceContract
 from shared.logging import configure, log_event
 from shared.registry import load_registry
 
 LOG = logging.getLogger("connector-hr")
-UP = Gauge("kbs_worker_up", "1 when the worker has loaded its contracts", ["worker"])
+UP = REGISTRY._names_to_collectors.get("kbs_worker_up") or Gauge(
+    "kbs_worker_up", "1 when the worker has loaded its contracts", ["worker"]
+)
 
 
 def select_hr(contracts: list[SourceContract]) -> SourceContract:
@@ -57,14 +60,14 @@ def main() -> None:
         freshness_tier=contract.freshness_tier.value,
     )
     UP.labels(worker="connector-hr").set(1)
-    state, snapshots, connector = _wait_until_ready(contract)
+    state, snapshots, connector, publisher = _wait_until_ready(contract)
     interval = int(os.environ.get("P0_POLL_SECONDS", "10"))
     reconcile_every = int(os.environ.get("RECONCILE_SECONDS", "60"))
     workers = int(os.environ.get("SYNC_WORKERS", "8"))
     last_reconcile = 0.0
     while True:
         started = time.monotonic()
-        syncer = Syncer(connector, contract, state, snapshots, workers)
+        syncer = Syncer(connector, contract, state, snapshots, workers, publisher)
         try:
             syncer.run()
         except Exception as exc:  # noqa: BLE001 - one bad cycle must not kill the process
@@ -80,7 +83,9 @@ def main() -> None:
         time.sleep(max(0.0, interval - (time.monotonic() - started)))
 
 
-def _wait_until_ready(contract: SourceContract) -> tuple[State, SnapshotStore, HrConnector]:
+def _wait_until_ready(
+    contract: SourceContract,
+) -> tuple[State, SnapshotStore, HrConnector, SqsPublisher]:
     """Block until Postgres, the bucket, and the HR harness answer. Metrics stay up."""
     delay = 2.0
     while True:
@@ -127,8 +132,25 @@ def _wait_until_ready(contract: SourceContract) -> tuple[State, SnapshotStore, H
             delay = min(delay * 2, 30)
             continue
         metrics.DEPENDENCY.labels(dependency="harness").set(1)
+        try:
+            publisher = SqsPublisher(_sqs_client(), contract.freshness_tier.value)
+        except (BotoCoreError, ClientError, OSError, ValueError) as exc:
+            http.close()
+            metrics.DEPENDENCY.labels(dependency="sqs").set(0)
+            log_event(
+                LOG,
+                "waiting for the tier queue",
+                level=logging.WARNING,
+                source_id=contract.source_id,
+                queue=TIER_QUEUES.get(contract.freshness_tier.value, ""),
+                error=str(exc),
+            )
+            time.sleep(delay)
+            delay = min(delay * 2, 30)
+            continue
+        metrics.DEPENDENCY.labels(dependency="sqs").set(1)
         snapshots = SnapshotStore(client, os.environ.get("RAW_BUCKET", RAW_BUCKET))
-        return state, snapshots, HrConnector(http)
+        return state, snapshots, HrConnector(http), publisher
 
 
 def _postgres_engine():
@@ -139,6 +161,16 @@ def _postgres_engine():
     return create_engine(
         f"postgresql+psycopg://{user}:{password}@{host}:5432/{database}",
         connect_args={"options": "-csearch_path=kbs"},
+    )
+
+
+def _sqs_client():
+    return boto3.client(
+        "sqs",
+        endpoint_url=os.environ["AWS_ENDPOINT_URL"],
+        region_name=os.environ.get("AWS_DEFAULT_REGION", "us-east-1"),
+        aws_access_key_id=os.environ.get("AWS_ACCESS_KEY_ID", "test"),
+        aws_secret_access_key=os.environ.get("AWS_SECRET_ACCESS_KEY", "test"),
     )
 
 

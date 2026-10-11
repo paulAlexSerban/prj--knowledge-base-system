@@ -40,6 +40,8 @@ resource "aws_sqs_queue" "tier" {
   name                        = "kbs-${each.key}.fifo"
   fifo_queue                  = true
   content_based_deduplication = true
+  # Longer than one embed call, so a crashed worker's message becomes visible again.
+  visibility_timeout_seconds  = 60
   redrive_policy = jsonencode({
     deadLetterTargetArn = aws_sqs_queue.dlq[each.key].arn
     maxReceiveCount     = 5

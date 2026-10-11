@@ -1,4 +1,4 @@
-.PHONY: sync contracts-schema contracts-check test e2e networks up down ps logs notebooks tools tf-apply tf-destroy compose-check
+.PHONY: sync contracts-schema contracts-check test e2e networks up down ps logs notebooks tools tf-apply tf-destroy compose-check dlq-replay
 
 COMPOSE_DIR := infrastructure/orchestration
 ENV_FILE := .env
@@ -72,6 +72,10 @@ tf-apply: $(ENV_FILE)
 
 tf-destroy:
 	terraform -chdir=$(TF_DIR) destroy -input=false -auto-approve
+
+# Re-send dead-letter messages to the tier queues. floci must already be up.
+dlq-replay: $(ENV_FILE)
+	set -a && . ./$(ENV_FILE) && set +a && uv run python tools/scripts/dlq_replay.py
 
 compose-check: $(ENV_FILE)
 	$(COMPOSE) config -q

@@ -141,6 +141,111 @@ def test_s3_error_leaves_the_watermark(contract, state, s3) -> None:
     assert state.get_watermark("hr") is None
 
 
+class RecordingPublisher:
+    def __init__(self) -> None:
+        self.events = []
+        self.seen_state = []
+
+    def publish(self, event) -> None:
+        self.events.append(event)
+
+
+class BoomPublisher:
+    def publish(self, event) -> None:
+        raise ClientError({"Error": {"Code": "500", "Message": "queue down"}}, "SendMessage")
+
+
+def test_publish_happens_before_the_state_row(contract, state, s3) -> None:
+    publisher = RecordingPublisher()
+
+    def publish(event) -> None:
+        publisher.events.append(event)
+        assert state.get_object("hr", "emp-1") is None
+
+    publisher.publish = publish
+    syncer = Syncer(
+        FakeConnector([_item()]),
+        contract,
+        state,
+        SnapshotStore(s3, BUCKET),
+        workers=1,
+        publisher=publisher,
+    )
+    report = syncer.run()
+    assert report.ok
+    assert publisher.events[0].event_type.value == "create"
+    assert publisher.events[0].s3_pointer == object_key("hr", "person", "emp-1", "json")
+    assert state.get_object("hr", "emp-1") is not None
+    assert metrics.PUBLISHED.labels(source_id="hr", event_type="create")._value.get() >= 1
+
+
+def test_acl_change_and_update_use_different_event_types(contract, state, s3) -> None:
+    publisher = RecordingPublisher()
+    connector = FakeConnector([_item()])
+    syncer = Syncer(
+        connector, contract, state, SnapshotStore(s3, BUCKET), workers=1, publisher=publisher
+    )
+    syncer.run()
+    connector.items = [_item(native_acl=["hr_policy_admin"])]
+    syncer.run()
+    connector.items = [_item(native_acl=["hr_policy_admin"], version=2)]
+    syncer.run()
+    kinds = [event.event_type.value for event in publisher.events]
+    assert kinds == ["create", "acl_change", "update"]
+
+
+def test_enqueue_failure_does_not_advance_state(contract, state, s3) -> None:
+    report = Syncer(
+        FakeConnector([_item()]),
+        contract,
+        state,
+        SnapshotStore(s3, BUCKET),
+        workers=1,
+        publisher=BoomPublisher(),
+    ).run()
+    assert not report.ok
+    assert state.count_objects("hr") == 0
+    assert state.get_watermark("hr") is None
+    assert metrics.ERRORS.labels(source_id="hr", stage="enqueue")._value.get() >= 1
+
+
+def test_delete_is_published_after_the_key_is_gone(contract, state, s3) -> None:
+    publisher = RecordingPublisher()
+    snapshots = SnapshotStore(s3, BUCKET)
+    syncer = Syncer(
+        FakeConnector([_item()]), contract, state, snapshots, workers=1, publisher=publisher
+    )
+    syncer.run()
+    key = object_key("hr", "person", "emp-1", "json")
+
+    def publish(event) -> None:
+        assert event.event_type.value == "delete"
+        assert not snapshots.exists(key)
+        assert state.get_object("hr", "emp-1") is not None
+        publisher.events.append(event)
+
+    publisher.publish = publish
+    syncer.reconcile()
+    assert state.get_object("hr", "emp-1") is None
+    assert any(event.event_type.value == "delete" for event in publisher.events)
+
+
+def test_delete_enqueue_failure_keeps_the_row(contract, state, s3) -> None:
+    publisher = RecordingPublisher()
+    syncer = Syncer(
+        FakeConnector([_item()]),
+        contract,
+        state,
+        SnapshotStore(s3, BUCKET),
+        workers=1,
+        publisher=publisher,
+    )
+    syncer.run()
+    syncer.publisher = BoomPublisher()
+    syncer.reconcile()
+    assert state.get_object("hr", "emp-1") is not None
+
+
 def test_unreachable_bucket_is_an_error_and_deletes_nothing(contract, state, s3) -> None:
     class Down(SnapshotStore):
         def list_object_ids(self, source_id):

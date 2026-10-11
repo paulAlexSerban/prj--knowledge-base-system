@@ -102,7 +102,7 @@ Postgres 18 cannot open a data directory written by 16. If `kbs_pgdata` already 
 make down
 ```
 
-`make notebooks` starts Jupyter on port 8888. The seed notebook resets the HR harness and loads 200 people by default (`SEED_COUNT=10000` is the scale load). The other notebooks create, update, and delete HR rows and check the S3 snapshots. `make tools` starts pgAdmin and the four SQLite viewers, plus Postgres and the harness so those databases exist. `make tf-apply` creates the queues and the snapshot bucket again. `make seed`, `make demo`, and `make eval` do not exist yet. Details of networks and how to start one project alone are in [infrastructure/README.md](infrastructure/README.md).
+`make dlq-replay` moves dead-letter messages back onto the tier queues. floci must already be up. `make notebooks` starts Jupyter on port 8888. The seed notebook resets the HR harness and loads 200 people by default (`SEED_COUNT=10000` is the scale load). The other notebooks create, update, and delete HR rows and check the S3 snapshots. `make tools` starts pgAdmin and the four SQLite viewers, plus Postgres and the harness so those databases exist. `make tf-apply` creates the queues and the snapshot bucket again. `make seed`, `make demo`, and `make eval` do not exist yet. Details of networks and how to start one project alone are in [infrastructure/README.md](infrastructure/README.md).
 
 ## Demo script
 

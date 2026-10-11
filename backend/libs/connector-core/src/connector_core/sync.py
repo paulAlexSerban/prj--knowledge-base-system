@@ -17,7 +17,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from connector_core import metrics
 from connector_core.base import ConnectorError, SourceConnector
-from connector_core.state import State
+from connector_core.state import ObjectRow, State
 from connector_core.store import (
     METADATA_ACL,
     METADATA_HASH,
@@ -27,6 +27,7 @@ from connector_core.store import (
     SnapshotStore,
     object_key,
 )
+from ingest_contract.events import ChangeEvent, EventType
 from ingest_contract.hashing import snapshot_hash
 from shared.contracts.source_contract import SourceContract
 from shared.logging import log_event
@@ -62,12 +63,15 @@ class Syncer:
         state: State,
         snapshots: SnapshotStore,
         workers: int = 8,
+        publisher: object | None = None,
     ) -> None:
         self.connector = connector
         self.contract = contract
         self.state = state
         self.snapshots = snapshots
         self.workers = workers
+        # None only in tests that do not start a queue. The connector process always sets one.
+        self.publisher = publisher
         self._logged_extra: set[str] = set()
         self._lock = Lock()
 
@@ -255,6 +259,18 @@ class Syncer:
                 LOG, "snapshot put failed", level=logging.ERROR, source_id=source_id, error=str(exc)
             )
             return ItemOutcome("error", "s3_put", object_type=object_type, version=version)
+        event = ChangeEvent(
+            source_id=source_id,
+            object_id=object_id,
+            event_type=_event_type(existing, version, acl_text),
+            version=version,
+            content_hash=digest,
+            occurred_at=_occurred_at(updated_at),
+            s3_pointer=key,
+        )
+        # Send before the state row. A crash here retries the object and sends again.
+        if not self._publish(event):
+            return ItemOutcome("error", "enqueue", object_type=object_type, version=version)
         try:
             self.state.upsert_object(
                 source_id,
@@ -312,6 +328,20 @@ class Syncer:
                 source_id=source_id,
                 object_type=key,
             )
+            return
+        # The row stays until the event is accepted, so a failed send is retried next sweep.
+        row = self.state.get_object(source_id, object_id)
+        if row is not None and not self._publish(
+            ChangeEvent(
+                source_id=source_id,
+                object_id=object_id,
+                event_type=EventType.DELETE,
+                version=row.version,
+                content_hash=row.content_hash,
+                occurred_at=datetime.now(UTC),
+            )
+        ):
+            metrics.ERRORS.labels(source_id, "enqueue").inc()
             return
         self.state.delete_object(source_id, object_id)
         metrics.DELETED.labels(source_id).inc()
@@ -383,10 +413,55 @@ class Syncer:
         )
         return SyncReport(False, 0, 0, 1, self.state.get_watermark(source_id))
 
+    def _publish(self, event: ChangeEvent) -> bool:
+        if self.publisher is None:
+            return True
+        try:
+            self.publisher.publish(event)
+        except (ClientError, BotoCoreError, OSError) as exc:
+            log_event(
+                LOG,
+                "enqueue failed",
+                level=logging.ERROR,
+                source_id=event.source_id,
+                object_id=event.object_id,
+                event_type=event.event_type.value,
+                error=str(exc),
+            )
+            return False
+        metrics.PUBLISHED.labels(event.source_id, event.event_type.value).inc()
+        log_event(
+            LOG,
+            "event published",
+            source_id=event.source_id,
+            object_id=event.object_id,
+            event_type=event.event_type.value,
+        )
+        return True
+
     def _observe_lag(self, watermark: str | None) -> None:
         if not watermark:
             return
         metrics.WATERMARK_LAG.labels(self.contract.source_id).set(_seconds_since(watermark))
+
+
+def _event_type(existing: ObjectRow | None, version: str, acl_text: str) -> EventType:
+    if existing is None:
+        return EventType.CREATE
+    if existing.version != version:
+        return EventType.UPDATE
+    if existing.native_acl != acl_text:
+        return EventType.ACL_CHANGE
+    return EventType.UPDATE
+
+
+def _occurred_at(stamp: str) -> datetime:
+    if not stamp:
+        return datetime.now(UTC)
+    moment = datetime.fromisoformat(stamp)
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=UTC)
+    return moment
 
 
 def _forbidden(record: dict, contract: SourceContract) -> list[str]:

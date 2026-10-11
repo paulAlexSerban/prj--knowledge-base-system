@@ -49,6 +49,19 @@ services:
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
       AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION}
       METRICS_PORT: "9101"
+      CONTRACTS_DIR: /contracts
+      RAW_BUCKET: kbs-raw-snapshots
+      EMBEDDER: hash
+      POSTGRES_HOST: postgres
+      POSTGRES_DB: kbs
+      POSTGRES_USER: ingestion_rw
+      INGESTION_DB_PASSWORD: ${INGESTION_DB_PASSWORD}
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD}
+      # Set FAIL_OBJECT_ID to one object id to force that message onto the DLQ.
+      FAIL_OBJECT_ID: ${FAIL_OBJECT_ID:-}
+    volumes:
+      - ../config/sources:/contracts:ro
     networks: [kbs-data, kbs-aws, kbs-obs]
     ports:
       - "127.0.0.1:9101:9101"
