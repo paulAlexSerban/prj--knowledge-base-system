@@ -14,20 +14,37 @@ dependencies = [
 ]
 
 [dependency-groups]
+backend = [
+    "boto3>=1.43.111",
+    "fastapi>=0.143.0",
+    "mcp>=2.3.0",
+    "neo4j>=6.4.0",
+    "prometheus-client>=0.26.0",
+    "psycopg[binary]>=3.3.6",
+    "uvicorn[standard]>=0.54.0",
+]
 dev = [
   "pytest>=8",
   "ruff>=0.6",
 ]
+harness = [
+    "fastapi>=0.143.0",
+    "prometheus-client>=0.26.0",
+    "uvicorn[standard]>=0.54.0",
+]
 
 [tool.setuptools.packages.find]
-include = ["shared*"]
+include = ["shared*", "backend*"]
 
 [tool.pytest.ini_options]
-testpaths = ["shared/contracts/tests"]
+testpaths = ["shared/contracts/tests", "backend/tests"]
 pythonpath = ["."]
+
+[tool.uv]
+default-groups = ["dev", "backend", "harness"]
 
 [tool.ruff]
 line-length = 100
 
 [tool.ruff.lint.isort]
-known-first-party = ["shared"]
+known-first-party = ["shared", "backend"]

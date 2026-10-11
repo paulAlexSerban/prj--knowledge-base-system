@@ -102,7 +102,7 @@ These are places where the stated requirements need a narrower reading before im
 - User-delegated authorization: JWT claims, coarse pre-filter in SQL and Cypher, fine-grained post-check, Postgres row-level security, and an audit record of which attributes justified a result.
 - Delete propagation, content-hash skip, idempotent upserts, and a reconciliation sweep.
 - A demo harness: FastAPI services with SQLite and files for HR, Sales, Product, and Engineering, plus a mutation script.
-- Docker Compose, floci, Terraform for queues, buckets, and secrets, and one Grafana dashboard (sync lag, queue depth, dead-letter depth, retrieval latency, empty-result rate by permission group).
+- Docker Compose, floci, and Terraform for the FIFO queues, dead-letter queues, and snapshot bucket. Grafana shows process health until the freshness panels exist. The API key stays in the environment.
 - A golden evaluation set of about 20 questions, including questions with no answer, conflicting sources, and access-boundary cases.
 
 ### Out of scope (production path, documented only)
@@ -118,12 +118,12 @@ Finance and other departments beyond the four. Real OAuth against Google, Notion
 | Knowledge graph | Neo4j. |
 | Messaging | SQS on floci, FIFO per source key so updates for one object stay ordered, plus a dead-letter queue. |
 | Object storage | S3 on floci for raw snapshots and document blobs. |
-| Scheduling | EventBridge Scheduler on floci for poll cadence. |
+| Scheduling | P0 poll loop inside the connector worker. EventBridge Scheduler, one-minute minimum, for P1/P2 polls and reconciliation. |
 | Workers | Connector workers (extract, detect change, emit). Ingestion workers (normalize, chunk, embed, upsert vectors and graph, tombstone deletes). |
 | Models | OpenRouter for chat and, when configured, embeddings. Local fallback embedder (fastembed or sentence-transformers) and a deterministic stub extractor for offline runs. |
 | Identity | Mock IdP issuing signed JWTs with department, clearance, and region claims. |
-| Infra | Docker Compose. Terraform with floci endpoint overrides for queues, buckets, and secrets. |
-| Observability | OpenTelemetry, Prometheus, Grafana. One dashboard. |
+| Infra | Docker Compose. Terraform with floci endpoint overrides for queues and the snapshot bucket. |
+| Observability | Prometheus and Grafana. Traces are deferred. |
 
 
 ![Container Diagram](00-c4-l2--container-diagram--knowledge-base-system.png)
@@ -140,11 +140,11 @@ The demo is the acceptance test. Each step is observable in the API response, th
 4. Edit a policy and delete a deal in the demo harness. Within the source's freshness tier, the edited chunk is re-embedded (content hash changed) and the deleted deal disappears from Postgres and Neo4j. Sync lag for that source is visible.
 5. Stop an ingestion worker mid-batch, then start it again. In-flight messages return to the queue or land in the dead-letter queue. Replaying them does not duplicate chunks or edges, because the upsert key is source id plus version or content hash.
 
-Makefile targets that support the script: `up`, `seed`, `demo`, `test`, `eval`.
+`make up` and `make test` exist. `make up` starts the stub stack. `seed`, `demo`, and `eval` are still to be written.
 
 ## Risks and open questions
 
-- floci covers SQS, S3, and EventBridge well enough to show the pipeline. It does not emulate Bedrock, IAM evaluation, or production queue semantics under load. Model calls go to OpenRouter or the local fallback, not to a mocked AWS model API.
+- floci's documentation lists SQS, S3, Scheduler, IAM, and Bedrock Runtime, among others. A local apply created the FIFO queues and one send/receive worked. That is not a fidelity or load test. Model calls go to OpenRouter or the local fallback because the design should not depend on one cloud model API.
 - Two stores (Postgres and Neo4j) can diverge. The document in Postgres is the authority for prose. The graph is a derived index. A failed graph write must not leave a vector chunk that claims a relationship the graph does not have; the ingestion worker writes both inside one unit of work and retries the pair.
 - LLM extraction of edges from product specs will be wrong some of the time. Every extracted edge carries confidence and a source span. The demo question is answered from deterministic edges extracted from structured records. Extracted edges are visible and are not trusted for the headline answer.
 - Permission propagation has a window. High-sensitivity sources re-check the ACL against the source at read time. Lower-sensitivity sources accept the sync window and document it on the contract. The POC shows both behaviors on HR (re-check) and Product (window).

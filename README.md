@@ -2,16 +2,17 @@
 
 The Unified Knowledge Gateway is an event-driven hybrid knowledge base. It ingests department data, turns it into knowledge agents can use, and serves it through one API and one MCP server with the caller's permissions applied in the data layer.
 
-This repository is a proof of concept for that gateway. The design is written down. The source-contract gate is implemented and checked in CI. The running stack (harness, workers, stores, API) is the next implementation step and is marked as planned below.
+This repository is a proof of concept for that gateway. The design is written down. The source-contract gate is implemented and checked in CI. Compose starts the harness, workers, stores, API, MCP server, floci, and Grafana. Those processes are stubs: they answer health checks and list registered sources. They do not retrieve or answer questions yet.
 
 ## Status
 
 | Built | Planned |
 | ----- | ------- |
-| Project brief, spikes, ADRs, and the architecture outline | Demo harness: FastAPI plus SQLite and files for HR, Sales, Product, and Engineering |
-| C4 diagrams (context, containers, components, connector containers) | Connector and ingestion workers, SQS, S3, Postgres, Neo4j |
-| Source-contract model, four YAML contracts, validator, tests, and CI | Knowledge API, MCP server, mock identity provider, evaluation set, one Grafana dashboard |
-| | Docker Compose and Terraform against [floci](https://floci.io) |
+| Project brief, spikes, ADRs, and the architecture outline | Retrieval, chunking, embeddings, and the two demo answers |
+| C4 diagrams (context, containers, components, connector containers) | Mock identity provider and access-boundary tests |
+| Source-contract model, four YAML contracts, validator, tests, and CI | Golden evaluation set |
+| Compose projects for the harness, gateway, ingestion, store, floci, and Grafana, with stub processes | The eight freshness and authorization panels on the dashboard |
+| Terraform on floci: three FIFO queues, three dead-letter queues, one snapshot bucket | Seed data and `make demo` |
 
 ## Problem
 
@@ -47,9 +48,9 @@ Component view of the gateway:
 | Language and HTTP | Python 3.12, FastAPI. The API and the MCP server are thin adapters over one service layer. |
 | Documents, vectors, lexical search, authorization | Postgres with pgvector, full-text search, and row-level security. |
 | Knowledge graph | Neo4j, small typed ontology. |
-| Messaging and objects | SQS (FIFO per object, dead-letter queue), S3, and EventBridge Scheduler, emulated with floci. |
+| Messaging and objects | SQS FIFO per object, with a dead-letter queue, and S3, both on floci. Scheduler, when added, drives P1/P2 polls and reconciliation. P0 polling is in the connector process. |
 | Models | OpenRouter when `OPENROUTER_API_KEY` is set. A local embedder and a deterministic extractor for offline runs. |
-| Observability | OpenTelemetry, Prometheus, and one Grafana dashboard. |
+| Observability | Prometheus scrapes `/metrics`. One Grafana dashboard. Traces are deferred. |
 
 Decisions, and what was rejected:
 
@@ -65,25 +66,32 @@ Works today. From the repository root. [uv](https://docs.astral.sh/uv/) installs
 
 ```bash
 uv sync
-make contracts-check
+make test
+cp .env.example .env
+make up
 ```
 
-`make contracts-check` validates the four source contracts, runs their tests, and fails if the committed JSON Schema drifted from the Pydantic model.
+`make test` runs the contract tests and the stub tests. `make up` builds the images and starts every Compose project. The first start downloads images and the Terraform AWS provider. Neo4j needs about two minutes before it is healthy. Expect several gigabytes of RAM. Postgres and Neo4j are not published on the host.
 
-Planned, once Compose and floci land. These Make targets do not exist yet:
+| Port | Service |
+| ---- | ------- |
+| 8000 | Knowledge API (`/health`, `/v1/sources`) |
+| 8001 | MCP server (`/health`, streamable HTTP at `/mcp`) |
+| 8090 | Product webhook receiver |
+| 8101–8104 | HR, Sales, Product, Engineering harness |
+| 9090 | Prometheus |
+| 3000 | Grafana, anonymous admin, dev only |
+| 4566 | floci, bound to 127.0.0.1 |
 
 ```bash
-export OPENROUTER_API_KEY=...   # optional; offline fallback runs without it
-make up      # compose: harness, workers, postgres, neo4j, floci, grafana
-make seed    # load the demo corpus
-make demo    # run the script below
-make test    # unit and access-boundary tests
-make eval    # golden set: recall@k, MRR, abstention, access boundaries
+make down
 ```
+
+`make seed`, `make demo`, and `make eval` do not exist yet. Details of networks and how to start one project alone are in [infrastructure/README.md](infrastructure/README.md).
 
 ## Demo script
 
-These five steps are the acceptance test. They become runnable with `make demo`. None of them run against a live stack today.
+These five steps are the acceptance test. The processes start today. None of these questions can be answered until retrieval exists.
 
 1. Ask the Germany parental-leave question as a user who may read HR policies. The answer cites the chunk, source version, and last sync time.
 2. Ask the same question as a user whose claims do not include that policy. The result set is empty, and the audit log records the deny.
@@ -107,19 +115,25 @@ Contracts live in [infrastructure/config/sources](infrastructure/config/sources)
 | `_docs/03--adrs/` | Storage, observability, and embedding and chunk versioning. |
 | `shared/contracts/` | Source-contract model, schema, validator, and tests. |
 | `infrastructure/config/sources/` | The four YAML contracts. |
-| `backend/` | API, MCP, services, workers, and messaging. Empty. |
-| `database/` | Postgres and Neo4j schema. Empty. |
-| `demo-harness/` | HR, Sales, Product, and Engineering mocks. Empty. |
-| `infrastructure/` | Compose, Terraform, and floci config. Contracts only, so far. |
-| `observability/` | Dashboard and metric definitions. Empty. |
+| `backend/` | API, MCP, workers, and the change-event model. Stubs. |
+| `database/` | Postgres init (pgvector, roles, placeholder RLS) and Neo4j constraints. |
+| `demo-harness/` | Four FastAPI services. Empty SQLite. No documents yet. |
+| `infrastructure/` | Compose projects, Terraform for floci, source contracts. |
+| `observability/` | Prometheus scrape config and a two-panel Grafana dashboard. |
 | `tools/` | Seed, mutation, and evaluation scripts. Empty. |
-| `.github/workflows/contracts.yml` | CI for the contract gate. |
+| `.github/workflows/` | Contract gate and Compose config CI. |
 
 ## Assumptions and limits
 
 Production assumptions (about 10 million objects, about 100,000 changes a day, freshness tiers, 250 ms retrieval) are design targets. The POC uses four sources and a few hundred documents. The 30-second tier applies only where the source can push or be polled that fast. The 250 ms budget covers hybrid search with an authorization filter and does not include a reranker or model generation. Freshness and latency will be measured; they are not load-test results.
 
-floci emulates SQS, S3, and EventBridge Scheduler. It does not emulate Bedrock or IAM evaluation. Model calls go to OpenRouter or the local fallback.
+floci's own documentation lists many AWS APIs, including SQS, S3, Scheduler, IAM, and Bedrock Runtime. A local apply created the FIFO queues and a send/receive on `kbs-p0.fifo` succeeded. That is not a fidelity or load test. Model calls stay on OpenRouter or the local fallback because the gateway should not depend on a specific cloud model API, not because floci lacks one.
+
+EventBridge Scheduler cannot run faster than once a minute, on AWS or on floci. It is the wrong driver for the 30-second tier. P0 polling stays inside the connector worker. Scheduler, when wired, covers P1/P2 polls and the reconciliation sweep.
+
+Docker networks show the intended trust boundaries. They are not a security boundary. Terraform in this repo talks only to floci. It creates no VPC, database, or compute.
+
+The next useful slice is one HR document through chunk, embed, hybrid search, and a cited API answer. More platform work before that does not make the demo.
 
 Compensation and national identifiers are not ingested. The graph trusts edges extracted in code from structured records. Edges extracted from prose carry confidence and a source span and do not decide the headline answer. Entity resolution beyond shared ids and email addresses is deferred, and the demo data shares one product key on purpose.
 

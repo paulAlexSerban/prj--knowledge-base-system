@@ -1,0 +1,8 @@
+apiVersion: 1
+
+providers:
+  - name: kbs
+    folder: KBS
+    type: file
+    options:
+      path: /var/lib/grafana/dashboards

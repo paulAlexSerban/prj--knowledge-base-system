@@ -16,7 +16,7 @@ Treat ingestion as a stream of change events (create, update, delete, acl_change
 
 ### Pipeline
 
-1. Connector worker runs on the cadence in the source contract (EventBridge Scheduler on floci for pollers; the Product harness calls the webhook receiver directly).
+1. Connector worker runs on the cadence in the source contract. P0 (HR) is an in-process loop, because EventBridge Scheduler cannot fire faster than once a minute. Scheduler, when wired, sends P1/P2 poll ticks and the reconciliation sweep to a queue. The Product harness calls the webhook receiver directly.
 2. `list_changes` yields events. The worker writes the raw payload to S3 and enqueues a message.
 3. Ingestion worker chunks, embeds, and upserts Postgres and Neo4j, or applies a tombstone.
 4. Retrieval reads only the stores, plus the high-sensitivity ACL re-check from spike 03.
@@ -75,7 +75,7 @@ Per source: last successful sync, lag (now minus the newest unprocessed `occurre
 - Ordering is per object, not across objects. A deal update and the epic it depends on can land out of order. The graph upsert is commutative for the edges in this ontology (`DEPENDS_ON` from deal to epic is written when either side is seen, and dropped when either side is tombstoned).
 - Reconciliation lag means a missed delete can live until the next sweep. P0 sources run the sweep more often. The dashboard shows indexed-minus-source id drift so the gap is visible.
 - Two-store writes can fail halfway. The worker treats Postgres and Neo4j as one unit: on partial failure it retries the whole message. The upsert key makes the retry safe. A poison message lands in the dead-letter queue and pages the sync-lag metric; it does not block the FIFO group forever, because the message group is per object and the poison message is removed from the main queue on dead-letter.
-- floci's queue semantics are close enough to demonstrate the script (kill a worker, watch retry, watch the dead-letter queue). They are not a load test of production SQS.
+- A local Terraform apply created `kbs-p0.fifo`, `kbs-p1.fifo`, `kbs-p2.fifo`, and a FIFO dead-letter queue for each. A send and receive on `kbs-p0.fifo` succeeded. That checks the API shape. It is not a test of ordering under load, and it is not a test of production SQS.
 
 ## Production path
 

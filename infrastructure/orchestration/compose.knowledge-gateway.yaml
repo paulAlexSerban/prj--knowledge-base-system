@@ -1,0 +1,59 @@
+x-backend: &backend
+  build:
+    context: ../..
+    dockerfile: backend/Dockerfile
+
+services:
+  gateway-api:
+    <<: *backend
+    command: ["python", "-m", "backend.apis.main"]
+    environment:
+      CONTRACTS_DIR: /contracts
+    volumes:
+      - ../config/sources:/contracts:ro
+    networks: [kbs-data, kbs-obs]
+    ports:
+      - "127.0.0.1:8000:8000"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 20s
+
+  gateway-mcp:
+    <<: *backend
+    command: ["python", "-m", "backend.apis.mcp_server"]
+    environment:
+      CONTRACTS_DIR: /contracts
+    volumes:
+      - ../config/sources:/contracts:ro
+    networks: [kbs-data, kbs-obs]
+    ports:
+      - "127.0.0.1:8001:8001"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health')",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 20s
+
+networks:
+  kbs-data:
+    external: true
+    name: kbs-data
+  kbs-obs:
+    external: true
+    name: kbs-obs

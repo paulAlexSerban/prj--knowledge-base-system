@@ -8,7 +8,7 @@ Stale or unauthorized knowledge fails quietly. A global average latency hides th
 
 ## Decision
 
-OpenTelemetry traces and metrics from the API, MCP server, and both workers. Prometheus scrapes them. One Grafana dashboard, checked in under `observability/`, with only these panels:
+Prometheus scrapes `/metrics` on the API, the MCP server, the workers, and the harness. There is no collector and no database exporter in the POC. Traces are deferred until a latency regression cannot be explained from the histograms. The dashboard that exists today has two panels, `up` and `kbs_worker_up`. The panels below are the SLO view to add when those metrics exist:
 
 | Panel                                                                  | Why it exists                                                                |
 | ---------------------------------------------------------------------- | ---------------------------------------------------------------------------- |

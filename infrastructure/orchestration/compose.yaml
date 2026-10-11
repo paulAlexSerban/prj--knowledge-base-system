@@ -1,0 +1,9 @@
+name: kbs
+
+include:
+  - path: compose.aws.yaml
+  - path: compose.knowledge-store.yaml
+  - path: compose.ingestion-pipeline.yaml
+  - path: compose.knowledge-gateway.yaml
+  - path: compose.demo-harness.yaml
+  - path: compose.observability.yaml

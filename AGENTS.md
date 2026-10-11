@@ -17,7 +17,8 @@ This repository is a POC knowledge gateway: ingest four department sources, keep
 | `backend/` | API, MCP, service layer, workers, messaging. |
 | `database/` | Postgres and Neo4j schema. |
 | `demo-harness/` | HR, Sales, Product, Engineering mocks. |
-| `infrastructure/` | Compose, Terraform, floci. |
+| `infrastructure/orchestration/` | One Compose file per trust area, plus `compose.yaml` which includes them. |
+| `infrastructure/provisioning/terraform/` | Queues, dead-letter queues, and the snapshot bucket on floci. |
 | `observability/` | One dashboard and its metric definitions. |
 | `tools/` | Seed, mutation, and evaluation scripts. |
 
@@ -27,13 +28,16 @@ Python 3.12, FastAPI, Pydantic v2, pytest, Ruff (line length 100, first-party pa
 
 ```bash
 uv sync
-make contracts-check
-uv run ruff check shared
+make test
+make compose-check
+uv run ruff check shared backend
 ```
 
-Add a runtime dependency with `uv add` and a dev dependency with `uv add --dev`. Commit `uv.lock` with the change. Do not use `pip` or `python -m venv`. Do not add dependencies outside `pyproject.toml`.
+Add a runtime dependency with `uv add` and a dev dependency with `uv add --dev`. Image-only libraries go in the `backend` or `harness` dependency group (`uv add --group backend ...`). Commit `uv.lock`. Do not use `pip` or `python -m venv`. Do not add dependencies outside `pyproject.toml`.
 
-`make up`, `make seed`, `make demo`, `make test`, and `make eval` are planned and do not exist yet. Add a target only when the command it wraps exists, and update the README quickstart in that same change.
+`make up` starts the stub stack. `make seed`, `make demo`, and `make eval` are not written yet. Add a target only when the command it wraps exists, and update the README quickstart in that same change.
+
+Dockerfiles install with `uv sync --frozen`. Do not publish Postgres or Neo4j ports. One Compose network per trust boundary (`kbs-data` is internal). Service names are globally unique. New services need a healthcheck and a Prometheus target.
 
 ## Design rules
 

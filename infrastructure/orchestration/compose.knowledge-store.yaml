@@ -1,0 +1,74 @@
+# Postgres and Neo4j. Ports stay off the host. Use docker compose exec to debug.
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: kbs
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: kbs
+      INGESTION_DB_PASSWORD: ${INGESTION_DB_PASSWORD}
+      GATEWAY_DB_PASSWORD: ${GATEWAY_DB_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ../../database/postgres/init:/docker-entrypoint-initdb.d:ro
+    networks: [kbs-data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kbs -d kbs"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+
+  neo4j:
+    image: neo4j:5-community
+    environment:
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD}
+      KBS_NEO4J_PASSWORD: ${NEO4J_PASSWORD}
+      NEO4J_server_memory_heap_initial__size: 256m
+      NEO4J_server_memory_heap_max__size: 512m
+      NEO4J_server_memory_pagecache_size: 256m
+    volumes:
+      - neo4jdata:/data
+    networks: [kbs-data]
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "cypher-shell -a bolt://localhost:7687 -u neo4j -p \"$$KBS_NEO4J_PASSWORD\" 'RETURN 1'",
+        ]
+      interval: 15s
+      timeout: 30s
+      retries: 20
+      start_period: 90s
+
+  neo4j-init:
+    image: neo4j:5-community
+    depends_on:
+      neo4j:
+        condition: service_healthy
+    networks: [kbs-data]
+    volumes:
+      - ../../database/neo4j/init.cypher:/init.cypher:ro
+    entrypoint:
+      [
+        "cypher-shell",
+        "-a",
+        "bolt://neo4j:7687",
+        "-u",
+        "neo4j",
+        "-p",
+        "${NEO4J_PASSWORD}",
+        "-f",
+        "/init.cypher",
+      ]
+    restart: "no"
+
+networks:
+  kbs-data:
+    external: true
+    name: kbs-data
+
+volumes:
+  pgdata:
+  neo4jdata:

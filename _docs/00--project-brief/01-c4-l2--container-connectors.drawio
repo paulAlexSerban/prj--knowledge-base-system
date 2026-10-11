@@ -68,7 +68,7 @@
                 <mxCell id="eSched" style="edgeStyle=none;html=1;startArrow=none;endArrow=classic;endFill=1;strokeWidth=2;strokeColor=#FFFFFF;sketch=1;curveFitting=1;jiggle=2;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.367;entryDx=0;entryDy=0;" parent="1" source="scheduler" target="conn" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
-                <mxCell id="lSched" value="poll tick" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];labelBackgroundColor=#000000;fontColor=#FFFFFF;fontFamily=Helvetica;fontSize=12;" parent="eSched" vertex="1" connectable="0">
+                <mxCell id="lSched" value="P1/P2 poll tick" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];labelBackgroundColor=#000000;fontColor=#FFFFFF;fontFamily=Helvetica;fontSize=12;" parent="eSched" vertex="1" connectable="0">
                     <mxGeometry relative="1" as="geometry">
                         <mxPoint y="-14" as="offset"/>
                     </mxGeometry>
@@ -132,7 +132,7 @@
                         <mxGeometry x="1140" y="190" width="250" height="120" as="geometry"/>
                     </mxCell>
                 </object>
-                <object placeholders="1" c4Name="EventBridge Scheduler" c4Type="Scheduler" c4Description="floci. Poll cadence from each source contract." label="&lt;font style=&quot;font-size: 16px&quot;&gt;&lt;b&gt;%c4Name%&lt;/b&gt;&lt;/font&gt;&lt;div&gt;[%c4Type%]&lt;/div&gt;&lt;br style=&quot;font-size: 12px;&quot;&gt;&lt;div&gt;&lt;font style=&quot;font-size: 11px&quot;&gt;&lt;font color=&quot;#cccccc&quot;&gt;%c4Description%&lt;/font&gt;&lt;/font&gt;&lt;/div&gt;" id="scheduler">
+                <object placeholders="1" c4Name="EventBridge Scheduler" c4Type="Scheduler" c4Description="floci. P1/P2 poll ticks and reconciliation. P0 poll is in the worker." label="&lt;font style=&quot;font-size: 16px&quot;&gt;&lt;b&gt;%c4Name%&lt;/b&gt;&lt;/font&gt;&lt;div&gt;[%c4Type%]&lt;/div&gt;&lt;br style=&quot;font-size: 12px;&quot;&gt;&lt;div&gt;&lt;font style=&quot;font-size: 11px&quot;&gt;&lt;font color=&quot;#cccccc&quot;&gt;%c4Description%&lt;/font&gt;&lt;/font&gt;&lt;/div&gt;" id="scheduler">
                     <mxCell style="rounded=1;whiteSpace=wrap;html=1;labelBackgroundColor=none;fillColor=#1061B0;fontColor=#ffffff;align=center;arcSize=10;strokeColor=#0D5091;metaEdit=1;resizable=0;points=[[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0.25,0],[1,0.5,0],[1,0.75,0],[0.75,1,0],[0.5,1,0],[0.25,1,0],[0,0.75,0],[0,0.5,0],[0,0.25,0]];fontFamily=Helvetica;sketch=1;curveFitting=1;jiggle=2;fillStyle=solid;" parent="1" vertex="1">
                         <mxGeometry x="1140" y="350" width="250" height="120" as="geometry"/>
                     </mxCell>

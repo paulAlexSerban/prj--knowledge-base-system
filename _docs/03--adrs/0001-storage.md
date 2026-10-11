@@ -30,7 +30,7 @@ One relational database covers the parts that must be correct and filterable: pe
 ## Consequences
 
 - Two stores can diverge. Ingestion retries the pair; upserts are idempotent (spike 04).
-- Operators run Postgres and Neo4j in Compose. Schema lives under `database/`.
+- Operators run Postgres and Neo4j in Compose. Schema lives under `database/`. The API connects as `gateway_ro`. Ingestion connects as `ingestion_rw`. The table owner bypasses row-level security. The policy on `kbs.chunks` is a placeholder: any non-empty `kbs.principal` session setting can see every row. Replace it before demo data is loaded.
 - A later move of vectors to a dedicated engine is possible because chunk identity and ACL attributes stay in Postgres. That move is not free and is not scheduled.
 
 ## Production path

@@ -1,0 +1,74 @@
+x-harness: &harness
+  build:
+    context: ../..
+    dockerfile: demo-harness/Dockerfile
+
+services:
+  harness-hr:
+    <<: *harness
+    environment:
+      SERVICE: hr
+      PORT: "8080"
+      SQLITE_PATH: /data/harness.db
+    volumes: [hrdata:/data]
+    networks: [kbs-sources, kbs-obs]
+    ports: ["127.0.0.1:8101:8080"]
+    healthcheck: &health
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health')",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 20s
+
+  harness-sales:
+    <<: *harness
+    environment:
+      SERVICE: sales
+      PORT: "8080"
+      SQLITE_PATH: /data/harness.db
+    volumes: [salesdata:/data]
+    networks: [kbs-sources, kbs-obs]
+    ports: ["127.0.0.1:8102:8080"]
+    healthcheck: *health
+
+  harness-product:
+    <<: *harness
+    environment:
+      SERVICE: product
+      PORT: "8080"
+      SQLITE_PATH: /data/harness.db
+    volumes: [productdata:/data]
+    networks: [kbs-sources, kbs-obs]
+    ports: ["127.0.0.1:8103:8080"]
+    healthcheck: *health
+
+  harness-engineering:
+    <<: *harness
+    environment:
+      SERVICE: engineering
+      PORT: "8080"
+      SQLITE_PATH: /data/harness.db
+    volumes: [engineeringdata:/data]
+    networks: [kbs-sources, kbs-obs]
+    ports: ["127.0.0.1:8104:8080"]
+    healthcheck: *health
+
+networks:
+  kbs-sources:
+    external: true
+    name: kbs-sources
+  kbs-obs:
+    external: true
+    name: kbs-obs
+
+volumes:
+  hrdata:
+  salesdata:
+  productdata:
+  engineeringdata:
