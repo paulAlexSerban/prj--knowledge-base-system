@@ -12,20 +12,22 @@ import time
 from prometheus_client import Gauge, start_http_server
 
 from backend.apis.registry import load_registry
+from shared.logging import configure, log_event
 
 LOG = logging.getLogger("connector-worker")
 UP = Gauge("kbs_worker_up", "1 when the worker has loaded its contracts", ["worker"])
 
 
 def main() -> None:
-    logging.basicConfig(level=logging.INFO, format="%(name)s %(message)s")
+    configure("connector-worker", "ingestion")
     contracts = load_registry()
     for contract in contracts:
-        LOG.info(
-            "registered source=%s tier=%s capabilities=%s",
-            contract.source_id,
-            contract.freshness_tier.value,
-            ",".join(item.value for item in contract.capabilities),
+        log_event(
+            LOG,
+            "registered source",
+            source_id=contract.source_id,
+            freshness_tier=contract.freshness_tier.value,
+            capabilities=",".join(item.value for item in contract.capabilities),
         )
     port = int(os.environ.get("METRICS_PORT", "9100"))
     start_http_server(port)
@@ -34,7 +36,7 @@ def main() -> None:
     while True:
         for contract in contracts:
             if contract.freshness_tier.value == "P0":
-                LOG.info("p0 in-process poll source=%s stub=no-fetch", contract.source_id)
+                log_event(LOG, "p0 in-process poll", source_id=contract.source_id, stub="no-fetch")
         time.sleep(interval)
 
 

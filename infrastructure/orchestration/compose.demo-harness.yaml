@@ -10,6 +10,8 @@ services:
       SERVICE: hr
       PORT: "8080"
       SQLITE_PATH: /data/harness.db
+      FILES_DIR: /data/policies
+    command: ["python", "demo-harness/human-resources/main.py"]
     volumes: [hrdata:/data]
     networks: [kbs-sources, kbs-obs]
     ports: ["127.0.0.1:8101:8080"]

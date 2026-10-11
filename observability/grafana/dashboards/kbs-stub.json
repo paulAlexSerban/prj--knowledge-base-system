@@ -20,6 +20,39 @@
       "targets": [{"expr": "kbs_worker_up", "refId": "A"}],
       "title": "Workers up",
       "type": "stat"
+    },
+    {
+      "datasource": {"type": "loki", "uid": "loki"},
+      "gridPos": {"h": 10, "w": 24, "x": 0, "y": 8},
+      "id": 3,
+      "options": {
+        "dedupStrategy": "none",
+        "enableLogDetails": true,
+        "prettifyLogMessage": false,
+        "showCommonLabels": false,
+        "showLabels": true,
+        "showTime": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": true
+      },
+      "targets": [
+        {
+          "datasource": {"type": "loki", "uid": "loki"},
+          "editorMode": "code",
+          "expr": "{service=~\".+\"} | json | level=\"error\"",
+          "queryType": "range",
+          "refId": "A"
+        },
+        {
+          "datasource": {"type": "loki", "uid": "loki"},
+          "editorMode": "code",
+          "expr": "{service=~\".+\"} | json | decision=\"deny\"",
+          "queryType": "range",
+          "refId": "B"
+        }
+      ],
+      "title": "Errors and audit denies",
+      "type": "logs"
     }
   ],
   "schemaVersion": 39,
@@ -29,5 +62,5 @@
   "timezone": "browser",
   "title": "KBS stub",
   "uid": "kbs-stub",
-  "version": 1
+  "version": 2
 }

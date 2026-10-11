@@ -4,11 +4,16 @@ DNS rebinding protection is off so Prometheus and local clients can call the
 port. Turn it on before this process is reachable beyond the demo machine.
 """
 
+import logging
+
 from prometheus_client import generate_latest
 from starlette.requests import Request
 from starlette.responses import Response
 
 from backend.apis.registry import load_registry, source_payloads
+from shared.logging import configure, log_event
+
+LOG = logging.getLogger("gateway-mcp")
 
 try:
     from mcp.server.mcpserver import MCPServer
@@ -40,6 +45,8 @@ def build_server() -> MCPServer:
 
 
 def main() -> None:
+    configure("gateway-mcp", "access")
+    log_event(LOG, "mcp server started")
     server = build_server()
     server.run(
         transport="streamable-http",

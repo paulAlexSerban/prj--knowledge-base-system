@@ -1,6 +1,12 @@
 services:
   prometheus:
     image: prom/prometheus:v2.55.1
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.console.libraries=/usr/share/prometheus/console_libraries
+      - --web.console.templates=/usr/share/prometheus/consoles
+      - --web.enable-remote-write-receiver
     volumes:
       - ../../observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
     networks: [kbs-obs]
@@ -12,6 +18,56 @@ services:
       timeout: 3s
       retries: 10
       start_period: 10s
+
+  loki:
+    image: grafana/loki:3.7.1
+    command: ["-config.file=/etc/loki/loki.yaml"]
+    volumes:
+      - ../../observability/loki/loki.yaml:/etc/loki/loki.yaml:ro
+      - loki-data:/loki
+    networks: [kbs-obs]
+    # No host port. Grafana is the way to read logs.
+    healthcheck:
+      test: ["CMD", "/usr/bin/loki", "-health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 20s
+
+  alloy:
+    image: grafana/alloy:v1.20.1
+    # Root is required to read the Docker socket. The image has no wget;
+    # the ready check is a short HTTP read from bash.
+    user: "0:0"
+    command:
+      - run
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --storage.path=/var/lib/alloy/data
+      - /etc/alloy/config.alloy
+    volumes:
+      - ../../observability/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      # Trust-boundary exception. Read-only Docker socket so Alloy can tail
+      # stdout from containers that are not on kbs-obs. Alloy joins kbs-obs
+      # only. See ADR 0002.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks: [kbs-obs]
+    depends_on:
+      prometheus:
+        condition: service_healthy
+      loki:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "bash",
+          "-c",
+          'exec 3<>/dev/tcp/127.0.0.1/12345 && printf "GET /-/ready HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n" >&3 && grep -q "200 OK" <&3',
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 15s
 
   grafana:
     image: grafana/grafana:11.3.1
@@ -28,8 +84,13 @@ services:
     depends_on:
       prometheus:
         condition: service_healthy
+      loki:
+        condition: service_healthy
 
 networks:
   kbs-obs:
     external: true
     name: kbs-obs
+
+volumes:
+  loki-data:

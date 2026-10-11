@@ -13,6 +13,7 @@ from botocore.exceptions import BotoCoreError, ClientError
 from prometheus_client import Gauge, start_http_server
 
 from backend.messaging.events import P0_QUEUE, P1_QUEUE, P2_QUEUE
+from shared.logging import configure, log_event
 
 LOG = logging.getLogger("ingestion-worker")
 UP = Gauge("kbs_worker_up", "1 when the worker process is up", ["worker"])
@@ -29,13 +30,13 @@ def queues_reachable() -> bool:
         for name in (P0_QUEUE, P1_QUEUE, P2_QUEUE):
             client.get_queue_url(QueueName=name)
     except (BotoCoreError, ClientError, OSError) as exc:
-        LOG.warning("queues not reachable yet: %s", exc)
+        log_event(LOG, "queues not reachable yet", level=logging.WARNING, error=str(exc))
         return False
     return True
 
 
 def main() -> None:
-    logging.basicConfig(level=logging.INFO, format="%(name)s %(message)s")
+    configure("ingestion-worker", "ingestion")
     port = int(os.environ.get("METRICS_PORT", "9101"))
     start_http_server(port)
     UP.labels(worker="ingestion").set(1)

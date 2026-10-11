@@ -1,85 +1,95 @@
 <mxfile host="65bd71144e">
     <diagram id="_aHWSjgB6HReLC4uPQ_D" name="Page-1">
-        <mxGraphModel dx="2104" dy="921" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1300" pageHeight="819" math="0" shadow="0">
+        <mxGraphModel dx="1555" dy="1173" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1639" pageHeight="819" math="0" shadow="0">
             <root>
                 <mxCell id="0"/>
                 <mxCell id="1" parent="0"/>
-                <mxCell id="25" value="" style="rounded=0;whiteSpace=wrap;html=1;labelBackgroundColor=#000000;sketch=1;fillStyle=solid;strokeWidth=2;fontFamily=Helvetica;fontSize=12;fontColor=#FFFFFF;fillColor=#000000;strokeColor=none;" vertex="1" parent="1">
-                    <mxGeometry x="40" y="120" width="1240" height="640" as="geometry"/>
+                <mxCell id="25" value="" style="rounded=0;whiteSpace=wrap;html=1;labelBackgroundColor=#000000;sketch=1;fillStyle=solid;strokeWidth=2;fontFamily=Helvetica;fontSize=12;fontColor=#FFFFFF;fillColor=#000000;strokeColor=none;" parent="1" vertex="1">
+                    <mxGeometry x="30" y="30" width="1260" height="700" as="geometry"/>
                 </mxCell>
-                <mxCell id="3" style="edgeStyle=none;html=1;startArrow=classic;startFill=1;strokeWidth=2;strokeColor=#FFFFFF;sketch=1;curveFitting=1;jiggle=2;entryX=0;entryY=0.5;entryDx=0;entryDy=0;entryPerimeter=0;fontFamily=Helvetica;" edge="1" parent="1" source="5" target="17">
+                <mxCell id="3" style="edgeStyle=none;html=1;startArrow=classic;startFill=1;strokeWidth=2;strokeColor=#FFFFFF;sketch=1;curveFitting=1;jiggle=2;entryX=0;entryY=0.5;entryDx=0;entryDy=0;entryPerimeter=0;fontFamily=Helvetica;" parent="1" source="5" target="17" edge="1">
                     <mxGeometry relative="1" as="geometry">
                         <mxPoint x="560" y="340" as="targetPoint"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="4" value="queries via&lt;br style=&quot;font-size: 12px;&quot;&gt;MCP ot REST" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];labelBackgroundColor=#000000;fontColor=#FFFFFF;fontFamily=Helvetica;fontSize=12;" vertex="1" connectable="0" parent="3">
+                <mxCell id="4" value="queries via&lt;br style=&quot;font-size: 12px;&quot;&gt;MCP ot REST" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];labelBackgroundColor=#000000;fontColor=#FFFFFF;fontFamily=Helvetica;fontSize=12;" parent="3" vertex="1" connectable="0">
                     <mxGeometry x="-0.0072" relative="1" as="geometry">
                         <mxPoint as="offset"/>
                     </mxGeometry>
                 </mxCell>
                 <object placeholders="1" c4Name="AI Agents" c4Type="External System" c4Description="HR Chatbot Assistent&#10;Roadmap Agent" label="&lt;font style=&quot;font-size: 16px&quot;&gt;&lt;b&gt;%c4Name%&lt;/b&gt;&lt;/font&gt;&lt;div&gt;[%c4Type%]&lt;/div&gt;&lt;br&gt;&lt;div&gt;&lt;font style=&quot;font-size: 11px&quot;&gt;&lt;font&gt;%c4Description%&lt;/font&gt;&lt;/font&gt;&lt;/div&gt;" id="5">
-                    <mxCell style="rounded=1;whiteSpace=wrap;html=1;labelBackgroundColor=none;fillColor=#f5f5f5;align=center;arcSize=10;strokeColor=#666666;metaEdit=1;resizable=0;points=[[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0.25,0],[1,0.5,0],[1,0.75,0],[0.75,1,0],[0.5,1,0],[0.25,1,0],[0,0.75,0],[0,0.5,0],[0,0.25,0]];sketch=1;curveFitting=1;jiggle=2;strokeWidth=1;fillStyle=solid;fontColor=#333333;fontFamily=Helvetica;" vertex="1" parent="1">
+                    <mxCell style="rounded=1;whiteSpace=wrap;html=1;labelBackgroundColor=none;fillColor=#f5f5f5;align=center;arcSize=10;strokeColor=#666666;metaEdit=1;resizable=0;points=[[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0.25,0],[1,0.5,0],[1,0.75,0],[0.75,1,0],[0.5,1,0],[0.25,1,0],[0,0.75,0],[0,0.5,0],[0,0.25,0]];sketch=1;curveFitting=1;jiggle=2;strokeWidth=1;fillStyle=solid;fontColor=#333333;fontFamily=Helvetica;" parent="1" vertex="1">
                         <mxGeometry x="80" y="280" width="240" height="120" as="geometry"/>
                     </mxCell>
                 </object>
-                <mxCell id="6" style="edgeStyle=none;html=1;startArrow=classic;startFill=1;strokeWidth=2;strokeColor=#FFFFFF;sketch=1;curveFitting=1;jiggle=2;entryX=1;entryY=0.5;entryDx=0;entryDy=0;entryPerimeter=0;exitX=0;exitY=0.5;exitDx=0;exitDy=0;exitPerimeter=0;fontFamily=Helvetica;" edge="1" parent="1" source="18" target="9">
+                <mxCell id="6" style="edgeStyle=none;html=1;startArrow=classic;startFill=1;strokeWidth=2;strokeColor=#FFFFFF;sketch=1;curveFitting=1;jiggle=2;entryX=1;entryY=0.5;entryDx=0;entryDy=0;entryPerimeter=0;exitX=0;exitY=0.5;exitDx=0;exitDy=0;exitPerimeter=0;fontFamily=Helvetica;" parent="1" source="18" target="9" edge="1">
                     <mxGeometry relative="1" as="geometry">
                         <mxPoint x="560" y="580" as="sourcePoint"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="7" value="reads content, &lt;br style=&quot;font-size: 12px;&quot;&gt;changes and ACLs" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];labelBackgroundColor=#000000;fontColor=#FFFFFF;fontFamily=Helvetica;fontSize=12;" vertex="1" connectable="0" parent="6">
+                <mxCell id="7" value="reads content, &lt;br style=&quot;font-size: 12px;&quot;&gt;changes and ACLs" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];labelBackgroundColor=#000000;fontColor=#FFFFFF;fontFamily=Helvetica;fontSize=12;" parent="6" vertex="1" connectable="0">
                     <mxGeometry x="0.0088" relative="1" as="geometry">
                         <mxPoint as="offset"/>
                     </mxGeometry>
                 </mxCell>
                 <object placeholders="1" c4Name="Source Systems" c4Type="External System" c4Description="HR (wiki, policies)&#10;Sales (CRM)&#10;Jira, Confluence, SharePoint, Drive" label="&lt;font style=&quot;font-size: 16px&quot;&gt;&lt;b&gt;%c4Name%&lt;/b&gt;&lt;/font&gt;&lt;div&gt;[%c4Type%]&lt;/div&gt;&lt;br&gt;&lt;div&gt;&lt;font style=&quot;font-size: 11px&quot;&gt;&lt;font&gt;%c4Description%&lt;/font&gt;&lt;/font&gt;&lt;/div&gt;" id="9">
-                    <mxCell style="rounded=1;whiteSpace=wrap;html=1;labelBackgroundColor=none;fillColor=#f5f5f5;align=center;arcSize=10;strokeColor=#666666;metaEdit=1;resizable=0;points=[[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0.25,0],[1,0.5,0],[1,0.75,0],[0.75,1,0],[0.5,1,0],[0.25,1,0],[0,0.75,0],[0,0.5,0],[0,0.25,0]];sketch=1;curveFitting=1;jiggle=2;strokeWidth=1;fillStyle=solid;fontColor=#333333;fontFamily=Helvetica;" vertex="1" parent="1">
+                    <mxCell style="rounded=1;whiteSpace=wrap;html=1;labelBackgroundColor=none;fillColor=#f5f5f5;align=center;arcSize=10;strokeColor=#666666;metaEdit=1;resizable=0;points=[[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0.25,0],[1,0.5,0],[1,0.75,0],[0.75,1,0],[0.5,1,0],[0.25,1,0],[0,0.75,0],[0,0.5,0],[0,0.25,0]];sketch=1;curveFitting=1;jiggle=2;strokeWidth=1;fillStyle=solid;fontColor=#333333;fontFamily=Helvetica;" parent="1" vertex="1">
                         <mxGeometry x="80" y="520" width="240" height="120" as="geometry"/>
                     </mxCell>
                 </object>
-                <mxCell id="11" value="Container Diagram diagram for Knowledge Base System POC" style="text;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;fontStyle=1;fontSize=18;fontFamily=Comic Sans MS;fontColor=#FFFFFF;" vertex="1" parent="1">
-                    <mxGeometry x="390" y="135" width="500" height="40" as="geometry"/>
+                <mxCell id="11" value="Container Diagram diagram for Knowledge Base System POC" style="text;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;fontStyle=1;fontSize=18;fontFamily=Comic Sans MS;fontColor=#FFFFFF;" parent="1" vertex="1">
+                    <mxGeometry x="450" y="50" width="500" height="40" as="geometry"/>
                 </mxCell>
-                <mxCell id="15" style="edgeStyle=orthogonalEdgeStyle;html=1;entryX=0;entryY=0.25;entryDx=0;entryDy=0;entryPerimeter=0;strokeWidth=2;sketch=1;curveFitting=1;jiggle=2;exitX=1;exitY=0.5;exitDx=0;exitDy=0;exitPerimeter=0;fontFamily=Helvetica;fontColor=#FFFFFF;strokeColor=#FFFFFF;" edge="1" parent="1" source="17" target="20">
+                <mxCell id="15" style="edgeStyle=orthogonalEdgeStyle;html=1;entryX=0;entryY=0.25;entryDx=0;entryDy=0;entryPerimeter=0;strokeWidth=2;sketch=1;curveFitting=1;jiggle=2;exitX=1;exitY=0.5;exitDx=0;exitDy=0;exitPerimeter=0;fontFamily=Helvetica;fontColor=#FFFFFF;strokeColor=#FFFFFF;" parent="1" source="17" target="20" edge="1">
                     <mxGeometry relative="1" as="geometry">
                         <mxPoint x="800" y="374.28571428571433" as="sourcePoint"/>
                         <mxPoint x="960" y="420" as="targetPoint"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="23" value="reads ACLs and&lt;br style=&quot;font-size: 12px;&quot;&gt;retrives knowledge" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontFamily=Helvetica;fontSize=12;labelBackgroundColor=#000000;fontColor=#FFFFFF;" vertex="1" connectable="0" parent="15">
+                <mxCell id="23" value="reads ACLs and&lt;br style=&quot;font-size: 12px;&quot;&gt;retrives knowledge" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontFamily=Helvetica;fontSize=12;labelBackgroundColor=#000000;fontColor=#FFFFFF;" parent="15" vertex="1" connectable="0">
                     <mxGeometry x="-0.16" y="-1" relative="1" as="geometry">
                         <mxPoint y="25" as="offset"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="16" style="edgeStyle=orthogonalEdgeStyle;html=1;entryX=0;entryY=0.75;entryDx=0;entryDy=0;entryPerimeter=0;strokeWidth=2;sketch=1;curveFitting=1;jiggle=2;exitX=1;exitY=0.5;exitDx=0;exitDy=0;exitPerimeter=0;fontFamily=Helvetica;fontColor=#FFFFFF;strokeColor=#FFFFFF;" edge="1" parent="1" source="18" target="20">
+                <mxCell id="16" style="edgeStyle=orthogonalEdgeStyle;html=1;entryX=0;entryY=0.75;entryDx=0;entryDy=0;entryPerimeter=0;strokeWidth=2;sketch=1;curveFitting=1;jiggle=2;exitX=1;exitY=0.5;exitDx=0;exitDy=0;exitPerimeter=0;fontFamily=Helvetica;fontColor=#FFFFFF;strokeColor=#FFFFFF;" parent="1" source="18" target="20" edge="1">
                     <mxGeometry relative="1" as="geometry">
                         <mxPoint x="800" y="537.1428571428571" as="sourcePoint"/>
                         <mxPoint x="960" y="480" as="targetPoint"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="22" value="populate and maintain&lt;br style=&quot;font-size: 12px;&quot;&gt;knowledge&amp;nbsp;" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontFamily=Helvetica;fontSize=12;labelBackgroundColor=#000000;fontColor=#FFFFFF;" vertex="1" connectable="0" parent="16">
+                <mxCell id="22" value="populate and maintain&lt;br style=&quot;font-size: 12px;&quot;&gt;knowledge&amp;nbsp;" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontFamily=Helvetica;fontSize=12;labelBackgroundColor=#000000;fontColor=#FFFFFF;" parent="16" vertex="1" connectable="0">
                     <mxGeometry x="-0.3163" y="1" relative="1" as="geometry">
                         <mxPoint x="1" y="-45" as="offset"/>
                     </mxGeometry>
                 </mxCell>
                 <object placeholders="1" c4Name="Knowledge Gateway" c4Type="Access Layer" c4Description="Expose knwoledge to AI Agents and enforece ACLs." label="&lt;font style=&quot;font-size: 16px&quot;&gt;&lt;b&gt;%c4Name%&lt;/b&gt;&lt;/font&gt;&lt;div&gt;[%c4Type%]&lt;/div&gt;&lt;br&gt;&lt;div&gt;&lt;font style=&quot;font-size: 11px&quot;&gt;&lt;font color=&quot;#cccccc&quot;&gt;%c4Description%&lt;/font&gt;&lt;/font&gt;&lt;/div&gt;" id="17">
-                    <mxCell style="rounded=1;whiteSpace=wrap;html=1;labelBackgroundColor=none;fillColor=#1061B0;fontColor=#ffffff;align=center;arcSize=10;strokeColor=#0D5091;metaEdit=1;resizable=0;points=[[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0.25,0],[1,0.5,0],[1,0.75,0],[0.75,1,0],[0.5,1,0],[0.25,1,0],[0,0.75,0],[0,0.5,0],[0,0.25,0]];fontFamily=Helvetica;sketch=1;curveFitting=1;jiggle=2;fillStyle=solid;" vertex="1" parent="1">
+                    <mxCell style="rounded=1;whiteSpace=wrap;html=1;labelBackgroundColor=none;fillColor=#1061B0;fontColor=#ffffff;align=center;arcSize=10;strokeColor=#0D5091;metaEdit=1;resizable=0;points=[[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0.25,0],[1,0.5,0],[1,0.75,0],[0.75,1,0],[0.5,1,0],[0.25,1,0],[0,0.75,0],[0,0.5,0],[0,0.25,0]];fontFamily=Helvetica;sketch=1;curveFitting=1;jiggle=2;fillStyle=solid;" parent="1" vertex="1">
                         <mxGeometry x="560" y="280" width="240" height="120" as="geometry"/>
                     </mxCell>
                 </object>
                 <object placeholders="1" c4Name="Ingestion Pipeline" c4Type="Knowledge Processor" c4Description="Provides connectors, handles priorities, build embeds and populates storage" label="&lt;font style=&quot;font-size: 16px&quot;&gt;&lt;b&gt;%c4Name%&lt;/b&gt;&lt;/font&gt;&lt;div&gt;[%c4Type%]&lt;/div&gt;&lt;br&gt;&lt;div&gt;&lt;font style=&quot;font-size: 11px&quot;&gt;&lt;font color=&quot;#cccccc&quot;&gt;%c4Description%&lt;/font&gt;&lt;/font&gt;&lt;/div&gt;" id="18">
-                    <mxCell style="rounded=1;whiteSpace=wrap;html=1;labelBackgroundColor=none;fillColor=#1061B0;fontColor=#ffffff;align=center;arcSize=10;strokeColor=#0D5091;metaEdit=1;resizable=0;points=[[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0.25,0],[1,0.5,0],[1,0.75,0],[0.75,1,0],[0.5,1,0],[0.25,1,0],[0,0.75,0],[0,0.5,0],[0,0.25,0]];fontFamily=Helvetica;sketch=1;curveFitting=1;jiggle=2;fillStyle=solid;" vertex="1" parent="1">
+                    <mxCell style="rounded=1;whiteSpace=wrap;html=1;labelBackgroundColor=none;fillColor=#1061B0;fontColor=#ffffff;align=center;arcSize=10;strokeColor=#0D5091;metaEdit=1;resizable=0;points=[[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0.25,0],[1,0.5,0],[1,0.75,0],[0.75,1,0],[0.5,1,0],[0.25,1,0],[0,0.75,0],[0,0.5,0],[0,0.25,0]];fontFamily=Helvetica;sketch=1;curveFitting=1;jiggle=2;fillStyle=solid;" parent="1" vertex="1">
                         <mxGeometry x="560" y="520" width="240" height="120" as="geometry"/>
                     </mxCell>
                 </object>
                 <object placeholders="1" c4Name="Knowledge Store" c4Type="Storage Layer" c4Description="Stores knowledge, ACL policies and metadata." label="&lt;font style=&quot;font-size: 16px&quot;&gt;&lt;b&gt;%c4Name%&lt;/b&gt;&lt;/font&gt;&lt;div&gt;[%c4Type%]&lt;/div&gt;&lt;br&gt;&lt;div&gt;&lt;font style=&quot;font-size: 11px&quot;&gt;&lt;font color=&quot;#cccccc&quot;&gt;%c4Description%&lt;/font&gt;&lt;/font&gt;&lt;/div&gt;" id="20">
-                    <mxCell style="rounded=1;whiteSpace=wrap;html=1;labelBackgroundColor=none;fillColor=#1061B0;fontColor=#ffffff;align=center;arcSize=10;strokeColor=#0D5091;metaEdit=1;resizable=0;points=[[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0.25,0],[1,0.5,0],[1,0.75,0],[0.75,1,0],[0.5,1,0],[0.25,1,0],[0,0.75,0],[0,0.5,0],[0,0.25,0]];fontFamily=Helvetica;sketch=1;curveFitting=1;jiggle=2;fillStyle=solid;" vertex="1" parent="1">
+                    <mxCell style="rounded=1;whiteSpace=wrap;html=1;labelBackgroundColor=none;fillColor=#1061B0;fontColor=#ffffff;align=center;arcSize=10;strokeColor=#0D5091;metaEdit=1;resizable=0;points=[[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0.25,0],[1,0.5,0],[1,0.75,0],[0.75,1,0],[0.5,1,0],[0.25,1,0],[0,0.75,0],[0,0.5,0],[0,0.25,0]];fontFamily=Helvetica;sketch=1;curveFitting=1;jiggle=2;fillStyle=solid;" parent="1" vertex="1">
                         <mxGeometry x="960" y="400" width="240" height="120" as="geometry"/>
                     </mxCell>
                 </object>
+                <mxCell id="26" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeWidth=2;sketch=1;curveFitting=1;jiggle=2;strokeColor=#FFFFFF;" edge="1" parent="1" source="obs">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="700" y="240" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <object placeholders="1" c4Name="Observability" c4Type="Operations" c4Description="Alloy collects metrics and logs. Loki stores logs. Prometheus and Grafana." label="&lt;font style=&quot;font-size: 16px&quot;&gt;&lt;b&gt;%c4Name%&lt;/b&gt;&lt;/font&gt;&lt;div&gt;[%c4Type%]&lt;/div&gt;&lt;br&gt;&lt;div&gt;&lt;font style=&quot;font-size: 11px&quot;&gt;&lt;font color=&quot;#cccccc&quot;&gt;%c4Description%&lt;/font&gt;&lt;/font&gt;&lt;/div&gt;" id="obs">
+                    <mxCell style="rounded=1;whiteSpace=wrap;html=1;labelBackgroundColor=none;fillColor=#1061B0;fontColor=#ffffff;align=center;arcSize=10;strokeColor=#0D5091;metaEdit=1;resizable=0;points=[[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0.25,0],[1,0.5,0],[1,0.75,0],[0.75,1,0],[0.5,1,0],[0.25,1,0],[0,0.75,0],[0,0.5,0],[0,0.25,0]];fontFamily=Helvetica;sketch=1;curveFitting=1;jiggle=2;fillStyle=solid;" parent="1" vertex="1">
+                        <mxGeometry x="80" y="90" width="240" height="120" as="geometry"/>
+                    </mxCell>
+                </object>
                 <object placeholders="1" c4Name="Knwoledge Base System" c4Type="ContainerScopeBoundary" c4Application="High Level Shape" label="&lt;font style=&quot;font-size: 16px&quot;&gt;&lt;b&gt;&lt;div style=&quot;text-align: left&quot;&gt;%c4Name%&lt;/div&gt;&lt;/b&gt;&lt;/font&gt;&lt;div style=&quot;text-align: left&quot;&gt;[%c4Application%]&lt;/div&gt;" id="24">
-                    <mxCell style="rounded=1;fontSize=11;whiteSpace=wrap;html=1;dashed=1;arcSize=20;fillColor=none;strokeColor=#666666;fontColor=#FFFFFF;labelBackgroundColor=none;align=left;verticalAlign=bottom;labelBorderColor=none;spacingTop=0;spacing=10;dashPattern=8 4;metaEdit=1;rotatable=0;perimeter=rectanglePerimeter;labelPadding=0;allowArrows=0;connectable=0;expand=0;recursiveResize=0;editable=1;pointerEvents=0;absoluteArcSize=1;points=[[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0.25,0],[1,0.5,0],[1,0.75,0],[0.75,1,0],[0.5,1,0],[0.25,1,0],[0,0.75,0],[0,0.5,0],[0,0.25,0]];fontFamily=Helvetica;strokeWidth=2;sketch=1;curveFitting=1;jiggle=2;" vertex="1" parent="1">
-                        <mxGeometry x="520" y="240" width="720" height="480" as="geometry"/>
+                    <mxCell style="rounded=1;fontSize=11;whiteSpace=wrap;html=1;dashed=1;arcSize=20;fillColor=none;strokeColor=#666666;fontColor=#FFFFFF;labelBackgroundColor=none;align=left;verticalAlign=bottom;labelBorderColor=none;spacingTop=0;spacing=10;dashPattern=8 4;metaEdit=1;rotatable=0;perimeter=rectanglePerimeter;labelPadding=0;allowArrows=0;connectable=0;expand=0;recursiveResize=0;editable=1;pointerEvents=0;absoluteArcSize=1;points=[[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0.25,0],[1,0.5,0],[1,0.75,0],[0.75,1,0],[0.5,1,0],[0.25,1,0],[0,0.75,0],[0,0.5,0],[0,0.25,0]];fontFamily=Helvetica;strokeWidth=2;sketch=1;curveFitting=1;jiggle=2;" parent="1" vertex="1">
+                        <mxGeometry x="520" y="240" width="730" height="450" as="geometry"/>
                     </mxCell>
                 </object>
             </root>
