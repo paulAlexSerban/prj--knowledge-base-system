@@ -58,7 +58,7 @@ The Pydantic model in [shared/src/shared/contracts/source_contract.py](../../sha
 | `in_scope_fields` | Required, and must not include `salary`, `compensation`, `ssn`, or `national_id`. |
 | `excluded_fields` | Disjoint from `in_scope_fields`. |
 
-Chunking is format-aware and registered per source type (markdown by heading, PDF by section, records as one chunk per row plus a short textual rendering). A single fixed-size splitter is not used. Chunks carry source, section path, version, timestamp, ACL attributes, `embedding_model`, and `chunker_version`. See [ADR 0003](../03--adrs/0003-embedding-and-chunk-versioning.md).
+Chunking is format-aware and registered per source type (markdown by heading, PDF as extracted paragraphs, records as one chunk per row plus a short textual rendering). The HR PDF renderer drops heading marks, so sections are not recovered from those files. A single fixed-size splitter is not used. Chunks carry source, section path, version, timestamp, ACL attributes, `embedding_model`, and `chunker_version`. See [ADR 0003](../03--adrs/0003-embedding-and-chunk-versioning.md).
 
 Ingestion health is a first-class metric: sync recency per source, failed syncs, and document drift (source count versus indexed count). Stale data fails silently otherwise. See [ADR 0002](../03--adrs/0002-observability.md).
 
@@ -94,4 +94,4 @@ Ingestion health is a first-class metric: sync recency per source, failed syncs,
 
 ## Open TODOs
 
-- HR connector is built as its own process, `connector-hr`. It calls `load_registry` at startup and implements `discover`, `list_changes`, `fetch`, and `get_acl`. It writes raw snapshots to S3 and sync state to Postgres. `normalize`, the queue message, and the Sales, Product, and Engineering connectors are not built.
+- HR connector is built as its own process, `connector-hr`. It calls `load_registry` at startup and implements `discover`, `list_changes`, `fetch`, and `get_acl`. It writes raw snapshots to S3, enqueues the change event, and records sync state in Postgres. There is no separate `normalize` step: the snapshot is the raw body plus metadata, and the ingestion worker chunks it. The Sales, Product, and Engineering connectors are not built.

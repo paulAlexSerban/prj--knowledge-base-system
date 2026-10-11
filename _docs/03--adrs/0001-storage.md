@@ -12,7 +12,11 @@ The gateway needs a system of record for document lineage, ACL attributes, and s
 - Neo4j holds the knowledge graph (Person, Team, Account, Deal, Epic, Spec, Policy, and the four edge types in spike 02).
 - S3 on floci holds raw snapshots and document blobs. Postgres stores the pointer. The HR connector writes one key per object, `raw/<source_id>/<object_type>/<object_id>.<ext>`, and overwrites it on change. Bucket versioning keeps the previous bytes. A delete removes every version. Object metadata carries `kbs-version`, `kbs-content-hash`, `kbs-native-acl`, `kbs-source-updated-at`, and `kbs-snapshot-at`. `kbs.sync_state` holds the watermark. `kbs.source_objects` holds the hash, version, ACL, and S3 key. The connector connects as `ingestion_rw` with `search_path=kbs`. floci accepted bucket versioning and the public access block. Terraform runs on the host and keeps a local state file next to the configuration. A second apply is a no-op while floci still has the queues and the bucket. floci is in memory, so a restart drops those resources while the state file still lists them. Delete the state file, or run `make tf-destroy` before the restart, then apply again.
 
-The document row in Postgres is authoritative for prose. The graph is a derived index and is written in the same ingestion unit of work.
+Full-text search is a generated `tsvector` with a GIN index. Embeddings are `vector(384)` with an HNSW index using cosine distance. `acl_groups` has a GIN index. `(source_id, object_id)` has a btree index.
+
+The document row in Postgres is authoritative for prose. The graph is a derived index. The worker commits Postgres, then writes Neo4j. A failed graph write leaves the message unacknowledged.
+
+Neo4j is reached as the single `neo4j` user. That is a POC shortcut. The graph is not filtered per principal.
 
 ## Why
 
@@ -29,8 +33,8 @@ One relational database covers the parts that must be correct and filterable: pe
 
 ## Consequences
 
-- Two stores can diverge. Ingestion retries the pair; upserts are idempotent (spike 04).
-- Operators run Postgres and Neo4j in Compose. Schema lives under `database/`. The API connects as `gateway_ro`. Ingestion connects as `ingestion_rw`. The table owner bypasses row-level security. The policy on `kbs.chunks` is a placeholder: any non-empty `kbs.principal` session setting can see every row. Replace it before demo data is loaded.
+- Two stores can diverge until a retry finishes. Postgres is committed first. Upserts are idempotent (spike 04). A matching content hash still writes the graph, so the retry completes the node.
+- Operators run Postgres and Neo4j in Compose. Schema lives under `database/`. `postgres-migrate` applies `001-sync-state.sql` and `002-knowledge-store.sql` on every start. The API connects as `gateway_ro`. Ingestion connects as `ingestion_rw`. The table owner bypasses row-level security. `chunks_read_by_acl` lets `gateway_ro` read a row only when `kbs.groups`, `kbs.clearance`, and `kbs.department` are set and match the coarse ACL columns. `chunks_ingestion_all` lets `ingestion_rw` read and write every row. `kbs.audit_log` is append-only.
 - A later move of vectors to a dedicated engine is possible because chunk identity and ACL attributes stay in Postgres. That move is not free and is not scheduled.
 
 ## Production path

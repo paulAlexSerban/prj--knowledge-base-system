@@ -71,7 +71,7 @@ Sanity check on volume. 100,000 events per day is about 1.2 events per second on
 | Corpus | A few hundred documents and records, enough to show citations, permission boundaries, and a multi-hop graph question. |
 | Freshness | The same three tiers exist as queue priority and a measured sync-lag metric. The 30-second and 5-minute targets are demonstrated on the local stack. They are not load-tested. |
 | Identity | A mock identity provider issues signed JWTs with department, clearance, and region claims. |
-| Language models | OpenRouter via `OPENROUTER_API_KEY` and model names in config. Offline runs use a local embedder and a deterministic stub extractor. |
+| Language models | OpenRouter via `OPENROUTER_API_KEY` for chat, when a key is set. The running embedder is local `hash-v1` (deterministic, not semantic). A semantic local model is optional and not locked. The constrained extractor is not built. |
 | Infrastructure | Docker Compose plus [floci](https://floci.io) for AWS emulation (SQS, S3, EventBridge Scheduler). Terraform talks to floci endpoint overrides. |
 
 ## Questioned requirements
@@ -101,7 +101,7 @@ These are places where the stated requirements need a narrower reading before im
 - One service layer exposed twice: a REST API and an MCP server (`search_knowledge`, `get_document`, `find_related`, `list_sources`).
 - User-delegated authorization: JWT claims, coarse pre-filter in SQL and Cypher, fine-grained post-check, Postgres row-level security, and an audit record of which attributes justified a result.
 - Delete propagation, content-hash skip, idempotent upserts, and a reconciliation sweep.
-- A demo harness: FastAPI services with SQLite and files for HR, Sales, Product, and Engineering, plus a mutation script. HR stores rows with SQLAlchemy and can bulk-load Faker people or policies through `POST /admin/seed`. The HR connector polls that API and writes raw snapshots to S3. The other three sources are still empty stubs.
+- A demo harness: FastAPI services with SQLite and files for HR, Sales, Product, and Engineering, plus a mutation script. HR stores rows with SQLAlchemy and can bulk-load Faker people or policies through `POST /admin/seed`. The HR connector polls that API, writes raw snapshots to S3, and enqueues change events. The other three sources are still empty stubs.
 - Docker Compose, floci, and Terraform for the FIFO queues, dead-letter queues, and snapshot bucket. Alloy collects metrics and container logs. Prometheus stores metrics, Loki stores logs, and Grafana shows both. Traces are deferred. The API key stays in the environment.
 - A golden evaluation set of about 20 questions, including questions with no answer, conflicting sources, and access-boundary cases.
 
@@ -120,7 +120,7 @@ Finance and other departments beyond the four. Real OAuth against Google, Notion
 | Object storage | S3 on floci for raw snapshots and document blobs. |
 | Scheduling | P0 poll loop inside the connector worker. EventBridge Scheduler, one-minute minimum, for P1/P2 polls and reconciliation. |
 | Workers | Connector workers (extract, detect change, emit). Ingestion workers (normalize, chunk, embed, upsert vectors and graph, tombstone deletes). |
-| Models | OpenRouter for chat and, when configured, embeddings. Local fallback embedder (fastembed or sentence-transformers) and a deterministic stub extractor for offline runs. |
+| Models | OpenRouter for chat when a key is set. The running embedder is local `hash-v1`. `fastembed` is optional and not locked. The constrained extractor is not built. |
 | Identity | Mock IdP issuing signed JWTs with department, clearance, and region claims. |
 | Infra | Docker Compose. Terraform with floci endpoint overrides for queues and the snapshot bucket. |
 | Observability | Prometheus, Alloy, Loki, and Grafana. Traces are deferred. |
@@ -137,15 +137,15 @@ The demo is the acceptance test. Each step is observable in the API response, th
 1. Ask the Germany parental-leave question as an employee who is allowed to read HR policies. The answer cites the policy chunk, source version, and last sync time.
 2. Ask the same question as a user whose claims do not include that policy. The result set is empty. The audit log records the deny as a JSON line (`decision` of `deny`, `request_id` in the line, not in a Loki label). Grafana opens that line from the dashboard. The empty-result rate for that permission group moves.
 3. Ask which high-ARR Q3 deals depend on unreleased engineering epics. The answer lists deals and epics and returns the path (deal, account or spec, epic, team).
-4. Edit a policy and delete a deal in the demo harness. Within the source's freshness tier, the edited chunk is re-embedded (content hash changed) and the deleted deal disappears from Postgres and Neo4j. Sync lag for that source is visible.
-5. Stop an ingestion worker mid-batch, then start it again. In-flight messages return to the queue or land in the dead-letter queue. Replaying them does not duplicate chunks or edges, because the upsert key is source id plus version or content hash.
+4. Edit a policy and delete a deal in the demo harness. Within the source's freshness tier, the edited chunk is re-embedded (content hash changed) and the deleted deal disappears from Postgres and Neo4j. Sync lag for that source is visible. The HR policy edit and delete are built at the store. Deleting a deal is not: Sales is not ingested.
+5. Stop an ingestion worker mid-batch, then start it again. In-flight messages return to the queue or land in the dead-letter queue. Replaying them does not duplicate chunks or edges, because the upsert key is source id plus version or content hash. This step is built. `make dlq-replay` sends dead-letter messages back, with a new deduplication id so FIFO does not drop them.
 
-`make up` and `make test` exist. `make up` starts the stub stack. `seed`, `demo`, and `eval` are still to be written.
+`make up` and `make test` exist. `make up` starts the stack, including the HR connector and the ingestion worker. The API and the MCP server still do not answer questions. `seed`, `demo`, and `eval` are still to be written. HR bulk load is the seed notebook.
 
 ## Risks and open questions
 
 - floci's documentation lists SQS, S3, Scheduler, IAM, and Bedrock Runtime, among others. A local apply created the FIFO queues and one send/receive worked. That is not a fidelity or load test. Model calls go to OpenRouter or the local fallback because the design should not depend on one cloud model API.
-- Two stores (Postgres and Neo4j) can diverge. The document in Postgres is the authority for prose. The graph is a derived index. A failed graph write must not leave a vector chunk that claims a relationship the graph does not have; the ingestion worker writes both inside one unit of work and retries the pair.
+- Two stores (Postgres and Neo4j) can diverge. The document in Postgres is the authority for prose. The graph is a derived index. The worker commits Postgres, then writes Neo4j. A failed graph write leaves the message unacknowledged, so the event retries. Until that retry the chunk can exist without the node. A retry whose content hash already matches still writes the graph.
 - LLM extraction of edges from product specs will be wrong some of the time. Every extracted edge carries confidence and a source span. The demo question is answered from deterministic edges extracted from structured records. Extracted edges are visible and are not trusted for the headline answer.
 - Permission propagation has a window. High-sensitivity sources re-check the ACL against the source at read time. Lower-sensitivity sources accept the sync window and document it on the contract. The POC shows both behaviors on HR (re-check) and Product (window).
 - Entity resolution beyond shared ids and email addresses is deferred. If Sales and Engineering use different identifiers for the same product, the demo data uses one shared product key on purpose. Production will need a resolution step; pretending the demo key is that step would be dishonest.
@@ -163,9 +163,10 @@ The demo is the acceptance test. Each step is observable in the API response, th
 | `backend/apis/mcp-server` | MCP gateway. Its own image. |
 | `backend/apis/webhook-receiver` | Product webhook stub. Its own image. The production path is API Gateway plus Lambda, and that function is not built. |
 | `backend/connectors/hr` | HR connector process, `connector-hr`. Its own image. |
-| `backend/workers/ingestion-worker` | Queue consumer stub. Its own image. |
+| `backend/workers/ingestion-worker` | Queue consumer. Its own image. Writes chunks and the graph. |
 | `backend/libs/connector-core` | Connector interface and snapshot sync. A library, not a service. |
 | `backend/libs/ingest-contract` | Change events, queue names, and the snapshot hash. A library, not a service. |
+| `backend/libs/knowledge-store` | Chunking, embeddings, Postgres chunks, and the Neo4j writer. A library, not a service. |
 | `database` | Postgres and Neo4j schema. |
 | `demo-harness/` | HR, Sales, Product, and Engineering mock services. |
 | `notebooks/` | Jupyter notebooks that seed, inspect, and edit the HR harness. |

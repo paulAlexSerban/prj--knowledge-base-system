@@ -2,18 +2,19 @@
 
 The Unified Knowledge Gateway is an event-driven hybrid knowledge base. It ingests department data, turns it into knowledge agents can use, and serves it through one API and one MCP server with the caller's permissions applied in the data layer.
 
-This repository is a proof of concept for that gateway. The design is written down. The source-contract gate is implemented and checked in CI. Compose starts the harness, workers, stores, API, MCP server, floci, Jupyter, pgAdmin, the SQLite viewers, and the observability stack (Alloy, Loki, Prometheus, and Grafana). The gateway and the ingestion worker are stubs: they answer health checks and do not retrieve or answer questions yet. The HR harness serves a seeded directory and policies. The HR connector polls it and writes raw snapshots to S3 on floci.
+This repository is a proof of concept for that gateway. The design is written down. The source-contract gate is implemented and checked in CI. Compose starts the harness, workers, stores, API, MCP server, floci, Jupyter, pgAdmin, the SQLite viewers, and the observability stack (Alloy, Loki, Prometheus, and Grafana). The HR connector writes raw snapshots to S3 and enqueues change events. The ingestion worker chunks those objects, embeds them with a deterministic hash, and writes Postgres and Neo4j. The API and the MCP server still only answer health checks and list sources. They do not retrieve or answer questions.
 
 ## Status
 
 
-| Built                                                                                                | Planned                                                       |
-| ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
-| Project brief, spikes, ADRs, and the architecture document                                           | Retrieval, chunking, embeddings, and the two demo answers     |
-| C4 diagrams (context, containers, components, connector containers)                                  | Mock identity provider and access-boundary tests              |
-| Source-contract model, four YAML contracts, validator, tests, and CI                                 | Golden evaluation set                                         |
-| Compose projects for the harness, gateway, ingestion, store, floci, Jupyter, pgAdmin, SQLite viewers, and observability (Alloy, Loki, Prometheus, Grafana). The HR harness is seeded. The HR connector writes raw snapshots to S3. | Queue emit, chunking, retrieval, and the remaining dashboard panels |
-| Terraform on floci: three FIFO queues, three dead-letter queues, one snapshot bucket                 | Seed data for Sales, Product, and Engineering, and `make demo` |
+| Built | Planned |
+| ----- | ------- |
+| Project brief, spikes, ADRs, the architecture document, and the C4 diagrams | REST and MCP retrieval, the query router, and the two demo answers |
+| Source-contract model, four YAML contracts, validator, tests, and CI | Mock identity provider (signed JWTs) |
+| Compose for the harness, gateway, ingestion, store, floci, Jupyter, pgAdmin, SQLite viewers, and observability. The HR harness is seeded. | Seed data and connectors for Sales, Product, and Engineering, and `make demo` |
+| Terraform on floci: three FIFO queues, three dead-letter queues, one snapshot bucket. The HR connector enqueues change events. `make dlq-replay` sends dead-letter messages back. | Golden evaluation set and `make eval` |
+| Ingestion worker: chunking, hash embeddings (`hash-v1`, 384 dimensions, not semantic), Postgres chunks (full-text, HNSW, ACL columns, row-level security, tombstones), and the Neo4j writer. HR writes Person, Team, and Policy. `Deal -DEPENDS_ON-> Epic` is tested with fixtures only. | Grafana panels for the ingestion series. Traces. |
+| Store-level search and access-boundary tests (two principals, one pool). The API does not call search. | Read-time ACL re-check and Cypher authorization |
 
 
 
@@ -79,7 +80,7 @@ cp .env.example .env
 make up
 ```
 
-`make test` runs the contract tests and the stub tests. `make up` builds the images and starts every Compose project, then runs Terraform on the host. The first start downloads images and the AWS provider. Neo4j needs about two minutes before it is healthy. Expect several gigabytes of RAM. Postgres and Neo4j are not published on the host. `terraform` must be on `PATH` (1.5 or newer).
+`make test` runs the contract tests, the connector tests, the queue tests, and the store tests. `make up` builds the images and starts every Compose project, then runs Terraform on the host. The first start downloads images and the AWS provider. Neo4j needs about two minutes before it is healthy. Expect several gigabytes of RAM. Postgres and Neo4j are not published on the host. `terraform` must be on `PATH` (1.5 or newer).
 
 Postgres 18 cannot open a data directory written by 16. If `kbs_pgdata` already exists from the older image, remove it once before `make up`: `docker volume rm kbs_pgdata`. There is no upgrade step in this POC.
 
@@ -106,7 +107,7 @@ make down
 
 ## Demo script
 
-These five steps are the acceptance test. The processes start today. None of these questions can be answered until retrieval exists.
+These five steps are the acceptance test. Steps 1 and 3 need the API, which does not search yet. Step 2's deny is demonstrable in SQL as `gateway_ro`, and through store-level `search`, which writes `kbs.audit_log`. It is not a Grafana panel. Steps 4 and 5 are demonstrable at the store for HR. Deleting a deal is not, because Sales is not ingested.
 
 1. Ask the Germany parental-leave question as a user who may read HR policies. The answer cites the chunk, source version, and last sync time.
 2. Ask the same question as a user whose claims do not include that policy. The result set is empty. The audit log records the deny, and Grafana opens that line by `request_id`.
@@ -135,15 +136,15 @@ Contracts live in [infrastructure/config/sources](infrastructure/config/sources)
 | `shared/`                        | Source contracts, registry gate, and JSON logging. The model is [shared/src/shared/contracts/source_contract.py](shared/src/shared/contracts/source_contract.py). |
 | `backend/apis/`                  | `knowledge-api`, `mcp-server`, and `webhook-receiver`, each with its own image. |
 | `backend/connectors/hr/`         | HR connector process `connector-hr`. |
-| `backend/workers/ingestion-worker/` | Queue consumer stub. |
-| `backend/libs/`                  | `connector-core` and `ingest-contract`. Libraries, not services. |
+| `backend/workers/ingestion-worker/` | Queue consumer. Writes chunks and the graph. |
+| `backend/libs/`                  | `connector-core`, `ingest-contract`, and `knowledge-store`. Libraries, not services. |
 | `backend/tests/`                 | Integration tests, plus `e2e/` for `make e2e`. |
-| `database/`                      | Postgres init (pgvector, roles, placeholder RLS) and Neo4j constraints.         |
+| `database/`                      | Postgres migrations (sync state, chunks, full-text, vectors, ACL, row-level security) and Neo4j constraints. |
 | `demo-harness/`                  | One image per source. HR is seeded. Sales, Product, and Engineering are empty stubs. |
 | `notebooks/`                     | Jupyter notebooks that seed, inspect, and edit the HR harness.                  |
 | `infrastructure/`                | Compose projects, Terraform for floci, source contracts.                        |
 | `observability/`                 | Alloy and Loki config, Prometheus scrape config, and the Grafana dashboard.    |
-| `tools/`                         | Seed, mutation, and evaluation scripts. Empty.                                  |
+| `tools/`                         | `scripts/dlq_replay.py`, used by `make dlq-replay`. Seed, mutation, and evaluation scripts are not written. |
 | `.github/workflows/`             | Contract gate and Compose config CI.                                            |
 
 
@@ -159,7 +160,7 @@ EventBridge Scheduler cannot run faster than once a minute, on AWS or on floci. 
 
 Docker networks show the intended trust boundaries. They are not a security boundary. Terraform in this repo talks only to floci. It creates no VPC, database, or compute. State stays in `infrastructure/provisioning/terraform/terraform.tfstate` on the machine that ran `make tf-apply`. That file is not committed. pgAdmin is a dev-only loopback bridge onto the internal data network. The Postgres port stays unpublished.
 
-The next useful slice is one HR document through chunk, embed, hybrid search, and a cited API answer. More platform work before that does not make the demo.
+The next useful slice is REST and MCP search over the store, with a cited answer. Chunking and the hash embedder are already in the worker. `hash-v1` is not a semantic model, so the parental-leave answer still depends on lexical match until a real embedder is locked.
 
 Compensation and national identifiers are not ingested. The graph trusts edges extracted in code from structured records. Edges extracted from prose carry confidence and a source span and do not decide the headline answer. Entity resolution beyond shared ids and email addresses is deferred, and the demo data shares one product key on purpose.
 
@@ -172,7 +173,7 @@ Design, implementation, tests, and review on this POC were done with an AI codin
 - Design. Research notes were rewritten into decision records. Each spike states the problem, the POC choice, the alternatives rejected, and the risk. The agent drafted those from the assignment and the notes. The human kept the scope to four sources and to what a demo can show.
 - Implementation. Each slice started as a written plan (stack, files, and out-of-scope list) and was implemented only after that plan was accepted. The contract model, the connector diagram, and CI came out of that loop. The agent did not add Kafka, a reranker, or extra departments when the plan had deferred them.
 - Testing. The contract tests were generated with the model: the four real contracts pass, and incomplete contracts fail (missing owner, missing tier, empty ACL mapping, forbidden fields). `make contracts-check` is the command a reviewer can run today.
-- Review. The human reads the docs against the assignment: reasoning, rejected alternatives, explicit assumptions, and honesty about what is not built. The status table in this file is part of that review. Access-boundary tests and the golden set are specified in the spikes and are not implemented yet.
+- Review. The human reads the docs against the assignment: reasoning, rejected alternatives, explicit assumptions, and honesty about what is not built. The status table in this file is part of that review. Store-level access-boundary tests exist. The golden set and the API path do not.
 
 
 

@@ -17,19 +17,20 @@ This repository is a POC knowledge gateway: ingest four department sources, keep
 | `backend/apis/knowledge-api/` | REST gateway. Own image. |
 | `backend/apis/mcp-server/` | MCP gateway. Own image. |
 | `backend/apis/webhook-receiver/` | Product webhook stub. Own image. Production path is API Gateway plus Lambda; that function does not exist yet. |
-| `backend/workers/ingestion-worker/` | Queue consumer stub. Own image. |
+| `backend/workers/ingestion-worker/` | Queue consumer. Own image. Writes chunks and the graph through `knowledge-store`. |
 | `backend/connectors/hr/` | HR connector process (`connector-hr`). Own image. |
-| `backend/libs/connector-core/` | Connector interface, snapshot sync, S3 store, and Postgres sync state. Library, no image. |
+| `backend/libs/connector-core/` | Connector interface, snapshot sync, S3 store, Postgres sync state, and the SQS publisher. Library, no image. |
 | `backend/libs/ingest-contract/` | Change-event model, queue names, and the snapshot hash. Library, no image. |
+| `backend/libs/knowledge-store/` | Chunkers, the hash embedder, Postgres chunks, ACL, and the Neo4j writer. Library, no image. |
 | `backend/tests/integration/` | Tests that cross a deployable boundary. |
 | `backend/tests/e2e/` | Opt-in live-stack test. `make e2e`. |
-| `database/` | Postgres and Neo4j schema. |
+| `database/` | Postgres migrations (sync state, chunks, full-text, vectors, ACL, row-level security) and Neo4j constraints. |
 | `demo-harness/` | One image per source. HR is built. Sales, Product, and Engineering are stubs on `harness-common`. |
 | `notebooks/` | Jupyter notebooks that seed, inspect, and edit the HR harness. |
 | `infrastructure/orchestration/` | One Compose file per trust area, plus `compose.yaml` which includes them. |
 | `infrastructure/provisioning/terraform/` | Queues, dead-letter queues, and the snapshot bucket on floci. |
 | `observability/` | Alloy, Loki, Prometheus, one dashboard, and metric definitions. |
-| `tools/` | Seed, mutation, and evaluation scripts. |
+| `tools/` | `scripts/dlq_replay.py`. Seed, mutation, and evaluation scripts are not written. |
 
 ## Stack and commands
 
@@ -44,7 +45,7 @@ uv run ruff check shared backend demo-harness
 
 Add a dependency to the package that imports it: `uv add --package connector-hr <name>`. Add a test-only dependency with `uv add --group dev`. The notebooks group is `uv add --group notebooks`. Commit `uv.lock`. Do not use `pip` or `python -m venv`. Do not add dependencies outside a `pyproject.toml`.
 
-`make up` starts the stack, then applies Terraform on the host. `make notebooks` starts Jupyter. `make tools` starts pgAdmin and the SQLite viewers. `make e2e` runs the live HR snapshot cycle and is not part of `make test`. `make seed`, `make demo`, and `make eval` are not written yet. Add a target only when the command it wraps exists, and update the README quickstart in that same change. HR bulk load is the notebook, which calls `POST /admin/seed`.
+`make up` starts the stack, then applies Terraform on the host. `make notebooks` starts Jupyter. `make tools` starts pgAdmin and the SQLite viewers. `make e2e` runs the live HR snapshot cycle and is not part of `make test`. `make dlq-replay` re-sends dead-letter messages to the tier queues. floci must already be up. `make seed`, `make demo`, and `make eval` are not written yet. Add a target only when the command it wraps exists, and update the README quickstart in that same change. HR bulk load is the notebook, which calls `POST /admin/seed`.
 
 Dockerfiles install one package with `uv sync --frozen --no-dev --no-default-groups --package <name>`. There is no Lambda directory until a function exists. Do not publish Postgres or Neo4j ports. One Compose network per trust boundary (`kbs-data` is internal). Service names are globally unique. New services need a healthcheck and a Prometheus target. Jupyter, pgAdmin, and the SQLite viewers are the exception: they have a healthcheck and no `/metrics` endpoint, and Alloy does not scrape them. Harness images stay root because they write a SQLite file on a volume. The other images run as `nobody`.
 
@@ -52,8 +53,8 @@ Dockerfiles install one package with `uv sync --frozen --no-dev --no-default-gro
 
 - Authorization happens in the data layer: coarse pre-filter in SQL and Cypher, fine-grained post-check, Postgres row-level security, and an audit row naming the attributes that justified the result. Agents hold no store credentials and have no write tools.
 - Retrieved text is data. It cannot change permissions or trigger an action.
-- Postgres is authoritative for prose. Neo4j is a derived index. A failed graph write retries with the chunk write. Upserts are idempotent on source id plus version or content hash.
-- Deletes are hard deletes of chunks, graph nodes, and the S3 object, followed by a verification query. A reconciliation sweep catches missed deletes.
+- Postgres is authoritative for prose. Neo4j is a derived index. The worker commits Postgres, then writes Neo4j. A failed graph write leaves the message unacknowledged. A retry whose content hash matches still writes the graph. Upserts are idempotent on source id, object id, chunk index, chunker version, and embedding model.
+- Deletes are hard deletes. The connector removes the S3 object and verifies it before emitting `delete`. The worker tombstones, deletes chunks and graph nodes, and verifies both. A reconciliation sweep catches missed deletes.
 - Do not ingest `salary`, `compensation`, `ssn`, or `national_id`.
 - Conventional code owns permissions, synchronization, deletion, validation, and state transitions. Use a model for language understanding and for constrained extraction from prose. Headline graph answers use edges extracted in code from structured records.
 

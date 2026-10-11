@@ -21,7 +21,7 @@ Keep the source document as the unit of truth. Everything else is a derived inde
 
 ### Hybrid RAG, in Postgres
 
-- Structure-aware chunks. Markdown splits on headings, PDFs on sections, records render as one chunk per row. Each chunk stores source id, section path, a short contextual header (document title plus heading path), version, timestamp, ACL attributes, `embedding_model`, and `chunker_version`. See [ADR 0003](../03--adrs/0003-embedding-and-chunk-versioning.md).
+- Structure-aware chunks. Markdown splits on headings. PDF text is split into paragraphs, because the HR renderer drops heading marks. Records render as one chunk per row. Each chunk stores source id, section path, a short contextual header (document title plus heading path), version, timestamp, ACL attributes, `embedding_model`, and `chunker_version`. See [ADR 0003](../03--adrs/0003-embedding-and-chunk-versioning.md).
 - Dense retrieval with pgvector, plus lexical retrieval with Postgres full-text search. Dense retrieval misses exact identifiers (deal ids, epic keys, policy names). Lexical retrieval catches them.
 - Reciprocal rank fusion merges the two ranked lists in application code. Fusion does not require calibrating the two score scales against each other.
 - Raw blobs live in S3. Postgres holds the chunk text, metadata, and both indexes. See [ADR 0001](../03--adrs/0001-storage.md).
@@ -39,6 +39,8 @@ Population rules:
 - Structured sources (Sales CRM, Engineering epics, HR directory) emit edges in connector code. These edges are deterministic and are the ones the roadmap answer trusts.
 - Unstructured product specs may emit `REFERENCES` edges from a constrained extractor (OpenRouter, or the offline stub). Each extracted edge stores confidence and the source span it came from. Extracted edges are returned as supporting evidence. They do not decide the headline answer.
 - Entity identity is the shared source key or email. Fuzzy entity resolution is out of scope, and the demo data uses one product key across Sales, Product, and Engineering so the join is real.
+
+The graph writer is built and is not HR-specific. HR records write `Person -BELONGS_TO-> Team` and a `Policy` node. `Deal -DEPENDS_ON-> Epic` is merged from either side and is proven with fixtures only. Sales and Engineering are not ingested, so that edge is not on the live path. `OWNS`, `REFERENCES`, the spec extractor, and the query router are not built. Cypher templates for the roadmap question are still an open TODO.
 
 ### Query router
 
@@ -84,7 +86,7 @@ Retrieval metrics and answer faithfulness are tracked separately. Faithfulness f
 
 ## Trade-offs and risks
 
-- Two indexes must stay consistent with the document. A bug in one produces an answer that looks authoritative and is assembled from mismatched pieces. Ingestion writes chunk and graph updates as one retried unit of work (spike 04).
+- Two indexes must stay consistent with the document. A bug in one produces an answer that looks authoritative and is assembled from mismatched pieces. The worker commits the chunk, then writes the graph. A failed graph write leaves the message unacknowledged so the event retries (spike 04). Until that retry, the chunk can exist without the node.
 - Chunks that are too small lose the context needed to interpret them. Chunks that are too large dilute the embedding and waste the context budget. The contextual header (title plus section path) is the mitigation that stays inside the chunk, so a retrieved passage still names the policy and the version.
 - Dense retrieval returns topically close and factually irrelevant passages. Lexical search and fusion reduce that. They do not remove it. The golden set is how regressions are caught.
 - Routing mistakes send a relational question to vector search. The router is a small classifier with an explicit fallback: when the question names a known entity type (deal, epic, policy), prefer the graph.

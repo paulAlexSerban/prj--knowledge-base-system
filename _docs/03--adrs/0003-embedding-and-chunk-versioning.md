@@ -15,15 +15,19 @@ Every chunk row stores:
 | `chunker_version` | Identifier of the splitter and its parameters, for example `markdown-headings-v1`. |
 | `embedding_model` | Model name that produced the vector, for example the OpenRouter model or `fastembed-bge-small-v1`. |
 | `section_path` | Heading or section path the chunk was cut from. |
-| `content_hash` | Hash of the normalized body. Unchanged hash skips re-embedding (spike 04). |
+| `content_hash` | Hash of the source object. Unchanged hash skips re-embedding (spike 04). |
 
-Chunkers are a registry keyed by source format, not one token window:
+The migration also stores `object_type`, `chunk_index`, `version`, `acl_groups`, `acl_departments`, `min_clearance`, `acl_rules`, `synced_at`, a generated `fts` column, and `embedding vector(384)`. The unique key is `(source_id, object_id, chunk_index, chunker_version, embedding_model)`.
 
-- Markdown: split on headings, keep the heading path, prepend a contextual header (document title plus path).
-- PDF: split on detected sections, same header rule.
-- Structured records: one chunk per row, plus a stable textual rendering of the columns that are in the source contract.
+Chunkers are a registry keyed by object type, not one token window:
 
-The active `chunker_version` and `embedding_model` are configuration. A query filters to the active embedding model so mixed vectors are never ranked together. Changing either value is a rebuild: enqueue all objects at P2, write new chunks alongside the old version, switch the active version, then delete the old one. The POC ships a single version and the rebuild command. It does not run a migration in the demo.
+- Markdown (`markdown-headings-v1`): split on headings, keep the heading path, prepend a contextual header (document title plus path). A heading with no body is not its own chunk.
+- PDF (`pdf-text-v1`): extract text and split on blank lines. The HR harness renderer drops markdown heading marks, so this chunker does not detect sections.
+- Structured records (`record-v1`): one chunk per row, rendered from in-scope fields only. `salary`, `compensation`, `ssn`, and `national_id` are never written into the text or the graph properties.
+
+The running embedder is `hash-v1` (`EMBEDDER=hash` in Compose): 384 dimensions, deterministic, and not semantic. Lexical search still matches exact terms such as a policy name. `FastEmbedEmbedder` (`fastembed-bge-small-v1`) is in the library. `fastembed` is not a lock dependency, so the image does not download a model. An OpenRouter embedder is not implemented. Using one would be a rebuild, not a config flip on the existing rows.
+
+The active `chunker_version` and `embedding_model` are configuration. A query filters to the active embedding model so mixed vectors are never ranked together. Changing either value is a rebuild: enqueue all objects at P2, write new chunks alongside the old version, switch the active version, then delete the old one. The POC ships one active version. The rebuild command is not built. It does not run a migration in the demo.
 
 Lexical search does not depend on the embedding model and stays valid across an embedding rebuild.
 

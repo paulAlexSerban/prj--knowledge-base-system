@@ -38,8 +38,14 @@ Postgres 18 stores the cluster under `/var/lib/postgresql`. A volume created by 
 
 Scheduler schedules are not created. EventBridge Scheduler cannot run faster than once a minute, and a schedule needs an IAM role this stub does not invent. P0 polling is a loop in `connector-hr`.
 
+The three tier queues use `visibility_timeout_seconds` 60 and `maxReceiveCount` 5. The worker also copies a message to the dead-letter queue when the receive count exceeds 5, because floci's redrive was not observed.
+
+`postgres-migrate` applies `database/postgres/migrations/001-sync-state.sql` and `002-knowledge-store.sql` on every start. `01-init.sh` runs only on an empty volume. The `vector` extension is moved into schema `kbs` because application connections set `search_path=kbs`.
+
+Worker environment that is not in `.env`: `EMBEDDER=hash` and `RECONCILE_INDEX_SECONDS=60`. Passwords and `FAIL_OBJECT_ID` come from `.env`. `GATEWAY_DB_PASSWORD` is the `gateway_ro` password the worker uses for the read path inside `search`. Neo4j is the single user `neo4j`. That is a POC shortcut.
+
 ## What the processes do
 
-They load, or they wait. The gateway lists the four source contracts and exits if the registry is invalid. `connector-hr` does the same for the HR contract, polls the harness, writes raw snapshots to `kbs-raw-snapshots` on floci, and records sync state in Postgres. The ingestion worker checks that the three queues answer. The HR harness serves a seeded directory and policies from SQLite through SQLAlchemy. The other three harnesses still serve an empty change list and have no connector yet. Jupyter calls the HR admin API and can list the snapshot bucket. It is not scraped: it has no `/metrics` endpoint. pgAdmin and the SQLite viewers are the same kind of exception. No chunking, embedding, or retrieval runs.
+The gateway lists the four source contracts and exits if the registry is invalid. It does not search. `connector-hr` polls the harness, writes raw snapshots to `kbs-raw-snapshots` on floci, enqueues a change event, and records sync state in Postgres. The ingestion worker drains the three queues, chunks and embeds each object, and writes Postgres and Neo4j. The HR harness serves a seeded directory and policies from SQLite through SQLAlchemy. The other three harnesses still serve an empty change list and have no connector yet. Jupyter calls the HR admin API and can list the snapshot bucket. It is not scraped: it has no `/metrics` endpoint. pgAdmin and the SQLite viewers are the same kind of exception. REST and MCP retrieval do not run.
 
 Alloy scrapes `/metrics` on `kbs-obs` and remote-writes to Prometheus. It also tails container logs through a read-only Docker socket and pushes them to Loki. That socket is a trust-boundary exception: it can see stdout from containers that are not on `kbs-obs`. Loki and Alloy publish no host ports. Grafana on port 3000 is how you read logs. Sign in as `admin`. The password is `GRAFANA_ADMIN_PASSWORD`, or `admin` when that variable is unset. Details are in [ADR 0002](../_docs/03--adrs/0002-observability.md).

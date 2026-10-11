@@ -67,14 +67,14 @@ Further views: [system context](../00--project-brief/00-c4-l1--system-context.pn
 | 2 | Connector worker | Detect the change, `fetch` the body, map the native permission with `get_acl`, `normalize` into a platform document (source id, version, content hash, payload, ACL attributes). Raw payload goes to S3. |
 | 3 | Queue | Event: source id, object id, event type, version or hash, `occurred_at`, S3 pointer. Ordered per object. |
 | 4 | Ingestion worker | Chunk with the format-aware splitter. Embed only if the content hash changed. |
-| 5 | Ingestion worker | Upsert chunk, vector, full-text, ACL columns, and graph edges as one unit, retried together. |
+| 5 | Ingestion worker | Upsert chunk, vector, full-text, and ACL columns in Postgres, then merge the graph. A failed Neo4j write leaves the message unacknowledged. |
 | 6 | Service layer | Route the question, pre-filter, over-fetch, post-check, apply row-level security, audit. High-sensitivity sources re-check the ACL at the source. |
 
 Create, update, and delete walk the same path:
 
 - Create: the new object is polled or pushed, normalized, chunked, embedded, and upserted. It is visible to a principal whose claims match the ACL.
 - Update: if the content hash changed, re-chunk and re-embed. If it matches, update sync metadata and skip the embedding call. An ACL-only change updates attributes in place and travels on the P0 queue.
-- Delete: tombstone, then hard-delete the chunks, the graph nodes the object owns, and the S3 object, then run a verification query. A reconciliation sweep diffs source ids against indexed ids and tombstones the difference.
+- Delete: the connector removes the S3 object, checks the key is gone, then enqueues `delete`. The worker writes a tombstone, hard-deletes the chunks and the graph nodes the object owns, and checks both are gone. Index reconciliation deletes chunks whose `source_objects` row is missing and backfills a row that has no chunk at the current version.
 
 ## Data connection
 
@@ -91,7 +91,7 @@ A connector uses the cheapest change signal its source really has. The four demo
 | Product | Markdown specs | Webhook | Low. Bounded sync window. |
 | Engineering | Jira-like epics in SQLite | `updated_since` listing | Medium |
 
-Chunking is format-aware (markdown by heading, PDF by section, records as one chunk per row), never one fixed window.
+Chunking is format-aware (markdown by heading, PDF as extracted paragraphs, records as one chunk per row), never one fixed window. The HR PDF renderer drops heading marks, so the PDF chunker does not recover sections.
 
 ## Knowledge representation
 
@@ -106,7 +106,7 @@ Similarity search answers semantic questions and fails relational ones. A graph 
 | ----- | ----- |
 | Person, Team, Account, Deal, Epic, Spec, Policy | `OWNS`, `DEPENDS_ON`, `REFERENCES`, `BELONGS_TO` |
 
-- Edges from structured sources are extracted in code and are deterministic. The roadmap answer trusts only those. Edges extracted from specs carry a confidence and a source span and are supporting evidence only.
+- Edges from structured sources are extracted in code and are deterministic. The roadmap answer trusts only those. The writer builds `Person -BELONGS_TO-> Team` and a `Policy` node from HR. `Deal -DEPENDS_ON-> Epic` is built and tested with fixtures. Sales and Engineering are not ingested. Edges extracted from specs carry a confidence and a source span and are supporting evidence only. That extractor is not built.
 - Entities join on a shared source key or email. The demo data uses one product key across three sources on purpose. Fuzzy entity resolution is not built.
 
 The router makes authority a code decision: semantic questions use chunk text, relational questions use the graph, and hybrid questions use the graph to find entities and chunks for wording.
@@ -141,11 +141,11 @@ Detail: [spike 04](../01--spikes/04--self-maintaing-over-time-refelcting-additio
 
 - Ingestion is a stream of create, update, delete, and ACL-change events. A periodic job exists only for reconciliation.
 - The upsert key is source id plus object id plus version (or content hash). The queue is at-least-once, so the idempotent upsert provides exactly-once. A replay after a crash duplicates nothing.
-- A matching content hash skips the embedding call. An ACL-only change does not re-embed.
-- Three queues match the tiers: P0 (HR body and any ACL change, under 30 seconds where the source allows), P1 (Sales, Engineering, Product, under 5 minutes), P2 (backfill and reconciliation, daily). Workers drain P0 first.
-- Messages that exhaust retries go to the dead-letter queue and appear in the sync-lag metric. A poison message does not block its group, because groups are per object.
-- Deletes are hard deletes plus a verification query. Soft delete is rejected because hidden rows surface through a missed filter and the graph keeps traversable edges.
-- Postgres and Neo4j are written as one unit. On partial failure the whole message retries.
+- A matching content hash skips the embedding call and still merges the graph. An ACL-only change does not re-embed.
+- Three queues match the tiers: P0 (HR body and any ACL change, under 30 seconds where the source allows), P1 (Sales, Engineering, Product, under 5 minutes), P2 (backfill and reconciliation, daily). One worker drains P0, then P1, then P2.
+- Messages whose receive count exceeds 5 are copied to the dead-letter queue. `make dlq-replay` sends them back with a new deduplication id. A poison message does not block its group, because groups are per object.
+- Deletes are hard deletes plus a verification query. The connector deletes S3 before the event. The worker deletes chunks and nodes. Soft delete is rejected because hidden rows surface through a missed filter and the graph keeps traversable edges.
+- Postgres is committed, then Neo4j is written. On a graph failure the message retries.
 
 ## Technology choices
 
@@ -159,7 +159,7 @@ Detail: [spike 04](../01--spikes/04--self-maintaing-over-time-refelcting-additio
 | Scheduling | In-process loop for P0, EventBridge Scheduler for P1/P2 and reconciliation | Scheduler cannot fire faster than once a minute. | Scheduler for P0. Full reindex on a schedule: re-embeds unchanged content or misses the tier. |
 | Local AWS and IaC | floci, Terraform with endpoint overrides | Real Terraform resources against an emulator. | CloudWatch on floci: metrics and logs stay on Prometheus and Loki so they behave the same in Compose. |
 | Ingestion | Custom connectors on one interface | The graded problem is ACL normalization, tombstones, and freshness contracts. | Airbyte or Fivetran: load a warehouse, own none of those three. Federated query: puts latency and partial failure inside the user's query. CDC: the platform does not own source databases. |
-| Models | OpenRouter, plus a local embedder and deterministic extractor | Tests pass without a key. Model names are config. | Mixing vectors from two models in one active version. Fine-tuning: does not keep knowledge current or enforce per-user access. |
+| Models | OpenRouter for chat when a key is set. The running embedder is local `hash-v1` (384 dimensions, not semantic). | Tests pass without a key. Model names are config. | Mixing vectors from two models in one active version. Fine-tuning: does not keep knowledge current or enforce per-user access. `fastembed` is optional and is not locked. |
 | Identity | Mock IdP issuing JWTs | The claim contract is what the service enforces. | MCP as the authorization boundary. Per-agent store access. |
 | Retrieval extras | Reciprocal rank fusion only | No score calibration needed. | Reranker and community-summary GraphRAG: no measured gap yet. Vector-only search: fails the dependency question. |
 | Observability | Alloy, Prometheus, Loki, Grafana ([ADR 0002](../03--adrs/0002-observability.md)) | Freshness and authorization are distributions, and a deny is one log line. | Logs only. Direct Prometheus scraping with no collector. Tracing backend: no latency regression has needed one, and Tempo is the production path. |
@@ -169,7 +169,7 @@ Detail: [spike 04](../01--spikes/04--self-maintaing-over-time-refelcting-additio
 | Trade-off | Accepted cost | Where it shows |
 | --------- | ------------- | -------------- |
 | Freshness versus embedding cost | Real-time only for P0. Unchanged content skips embedding. | Skipped-embed metric, P0 lag. |
-| Two stores versus one | Postgres and Neo4j can diverge. | Delete verification, retried pair. |
+| Two stores versus one | Postgres and Neo4j can diverge until the retry. | Delete verification, unacknowledged message. |
 | SQS versus a log | No cross-object order and no independent replay. | Dead-letter depth. |
 | Indexed ACL versus read-time check | HR pays a live call. Other sources are stale inside the window. | Latency split, window on the contract. |
 | Deterministic versus extracted edges | Extracted edges never decide the headline answer, so recall on spec links is lower. | Path versus supporting edges. |
@@ -188,7 +188,7 @@ A golden set of about 20 questions runs on every change to chunking, the embeddi
 
 Faithfulness is a citation check: every claim maps to a returned chunk id. A model-graded judge is a production addition.
 
-Monitoring follows [ADR 0002](../03--adrs/0002-observability.md). Only process-up, worker-up, and an error and deny log panel exist today. The remaining SLO panels are specified and not emitted yet: sync lag and last sync per source, queue depth per tier, dead-letter depth, search latency split from the HR re-check, empty-result rate per permission group, embeds skipped by hash, and indexed-minus-source id drift. POC alerts are dashboard thresholds: P0 lag over 30 seconds, any dead-letter message, ACL re-check failures.
+Monitoring follows [ADR 0002](../03--adrs/0002-observability.md). The HR connector emits snapshot lag, last success, and reconciliation drift. The ingestion worker emits event lag, queue depth, dead-letter depth, embed calls, embeds skipped by hash, index drift, store write time, and dependency gauges. The Grafana dashboard still charts the connector row and does not yet chart the ingestion series. Search latency and empty-result rate are not emitted: there is no retrieval endpoint. POC alerts are dashboard thresholds: P0 lag over 30 seconds, any dead-letter message, any delete verification failure. There is no Alertmanager.
 
 | Symptom | Action |
 | ------- | ------ |
@@ -202,20 +202,20 @@ Monitoring follows [ADR 0002](../03--adrs/0002-observability.md). Only process-u
 ## Risks
 
 - floci fidelity is unproven. One send and receive worked on `kbs-p0.fifo`. That checks the API shape, not ordering under load or production SQS.
-- The two stores can diverge. Postgres is authoritative and the graph is derived. A partial write retries the pair.
+- The two stores can diverge until a retry finishes. Postgres is authoritative and is committed first. A failed graph write retries the message.
 - LLM-extracted edges will sometimes be wrong. They carry confidence and a span and never decide the headline answer.
 - Permissions are stale inside the sync window for medium and low sources. The window is on the contract.
 - Entity resolution beyond shared keys is deferred, and the demo uses one product key on purpose. That is not a resolution step.
 - The 250 ms and 30-second targets are design targets with metrics, not load-test results.
 - A missed delete lives until the next reconciliation sweep. Drift is a panel.
-- Session-scoped RLS is easy to get wrong under connection pooling. The policy committed today is a placeholder and must be replaced before demo data loads.
+- Session-scoped RLS is easy to get wrong under connection pooling. `chunks_read_by_acl` reads `kbs.groups`, `kbs.clearance`, and `kbs.department`. An empty setting sees no rows. The table owner bypasses the policy.
 - The demo sources are cooperative. Real Jira, Drive, or HubSpot connectors will spend their budget on pagination, token refresh, and rate limits.
 - The company is global, and data residency and multi-region behavior are not designed here.
 
 ## What is built
 
-Built: the design documents and diagrams, the source-contract gate with tests and CI, four YAML contracts, Compose, Terraform on floci (three FIFO queues, three dead-letter queues, one bucket), Postgres and Neo4j init, the observability stack, a seeded HR harness, and the HR connector (`connector-hr`) which writes raw snapshots and sync state. The gateway processes answer health checks and list sources. They do not retrieve or answer questions.
+Built: the design documents and diagrams, the source-contract gate with tests and CI, four YAML contracts, Compose, Terraform on floci (three FIFO queues, three dead-letter queues, one bucket), Postgres and Neo4j schema, the observability stack, a seeded HR harness, and the HR connector (`connector-hr`) which writes raw snapshots, enqueues change events, and records sync state. The ingestion worker consumes those events, chunks and embeds them, and writes Postgres and Neo4j. Store-level search applies row-level security, full-text and vector search, the fine ACL check, and an audit row. `make dlq-replay` exists. The running embedder is `hash-v1`, which is deterministic and not semantic. The gateway processes answer health checks and list sources. They do not retrieve or answer questions.
 
-Not built: chunking, embedding, hybrid search, the router, the mock identity provider, a restrictive RLS policy, the audit table, the Sales, Product, and Engineering harness data, the golden set and `make eval`, the dead-letter replay command, and the remaining dashboard panels. There is no Lambda. `backend/functions` stays absent until a function exists. The webhook receiver in Compose is the stub; its production path is API Gateway plus Lambda.
+Not built: REST and MCP search, the query router, the mock identity provider, Cypher authorization, the read-time ACL re-check, the Sales, Product, and Engineering connectors and harness data, the golden set and `make eval`, the embedding rebuild command, and the Grafana panels for the ingestion series. Search latency and empty-result rate are not measured. There is no Lambda. `backend/functions` stays absent until a function exists. The webhook receiver in Compose is the stub; its production path is API Gateway plus Lambda.
 
 Open gap: one diagram in the house drawio style showing every component, the data flow, and the transformation at each hop. The hop table above carries the transformations for now.

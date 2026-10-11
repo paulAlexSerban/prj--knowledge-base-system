@@ -43,7 +43,15 @@ Hybrid enforcement, in this order:
 3. Fine-grained post-check against the ACL attributes stored on the chunk.
 4. Postgres row-level security as defense in depth, so a query that forgets the predicate still cannot read another principal's rows. The application role used by the service sets the principal's claims as session settings that the policies read.
 
-Every allowed result writes an audit row: principal, chunk id, and the attributes that justified the allow. Denies are audited too. Access-boundary tests in the golden set (spike 02) create two users and assert that retrieval, graph paths, and `get_document` return only permitted content.
+Every allowed result writes an audit row: principal, chunk id, and the attributes that justified the allow. Denies are audited too. Access-boundary tests in the golden set (spike 02) create two users and assert that retrieval, graph paths, and `get_document` return only permitted content. That golden set is not built. The store tests cover two principals against one pool, including a principal with no matching group and a missing session setting.
+
+### What the store enforces
+
+Chunks store coarse columns `acl_groups` (`text[]`), `acl_departments` (`text[]`), and `min_clearance` (`smallint`), plus the exact rules in `acl_rules` (`jsonb`). Clearance order is `public` < `internal` < `confidential` < `restricted`. A mapping that omits clearance is treated as public. An unmapped native ACL is stored and granted to nobody: empty groups and `min_clearance` 99. `region` is allowed on a source contract and is not an HR access predicate.
+
+`gateway_ro` reads `kbs.chunks` under policy `chunks_read_by_acl`. The policy compares session settings `kbs.groups`, `kbs.clearance`, and `kbs.department` to those columns. An empty or missing setting sees no rows. `ingestion_rw` has `chunks_ingestion_all` and can write every row. The table owner bypasses row-level security, so the API must not use it.
+
+Store-level `search` applies the SQL pre-filter and row-level security, fuses the vector and full-text lists, then checks `acl_rules` and writes the audit row. REST `POST /v1/search`, the MCP tools, the mock identity provider, Cypher authorization, and the read-time `get_acl` re-check are not built.
 
 ### Permission staleness
 
@@ -94,5 +102,5 @@ The public HTTP API is `/v1`. Index metadata records `embedding_model` and `chun
 
 ## Open TODOs
 
-- JWT claim schema and the row-level security policies checked in under `database/`.
-- Audit table shape. The deny log line is specified in [ADR 0002](../03--adrs/0002-observability.md): one JSON object on stdout, `decision` of `deny`, and `request_id` in the line rather than in a Loki label.
+- The row-level security policies and `kbs.audit_log` are in `database/postgres/migrations/002-knowledge-store.sql`. Store-level search writes the audit row. The JWT claim schema is not built.
+- The deny log line is specified in [ADR 0002](../03--adrs/0002-observability.md): one JSON object on stdout, `decision` of `deny`, and `request_id` in the line rather than in a Loki label. Search does not emit that line yet. It writes the table.

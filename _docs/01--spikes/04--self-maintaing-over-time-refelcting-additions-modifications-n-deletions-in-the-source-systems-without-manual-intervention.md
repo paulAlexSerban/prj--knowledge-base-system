@@ -17,24 +17,26 @@ Treat ingestion as a stream of change events (create, update, delete, acl_change
 ### Pipeline
 
 1. Connector worker runs on the cadence in the source contract. P0 (HR) is an in-process loop, because EventBridge Scheduler cannot fire faster than once a minute. Scheduler, when wired, sends P1/P2 poll ticks and the reconciliation sweep to a queue. The Product harness calls the webhook receiver directly.
-2. `list_changes` yields events. The worker writes the raw payload to S3 and enqueues a message. The HR connector writes the snapshot today. The enqueue is the next step; the message's `s3_pointer` will be the key this connector already stores.
-3. Ingestion worker chunks, embeds, and upserts Postgres and Neo4j, or applies a tombstone.
-4. Retrieval reads only the stores, plus the high-sensitivity ACL re-check from spike 03.
+2. `list_changes` yields events. The HR connector writes the raw payload to S3, enqueues the change event, then upserts `kbs.source_objects`. The enqueue is before the state upsert, so a failed publish leaves the previous row in place and does not advance the watermark. The message `s3_pointer` is the key already stored, `raw/<source>/<type>/<id>.<ext>`. An ACL-only change (same version, different native ACL) is `acl_change`.
+3. The ingestion worker chunks, embeds, and upserts Postgres, then Neo4j, or applies a tombstone. It does not delete the S3 object. The connector does that, and checks the key is gone, before it emits `delete`.
+4. Retrieval reads only the stores, plus the high-sensitivity ACL re-check from spike 03. REST and MCP search are not built. The store exposes `search` so row-level security and full-text search can be tested without that path.
 
-Message body: `source_id`, `object_id`, `event_type`, `version` or `content_hash`, `occurred_at`, and the S3 pointer. SQS on floci, with a FIFO message group per `source_id + object_id` so two updates to the same object stay ordered. A dead-letter queue receives messages that exhaust retries. Visibility timeout is longer than a single embed call so a crashed worker's message becomes visible again.
+Message body: `source_id`, `object_id`, `event_type`, `version`, `content_hash`, `occurred_at`, and the S3 pointer. A delete is valid without a pointer. SQS on floci, with a FIFO message group per `source_id:object_id` so two updates to the same object stay ordered. Visibility timeout on the three tier queues is 60 seconds. Terraform sets `maxReceiveCount` to 5. Whether floci applies that redrive was not observed, so the worker copies the message to the dead-letter queue itself when `ApproximateReceiveCount` is greater than 5.
 
 ### Idempotency and cost
 
-- Upsert key is `source_id + object_id + version` (or content hash when the source has no version).
-- If the stored content hash matches, the worker updates sync metadata and skips the embedding call.
+- Chunk identity is `source_id`, `object_id`, `chunk_index`, `chunker_version`, and `embedding_model`.
+- If the stored content hash matches, the worker skips the embedding call and still merges the graph. A retry after a Neo4j failure would otherwise never create the nodes.
 - Replaying a message after a crash does not duplicate chunks or edges.
+- A dead-letter replay does not reuse the original deduplication id. FIFO would drop that send for five minutes. The replay id is `{original}:replay:{message_id}`, in the same message group. `make dlq-replay` runs `tools/scripts/dlq_replay.py`.
 - ACL-only changes update attributes in place and do not re-embed. The HR snapshot hash is sha256 of the raw bytes plus the sorted native ACL, so an ACL-only change still rewrites the S3 object. The harness does not bump the policy version for that change.
 
 ### Deletes
 
-- A delete event writes a tombstone, then hard-deletes the chunks (pgvector and full-text), the graph nodes that this object owns, and the S3 object.
-- A verification query after the delete asserts the id is gone from both stores. Failure retries the tombstone.
-- A reconciliation sweep on a slower cadence lists ids from the source and diffs them against indexed ids. Ids present only in the index are tombstoned. This catches deletes that a cursor or webhook missed. It lists ids, not bodies, so it is cheap relative to a full re-embed. For HR this sweep is the only delete path: the harness has no delete feed. The connector removes every S3 version, checks the key is gone, then deletes the `kbs.source_objects` row. A failed check is counted and retried. The chunk and graph tombstone waits for the ingestion worker.
+- The connector removes every S3 version, checks the key is gone, enqueues `delete` with the version and content hash from the row and no pointer, then deletes the `kbs.source_objects` row. A failed check or a failed enqueue keeps the row. For HR this is the only delete path: the harness has no delete feed.
+- The worker inserts `kbs.tombstones` (`source_id`, `object_id`, `version`, `content_hash`, `deleted_at`), hard-deletes the chunks and the graph nodes this object owns, then checks both counts are zero. There is no `documents` table. Lineage stays in `kbs.source_objects`. A failed verification increments `kbs_delete_verification_failures_total` with a `store` label (`s3` on the connector, `postgres` or `neo4j` on the worker) and the message retries.
+- A replayed create with the same version and content hash does not resurrect a tombstoned object. A newer version clears the tombstone and writes again.
+- Index reconciliation runs in the worker every `RECONCILE_INDEX_SECONDS` (default 60). Chunks with no `source_objects` row are deleted. A `source_objects` row with no chunk at the current version and embedding model is read back from S3 and processed. `kbs_index_drift` is the indexed object count minus the `source_objects` count. The sweep lists ids, not bodies.
 
 ### Priority
 
@@ -46,11 +48,11 @@ Three queues, matching the freshness tiers in the brief:
 | P1 | Sales deals, engineering epics, product specs | Target under 5 minutes. |
 | P2 | Bulk backfill and the reconciliation sweep | Daily, or on demand. HR bulk load is `POST /admin/seed` from [notebooks/00-seed-hr.ipynb](../../notebooks/00-seed-hr.ipynb). `make seed` is not a target yet. |
 
-Workers drain P0 before P1 before P2. The POC runs one worker process with that order, which is enough at demo volume.
+Workers drain P0 before P1 before P2. The POC runs one worker process with that order, which is enough at demo volume. Index reconciliation is not a P2 message. The worker runs it on a timer, default 60 seconds. Nothing publishes to the P2 queue yet. Scheduler is not wired.
 
 ### What is measured
 
-Per source: last successful sync, lag (now minus the newest unprocessed `occurred_at`), queue depth, dead-letter depth, embed calls skipped by hash, and delete verification failures. Definitions live with the dashboard in [ADR 0002](../03--adrs/0002-observability.md).
+Per source: last successful sync, event lag, queue depth, dead-letter depth, embed calls skipped by hash, and delete verification failures. Event lag is `kbs_ingest_event_lag_seconds`, now minus that event's `occurred_at`, recorded when the worker finishes the message. SQS does not expose the age of the oldest message outside CloudWatch, so this is not oldest-message age. Queue depth comes from `GetQueueAttributes` in the worker. Definitions live with the dashboard in [ADR 0002](../03--adrs/0002-observability.md).
 
 ## Why
 
@@ -74,7 +76,7 @@ Per source: last successful sync, lag (now minus the newest unprocessed `occurre
 - SQS FIFO throughput and exactly-once semantics are not what a log provides. The idempotent upsert is the real exactly-once. The queue is at-least-once delivery.
 - Ordering is per object, not across objects. A deal update and the epic it depends on can land out of order. The graph upsert is commutative for the edges in this ontology (`DEPENDS_ON` from deal to epic is written when either side is seen, and dropped when either side is tombstoned).
 - Reconciliation lag means a missed delete can live until the next sweep. P0 sources run the sweep more often. The dashboard shows indexed-minus-source id drift so the gap is visible.
-- Two-store writes can fail halfway. The worker treats Postgres and Neo4j as one unit: on partial failure it retries the whole message. The upsert key makes the retry safe. A poison message lands in the dead-letter queue and pages the sync-lag metric; it does not block the FIFO group forever, because the message group is per object and the poison message is removed from the main queue on dead-letter.
+- Two-store writes can fail halfway. Postgres commits first. If Neo4j fails, the message stays unacknowledged and the event retries. The chunk can exist without the node until that retry. The upsert key makes the retry safe, and a matching content hash still writes the graph. A poison message is copied to the dead-letter queue and shows up as dead-letter depth. It does not block the FIFO group forever, because the message group is per object and the poison message is removed from the main queue.
 - A local Terraform apply created `kbs-p0.fifo`, `kbs-p1.fifo`, `kbs-p2.fifo`, and a FIFO dead-letter queue for each. A send and receive on `kbs-p0.fifo` succeeded. That checks the API shape. It is not a test of ordering under load, and it is not a test of production SQS.
 
 ## Production path
@@ -86,6 +88,6 @@ Per source: last successful sync, lag (now minus the newest unprocessed `occurre
 
 ## Open TODOs
 
-- Event schema in `backend/libs/ingest-contract`. The harness webhook will use the same model when it enqueues.
-- Dead-letter replay command in `tools/`, used by demo step 5.
-- Reconciliation query that diffs source ids against indexed ids and emits tombstones.
+Built: the event schema in `backend/libs/ingest-contract`, `make dlq-replay`, and the index reconciliation sweep in the ingestion worker.
+
+Still open: the product webhook does not enqueue. It remains a stub. The production path is API Gateway plus Lambda, and that function is not built. floci's FIFO redrive was not observed; the worker's own copy at receive count 5 is what the demo relies on.
