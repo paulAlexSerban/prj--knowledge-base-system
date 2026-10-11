@@ -6,7 +6,7 @@ from pathlib import Path
 import boto3
 import httpx
 import pytest
-from botocore.exceptions import ClientError
+from botocore.exceptions import BotoCoreError, ClientError
 from fastapi.testclient import TestClient
 from hr_app import create_app
 from hr_store import Store
@@ -161,6 +161,16 @@ def test_delete_removes_every_version_and_the_row(harness, contract, state, s3):
     assert _count(metrics.DELETED, source_id="hr") >= 1
 
 
+def test_reconcile_rewrites_a_snapshot_the_bucket_lost(harness, contract, state, s3):
+    syncer = _syncer(harness, contract, state, s3)
+    syncer.run()
+    key = object_key("hr", "policy", "pol-parental-leave-de", "md")
+    syncer.snapshots.delete_all_versions(key)
+    assert not syncer.snapshots.exists(key)
+    syncer.reconcile()
+    assert b"Elternzeit" in s3.get_object(Bucket=BUCKET, Key=key)["Body"].read()
+
+
 def test_delete_verification_failure_keeps_the_row(harness, contract, state, s3):
     syncer = _syncer(harness, contract, state, s3)
     syncer.run()
@@ -254,6 +264,21 @@ def test_s3_down_leaves_the_watermark(harness, contract, state, s3):
     report = Syncer(harness[2], contract, state, Down(s3, BUCKET), workers=1).run()
     assert not report.ok
     assert state.get_watermark("hr") is None
+
+
+def test_reconcile_counts_an_unreachable_bucket(harness, contract, state, s3):
+    class Down(SnapshotStore):
+        def list_object_ids(self, source_id):
+            raise BotoCoreError()
+
+    syncer = Syncer(harness[2], contract, state, Down(s3, BUCKET), workers=1)
+    before = state.get_watermark("hr")
+    errors = _count(metrics.ERRORS, source_id="hr", stage="s3_put")
+    syncer.reconcile()
+    assert state.get_watermark("hr") == before
+    assert state.count_objects("hr") == 0
+    assert _count(metrics.ERRORS, source_id="hr", stage="s3_put") == errors + 1
+    assert metrics.DEPENDENCY.labels(dependency="s3")._value.get() == 0
 
 
 def test_partial_failure_replays_without_duplicates(harness, contract, state, s3):

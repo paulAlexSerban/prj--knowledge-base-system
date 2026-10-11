@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from threading import Lock
 
-from botocore.exceptions import ClientError
+from botocore.exceptions import BotoCoreError, ClientError
 from sqlalchemy.exc import SQLAlchemyError
 
 from backend.connectors.base import ConnectorError, SourceConnector
@@ -137,6 +137,16 @@ class Syncer:
                 error=str(exc),
             )
             return
+        try:
+            snapped = self.snapshots.list_object_ids(source_id)
+        except (ClientError, BotoCoreError) as exc:
+            metrics.DEPENDENCY.labels(dependency="s3").set(0)
+            metrics.ERRORS.labels(source_id, "s3_put").inc()
+            log_event(
+                LOG, "snapshot list failed", level=logging.ERROR, source_id=source_id, error=str(exc)
+            )
+            return
+        metrics.DEPENDENCY.labels(dependency="s3").set(1)
         live: dict[str, tuple[str, str]] = {}
         for kind, rows in payload.get("ids", {}).items():
             for row in rows:
@@ -147,11 +157,13 @@ class Syncer:
         stored = self.state.list_objects(source_id)
         for object_id, (kind, version) in live.items():
             current = stored.get(object_id)
-            if current is None or current.version != version:
+            missing = object_id not in snapped
+            if current is None or current.version != version or missing:
                 self._resync(kind, object_id)
         try:
             snapped = self.snapshots.list_object_ids(source_id)
-        except ClientError as exc:
+        except (ClientError, BotoCoreError) as exc:
+            metrics.DEPENDENCY.labels(dependency="s3").set(0)
             metrics.ERRORS.labels(source_id, "s3_put").inc()
             log_event(
                 LOG,
@@ -185,7 +197,7 @@ class Syncer:
         with ThreadPoolExecutor(max_workers=self.workers) as pool:
             return list(pool.map(self._one, items))
 
-    def _one(self, item: dict) -> ItemOutcome:
+    def _one(self, item: dict, force: bool = False) -> ItemOutcome:
         source_id = self.contract.source_id
         record = item["record"]
         object_type = item["object_type"]
@@ -207,7 +219,12 @@ class Syncer:
         acl = [str(value) for value in record.get("native_acl", [])]
         acl_text = ",".join(sorted(acl))
         existing = self.state.get_object(source_id, object_id)
-        if existing and existing.version == version and existing.native_acl == acl_text:
+        if (
+            not force
+            and existing
+            and existing.version == version
+            and existing.native_acl == acl_text
+        ):
             log_event(
                 LOG,
                 "snapshot skipped",
@@ -233,7 +250,8 @@ class Syncer:
         }
         try:
             put = self.snapshots.put(key, body, content_type, metadata)
-        except ClientError as exc:
+        except (ClientError, BotoCoreError) as exc:
+            metrics.DEPENDENCY.labels(dependency="s3").set(0)
             log_event(
                 LOG, "snapshot put failed", level=logging.ERROR, source_id=source_id, error=str(exc)
             )
@@ -283,7 +301,7 @@ class Syncer:
         source_id = self.contract.source_id
         try:
             self.snapshots.delete_all_versions(key)
-        except ClientError as exc:
+        except (ClientError, BotoCoreError) as exc:
             metrics.ERRORS.labels(source_id, "delete").inc()
             log_event(
                 LOG, "delete failed", level=logging.ERROR, source_id=source_id, error=str(exc)
@@ -325,7 +343,8 @@ class Syncer:
                 "id": object_id,
                 "record": record,
                 "updated_at": record.get("updated_at", ""),
-            }
+            },
+            force=True,
         )
         source_id = self.contract.source_id
         if outcome.status == "written":
