@@ -115,6 +115,7 @@ testpaths = [
   "demo-harness/hr/tests",
   "demo-harness/engineering/tests",
   "demo-harness/sales/tests",
+  "demo-harness/product/tests",
   "demo-harness/common/tests",
   "notebooks/tests",
   "frontend/tests",

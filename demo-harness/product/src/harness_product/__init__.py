@@ -1,1 +1,1 @@
-"""Product harness process. The feed is the shared stub."""
+"""Product harness. Markdown specs and a best-effort webhook."""
