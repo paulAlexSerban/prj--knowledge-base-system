@@ -39,7 +39,7 @@ app = create_app()
 
 def main() -> None:
     configure("webhook-receiver", "sources")
-    uvicorn.run(app, host="0.0.0.0", port=8090, log_config=None)
+    uvicorn.run(app, host="0.0.0.0", port=8090, log_config=None, access_log=False)
 
 
 if __name__ == "__main__":

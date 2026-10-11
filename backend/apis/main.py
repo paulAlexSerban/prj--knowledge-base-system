@@ -24,7 +24,8 @@ def create_app() -> FastAPI:
     @app.middleware("http")
     async def access_log(request: Request, call_next):
         response = await call_next(request)
-        if request.url.path not in {"/health", "/metrics"}:
+        path = request.url.path
+        if path != "/health" and not path.startswith("/metrics"):
             fields: dict[str, object] = {
                 "path": request.url.path,
                 "status": response.status_code,
@@ -53,7 +54,7 @@ app = create_app()
 def main() -> None:
     configure("gateway-api", "access")
     log_event(LOG, "gateway api started")
-    uvicorn.run(app, host="0.0.0.0", port=8000, log_config=None)
+    uvicorn.run(app, host="0.0.0.0", port=8000, log_config=None, access_log=False)
 
 
 if __name__ == "__main__":

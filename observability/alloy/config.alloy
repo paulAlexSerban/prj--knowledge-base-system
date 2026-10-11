@@ -124,6 +124,8 @@ prometheus.scrape "harness_product" {
   forward_to      = [prometheus.remote_write.local.receiver]
 }
 
+// jupyter publishes no /metrics endpoint and is intentionally not scraped.
+
 prometheus.scrape "harness_engineering" {
   targets         = [{__address__ = "harness-engineering:8080"}]
   job_name        = "harness-engineering"
