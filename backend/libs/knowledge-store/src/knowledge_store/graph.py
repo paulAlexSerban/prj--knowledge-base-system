@@ -2,14 +2,18 @@
 
 HR writes Person -BELONGS_TO-> Team and a Policy node. A Deal -DEPENDS_ON-> Epic
 edge is written when either side is seen, and dropped when either side is deleted.
+Each node stores acl_groups, acl_departments, min_clearance, and acl_rules.
 """
+
+import json
 
 from knowledge_store.acl import AclView
 
 PERSON = """
 MERGE (p:Person {id: $id})
 SET p.source_id = $source_id, p.name = $name, p.email = $email, p.role = $role,
-    p.version = $version, p.acl_groups = $groups, p.min_clearance = $min_clearance
+    p.version = $version, p.acl_groups = $groups, p.acl_departments = $departments,
+    p.min_clearance = $min_clearance, p.acl_rules = $rules
 WITH p
 OPTIONAL MATCH (p)-[old:BELONGS_TO]->(:Team)
 DELETE old
@@ -25,13 +29,15 @@ MERGE (p)-[:BELONGS_TO]->(t)
 POLICY = """
 MERGE (p:Policy {id: $id})
 SET p.source_id = $source_id, p.title = $title, p.version = $version,
-    p.acl_groups = $groups, p.min_clearance = $min_clearance
+    p.acl_groups = $groups, p.acl_departments = $departments,
+    p.min_clearance = $min_clearance, p.acl_rules = $rules
 """
 
 DEAL = """
 MERGE (d:Deal {id: $id})
 SET d.source_id = $source_id, d.version = $version, d.account_id = $account_id,
-    d.epic_id = $epic_id, d.acl_groups = $groups, d.min_clearance = $min_clearance
+    d.epic_id = $epic_id, d.acl_groups = $groups, d.acl_departments = $departments,
+    d.min_clearance = $min_clearance, d.acl_rules = $rules
 """
 
 LINK_EPIC = """
@@ -44,7 +50,8 @@ MERGE (d)-[:DEPENDS_ON]->(e)
 EPIC = """
 MERGE (e:Epic {id: $id})
 SET e.source_id = $source_id, e.title = $title, e.status = $status, e.version = $version,
-    e.acl_groups = $groups, e.min_clearance = $min_clearance
+    e.acl_groups = $groups, e.acl_departments = $departments,
+    e.min_clearance = $min_clearance, e.acl_rules = $rules
 """
 
 LINK_DEALS = """
@@ -75,7 +82,8 @@ RETURN count(n) AS n
 ACL = """
 MATCH (n)
 WHERE n.source_id = $source_id AND n.id = $object_id
-SET n.acl_groups = $groups, n.min_clearance = $min_clearance
+SET n.acl_groups = $groups, n.acl_departments = $departments,
+    n.min_clearance = $min_clearance, n.acl_rules = $rules
 """
 
 DEPENDS = """
@@ -109,8 +117,7 @@ class GraphWriter:
             "source_id": source_id,
             "id": object_id,
             "version": version,
-            "groups": list(acl.groups),
-            "min_clearance": acl.min_clearance,
+            **_acl_params(acl),
         }
         if object_type == "person":
             team = str(record.get("team") or "")
@@ -145,13 +152,7 @@ class GraphWriter:
             self._run(LINK_DEALS, id=object_id)
 
     def set_acl(self, source_id: str, object_id: str, acl: AclView) -> None:
-        self._run(
-            ACL,
-            source_id=source_id,
-            object_id=object_id,
-            groups=list(acl.groups),
-            min_clearance=acl.min_clearance,
-        )
+        self._run(ACL, source_id=source_id, object_id=object_id, **_acl_params(acl))
 
     def delete(self, source_id: str, object_id: str) -> None:
         self._run(DELETE, source_id=source_id, object_id=object_id)
@@ -171,3 +172,12 @@ class GraphWriter:
     def _one(self, query: str, **params: object):
         records, _, _ = self.driver.execute_query(query, **params)
         return records[0] if records else None
+
+
+def _acl_params(acl: AclView) -> dict[str, object]:
+    return {
+        "groups": list(acl.groups),
+        "departments": list(acl.departments),
+        "min_clearance": acl.min_clearance,
+        "rules": json.dumps(acl.as_json()),
+    }

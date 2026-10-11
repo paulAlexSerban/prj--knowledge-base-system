@@ -80,7 +80,7 @@ Create, update, and delete walk the same path:
 
 Detail: [spike 01](../01--spikes/01--handling-data-from-distributed-sources-w-diff-formats-access-methods-n-ownership.md).
 
-Source-specific complexity (auth, pagination, format quirks) stays inside a connector that implements one interface. Each source has a YAML contract with a required owner, a freshness tier, a sensitivity, and at least one rule mapping its native permissions to `department`, `clearance`, `region`, or `group`. `load_contracts` is the registration gate: a connector with an invalid contract does not start. A high-sensitivity source must declare an ACL re-check at read time.
+Source-specific complexity (auth, pagination, format quirks) stays inside a connector that implements one interface. Each source has a YAML contract with a required owner, a freshness tier, a sensitivity, and at least one rule mapping its native permissions to `group`, `clearance`, and `department`. `department: "*"` means every department. `region` is optional and is not an access predicate. `load_contracts` is the registration gate: a connector with an invalid contract does not start. A high-sensitivity source must declare an ACL re-check at read time.
 
 A connector uses the cheapest change signal its source really has. The four demo sources exercise each one:
 
@@ -119,23 +119,23 @@ MCP gives every client the same tools. It does not authenticate the user or enfo
 
 | MCP tool | REST | Behavior |
 | -------- | ---- | -------- |
-| `search_knowledge` | `POST /v1/search` | Hybrid or graph-routed retrieval for the caller. Returns chunk ids, snippets, source, version, sync time. |
+| `search_knowledge` | `POST /v1/search` | Hybrid or graph-routed retrieval for the caller. Returns at most one chunk per object, with chunk id, snippet, source, version, and sync time. |
 | `get_document` | `GET /v1/documents/{id}` | One authorized document or chunk with provenance. |
 | `find_related` | `POST /v1/graph/related` | Bounded traversal from a known entity. Returns the path. |
 | `list_sources` | `GET /v1/sources` | Owner, tier, last sync. No bodies. |
 
 There is no write tool and no open SQL or Cypher. The token's claims become the principal. Authorization runs in this order:
 
-1. A coarse pre-filter in SQL on group, clearance, and department. An empty department list means any department. Cypher filters on group and clearance only.
-2. Over-fetch, then a fine-grained post-check against the ACL attributes on the chunk.
-3. Postgres row-level security reads the principal from session settings, so a query that forgets the predicate still cannot read another principal's rows.
-4. An audit row names the attributes that justified each allow. Denies are audited too.
+1. A coarse pre-filter in SQL on group, clearance, and department. An empty department list means any department, including a rule written `department: "*"`. Cypher filters on group, department, and clearance.
+2. Over-fetch, then a fine-grained post-check, then one chunk per object. The store limit counts chunks, so search asks for four times the caller's limit. One stored rule has to match group, department, and clearance together, on a chunk and on a graph node.
+3. Postgres row-level security reads the principal from session settings and requires one `acl_rules` element to match. A query that forgets the predicate still cannot read another principal's rows.
+4. An audit row names the attributes that justified each allow. Denies are audited too. `gateway_ro` can insert those rows and cannot read them.
 
 Permission staleness is explicit. HR policy search calls the harness ACL endpoint before returning a chunk. A timeout returns nothing. `find_related` does not make that call. Sales, Engineering, and Product are not ingested. Their contracts still say the indexed ACL is authoritative inside the freshness window.
 
 Retrieved text is data. Snippets are wrapped as untrusted content. No tool can write, and the gateway does not write an answer. The calling agent does.
 
-What runs today is narrower than the table above. Search is hybrid full-text plus the hash embedder. It is not a query router, and `hash-v1` is not semantic: a chunk is returned only when the words also match. `find_related` is the three HR templates. Question 2, which needs Sales deals and Engineering epics, is not demonstrable. Identity is HS256 with `GATEWAY_JWT_SECRET`, not OIDC. Neo4j Community has no roles. Graph authorization is the template and a read-only session.
+What runs today is narrower than the table above. Search is hybrid full-text plus the hash embedder. It is not a query router, and `hash-v1` is not semantic: a chunk is returned only when the words also match. `find_related` is the three HR templates, each checked against the stored rule. Question 2, which needs Sales deals and Engineering epics, is not demonstrable. Identity is HS256 with `GATEWAY_JWT_SECRET`, not OIDC. Neo4j Community has no roles. The gateway and the worker share the `neo4j` user. That shared credential is an accepted POC risk. The read path is a read-only session plus the template.
 
 ## Self-maintenance
 
@@ -210,13 +210,13 @@ Monitoring follows [ADR 0002](../03--adrs/0002-observability.md). The HR connect
 - Entity resolution beyond shared keys is deferred, and the demo uses one product key on purpose. That is not a resolution step.
 - The 250 ms and 30-second targets are design targets with metrics, not load-test results.
 - A missed delete lives until the next reconciliation sweep. Drift is a panel.
-- Session-scoped RLS is easy to get wrong under connection pooling. `chunks_read_by_acl` reads `kbs.groups`, `kbs.clearance`, and `kbs.department`. An empty setting sees no rows. The table owner bypasses the policy.
+- Session-scoped RLS is easy to get wrong under connection pooling. `chunks_read_by_acl` requires one `acl_rules` element to match `kbs.groups`, `kbs.clearance`, and `kbs.department`. An empty setting sees no rows. The table owner bypasses the policy. Neo4j Community has no roles, so the shared `neo4j` user is not a per-principal boundary.
 - The demo sources are cooperative. Real Jira, Drive, or HubSpot connectors will spend their budget on pagination, token refresh, and rate limits.
 - The company is global, and data residency and multi-region behavior are not designed here.
 
 ## What is built
 
-Built: the design documents and diagrams, the source-contract gate with tests and CI, four YAML contracts, Compose, Terraform on floci (three FIFO queues, three dead-letter queues, one bucket), Postgres and Neo4j schema, the observability stack, a seeded HR harness, and the HR connector (`connector-hr`) which writes raw snapshots, enqueues change events, and records sync state. The ingestion worker consumes those events, chunks and embeds them, and writes Postgres and Neo4j. Store-level search applies row-level security, full-text and vector search, the fine ACL check, and an audit row. The API and the MCP server search, fetch one chunk, and run the three HR graph templates under the caller's JWT. HR policy search re-checks the harness ACL. Retrieval latency, empty-result rate, and auth failures are on the dashboard. `make dlq-replay` exists. The running embedder is `hash-v1`, which is deterministic and not semantic. The gateway returns cited chunks and does not write an answer.
+Built: the design documents and diagrams, the source-contract gate with tests and CI, four YAML contracts, Compose, Terraform on floci (three FIFO queues, three dead-letter queues, one bucket), Postgres and Neo4j schema, the observability stack, a seeded HR harness, and the HR connector (`connector-hr`) which writes raw snapshots, enqueues change events, and records sync state. The ingestion worker consumes those events, chunks and embeds them, and writes Postgres and Neo4j. Store-level search applies row-level security, full-text and vector search, the fine ACL check, and an audit row. The API and the MCP server search (one chunk per object), fetch one chunk by id, and run the three HR graph templates under the caller's JWT. HR policy search re-checks the harness ACL. Retrieval latency, empty-result rate, and auth failures are on the dashboard. `make dlq-replay` exists. The running embedder is `hash-v1`, which is deterministic and not semantic. The gateway returns cited chunks and does not write an answer.
 
 Not built: the query router, answer synthesis, demo question 2, OIDC, the Sales, Product, and Engineering connectors and harness data, the golden set and `make eval`, traces, and the embedding rebuild command. There is no Lambda. `backend/functions` stays absent until a function exists. The webhook receiver in Compose is the stub; its production path is API Gateway plus Lambda.
 

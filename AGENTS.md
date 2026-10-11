@@ -27,6 +27,7 @@ This repository is a POC knowledge gateway: ingest four department sources, keep
 | `backend/tests/e2e/` | Opt-in live-stack test. `make e2e`. |
 | `database/` | Postgres migrations (sync state, chunks, full-text, vectors, ACL, row-level security) and Neo4j constraints. |
 | `demo-harness/` | One image per source. HR is built. Sales, Product, and Engineering are stubs on `harness-common`. |
+| `frontend/` | Streamlit chat page (`chat-ui`). Own image. Calls the gateway REST API only; holds no store credentials. Writes the answer from cited snippets, with OpenRouter when a key is set. |
 | `notebooks/` | Jupyter notebooks that seed, inspect, and edit the HR harness (`00`–`30`) and call the gateway (`40`–`43`). |
 | `infrastructure/orchestration/` | One Compose file per trust area, plus `compose.yaml` which includes them. |
 | `infrastructure/provisioning/terraform/` | Queues, dead-letter queues, and the snapshot bucket on floci. |
@@ -48,7 +49,7 @@ Add a dependency to the package that imports it: `uv add --package connector-hr 
 
 `make up` starts the stack, then applies Terraform on the host. `make notebooks` starts Jupyter. `make tools` starts pgAdmin and the SQLite viewers. `make e2e` runs the live HR snapshot cycle and is not part of `make test`. `make dlq-replay` re-sends dead-letter messages to the tier queues. floci must already be up. `make seed`, `make demo`, and `make eval` are not written yet. Add a target only when the command it wraps exists, and update the README quickstart in that same change. HR bulk load is the notebook, which calls `POST /admin/seed`.
 
-Dockerfiles install one package with `uv sync --frozen --no-dev --no-default-groups --package <name>`. There is no Lambda directory until a function exists. Do not publish Postgres or Neo4j ports. One Compose network per trust boundary (`kbs-data` is internal). Service names are globally unique. New services need a healthcheck and a Prometheus target. Jupyter, pgAdmin, and the SQLite viewers are the exception: they have a healthcheck and no `/metrics` endpoint, and Alloy does not scrape them. Harness images stay root because they write a SQLite file on a volume. The other images run as `nobody`.
+Dockerfiles install one package with `uv sync --frozen --no-dev --no-default-groups --package <name>`. There is no Lambda directory until a function exists. Do not publish Postgres or Neo4j ports. One Compose network per trust boundary (`kbs-data` is internal). Service names are globally unique. New services need a healthcheck and a Prometheus target. Jupyter, the chat page, pgAdmin, and the SQLite viewers are the exception: they have a healthcheck and no `/metrics` endpoint, and Alloy does not scrape them. Harness images stay root because they write a SQLite file on a volume. The other images run as `nobody`.
 
 ## Design rules
 

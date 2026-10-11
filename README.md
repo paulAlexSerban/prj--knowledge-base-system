@@ -2,7 +2,7 @@
 
 The Unified Knowledge Gateway is an event-driven hybrid knowledge base. It ingests department data, turns it into knowledge agents can use, and serves it through one API and one MCP server with the caller's permissions applied in the data layer.
 
-This repository is a proof of concept for that gateway. The design is written down. The source-contract gate is implemented and checked in CI. Compose starts the harness, workers, stores, API, MCP server, floci, Jupyter, pgAdmin, the SQLite viewers, and the observability stack (Alloy, Loki, Prometheus, and Grafana). The HR connector writes raw snapshots to S3 and enqueues change events. The ingestion worker chunks those objects, embeds them with a deterministic hash, and writes Postgres and Neo4j. The API and the MCP server search those chunks under the caller's token. They return cited snippets. They do not write an answer.
+This repository is a proof of concept for that gateway. The design is written down. The source-contract gate is implemented and checked in CI. Compose starts the harness, workers, stores, API, MCP server, floci, Jupyter, pgAdmin, the SQLite viewers, and the observability stack (Alloy, Loki, Prometheus, and Grafana). The HR connector writes raw snapshots to S3 and enqueues change events. The ingestion worker chunks those objects, embeds them with a deterministic hash, and writes Postgres and Neo4j. The API and the MCP server search those chunks under the caller's token. They return cited snippets. They do not write an answer. A Streamlit chat page (`frontend/`) calls the REST API as a chosen persona and writes the answer from those snippets.
 
 ## Status
 
@@ -13,11 +13,9 @@ This repository is a proof of concept for that gateway. The design is written do
 | Source-contract model, four YAML contracts, validator, tests, and CI | Sales, Product, and Engineering connectors and harness data, and `make demo` |
 | Compose for the harness, gateway, ingestion, store, floci, Jupyter, pgAdmin, SQLite viewers, and observability. The HR harness is seeded. | Golden evaluation set and `make eval` |
 | Terraform on floci: three FIFO queues, three dead-letter queues, one snapshot bucket. The HR connector enqueues change events. `make dlq-replay` sends dead-letter messages back. | Traces |
-| Ingestion worker: chunking, hash embeddings (`hash-v1`, 384 dimensions, not semantic), Postgres chunks (full-text, HNSW, ACL columns, row-level security, tombstones), and the Neo4j writer. HR writes Person, Team, and Policy. `Deal -DEPENDS_ON-> Epic` is tested with fixtures only. | OIDC in place of the shared-secret JWT |
-| REST and MCP retrieval over `gateway-core`: search, get document, bounded HR graph lookup, and list sources. Dev-only `POST /dev/token` signs an HS256 JWT. | |
-| Grafana overview: connector and ingestion rows, plus retrieval p95, empty-result rate by group, and auth failures. A deny is a log line. | |
-| HR read-time ACL re-check on policy search, and store plus API access-boundary tests | |
-| Notebooks `00`–`30` for the HR harness, and `40`–`43` for the gateway | |
+| Ingestion worker: chunking, hash embeddings (`hash-v1`, 384 dimensions, not semantic), Postgres chunks (full-text, HNSW, ACL columns, row-level security, tombstones), and the Neo4j writer. HR writes Person, Team, and Policy. `Deal -DEPENDS_ON-> Epic` is tested with fixtures only. | A semantic embedder in place of `hash-v1` |
+| REST and MCP retrieval over `gateway-core`: search (one chunk per object), get document, bounded HR graph lookup, and list sources. Dev-only `POST /dev/token` signs an HS256 JWT. HR policy search re-checks the harness ACL. | OIDC in place of the shared-secret JWT |
+| Grafana overview: connector and ingestion rows, plus retrieval p95, empty-result rate by group, and auth failures. A deny is a log line. Notebooks `00`–`30` edit the harness and `40`–`43` call the gateway. | Alertmanager |
 
 
 
@@ -92,6 +90,7 @@ Postgres 18 cannot open a data directory written by 16. If `kbs_pgdata` already 
 | --------- | ------------------------------------------------- |
 | 8000      | Knowledge API. `/health`, `/metrics`, `/v1/sources`, `/v1/search`, `/v1/documents/{id}`, `/v1/graph/related`, and dev-only `/dev/token`. |
 | 8001      | MCP server. `/health`, `/metrics`, and streamable HTTP at `/mcp`. Tools: `search_knowledge`, `get_document`, `find_related`, `list_sources`. |
+| 8501      | Chat page (Streamlit). Pick a persona in the sidebar. With `OPENROUTER_API_KEY` set it writes an answer with citations; without a key it shows the retrieved passages. |
 | 8090      | Product webhook receiver                          |
 | 8101–8104 | HR, Sales, Product, Engineering harness           |
 | 8111–8114 | SQLite viewers for HR, Sales, Product, Engineering. Read-only. |
@@ -106,7 +105,7 @@ Postgres 18 cannot open a data directory written by 16. If `kbs_pgdata` already 
 make down
 ```
 
-`make dlq-replay` moves dead-letter messages back onto the tier queues. floci must already be up. `make notebooks` starts Jupyter on port 8888. The seed notebook resets the HR harness and loads 200 people by default (`SEED_COUNT=10000` is the scale load). Notebooks `10`–`30` create, update, and delete HR rows and check the S3 snapshots. Notebooks `40`–`43` mint tokens, search as three personas, call the MCP tools, and edit a policy through the gateway. `make tools` starts pgAdmin and the four SQLite viewers, plus Postgres and the harness so those databases exist. `make tf-apply` creates the queues and the snapshot bucket again. `make seed`, `make demo`, and `make eval` do not exist yet. Details of networks and how to start one project alone are in [infrastructure/README.md](infrastructure/README.md). Set `GATEWAY_JWT_SECRET` in `.env` before `make up`. `DEV_TOKEN_ENDPOINT=1` turns on `POST /dev/token`.
+`make dlq-replay` moves dead-letter messages back onto the tier queues. floci must already be up. `make notebooks` starts Jupyter on port 8888. The seed notebook resets the HR harness and loads 200 people by default (`SEED_COUNT=10000` is the scale load). Notebooks `10`–`30` create, update, and delete HR rows and check the S3 snapshots. Notebooks `40`–`43` mint tokens, search as three personas, call the MCP tools, and edit a policy through the gateway. `make tools` starts pgAdmin and the four SQLite viewers, plus Postgres and the harness so those databases exist. `make tf-apply` creates the queues and the snapshot bucket again. `make seed`, `make demo`, and `make eval` do not exist yet. Details of networks and how to start one project alone are in [infrastructure/README.md](infrastructure/README.md). Set `GATEWAY_JWT_SECRET` in `.env` before `make up`. `POST /dev/token` stays off unless `DEV_TOKEN_ENDPOINT=1`. `.env.example` sets that for the local demo.
 
 ## Demo script
 
@@ -122,7 +121,7 @@ These five steps are the acceptance test. The gateway returns cited chunks. It d
 
 ## Source contracts
 
-A connector starts only when its YAML contract validates. Required: an owner (team and contact), a freshness tier (`P0`, `P1`, or `P2`), and at least one ACL mapping onto `department`, `clearance`, `region`, or `group`. High sensitivity requires an ACL re-check at read time. Fields named `salary`, `compensation`, `ssn`, or `national_id` cannot be in scope.
+A connector starts only when its YAML contract validates. Required: an owner (team and contact), a freshness tier (`P0`, `P1`, or `P2`), and at least one ACL mapping. Each rule requires `group`, `clearance`, and `department`. `department: "*"` means every department. `region` is optional and is not an access predicate. High sensitivity requires an ACL re-check at read time. Fields named `salary`, `compensation`, `ssn`, or `national_id` cannot be in scope.
 
 Contracts live in [infrastructure/config/sources](infrastructure/config/sources). The model is [shared/src/shared/contracts/source_contract.py](shared/src/shared/contracts/source_contract.py). To add a source, add a YAML file and run `make contracts-check`. A process calls `shared.registry.load_registry` and refuses to start when that raises.
 
@@ -144,6 +143,7 @@ Contracts live in [infrastructure/config/sources](infrastructure/config/sources)
 | `backend/tests/`                 | Integration tests, plus `e2e/` for `make e2e`. |
 | `database/`                      | Postgres migrations (sync state, chunks, full-text, vectors, ACL, row-level security) and Neo4j constraints. |
 | `demo-harness/`                  | One image per source. HR is seeded. Sales, Product, and Engineering are empty stubs. |
+| `frontend/`                      | Streamlit chat page `chat-ui`. Own image. Calls the REST API only. |
 | `notebooks/`                     | Jupyter notebooks that seed and edit the HR harness (`00`–`30`) and call the gateway (`40`–`43`). |
 | `infrastructure/`                | Compose projects, Terraform for floci, source contracts.                        |
 | `observability/`                 | Alloy and Loki config, Prometheus scrape config, and the Grafana dashboard.    |

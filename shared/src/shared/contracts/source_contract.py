@@ -15,6 +15,8 @@ FORBIDDEN_IN_SCOPE_FIELDS = frozenset(
 )
 PUSH_OR_CURSOR = frozenset({"webhook", "cursor_feed", "updated_since"})
 TIER_MAX_SECONDS = {"P0": 30, "P1": 300, "P2": 86400}
+CLEARANCE_LABELS = ("public", "internal", "confidential", "restricted")
+REQUIRED_ACL_ATTRIBUTES = ("group", "clearance", "department")
 
 
 class FreshnessTier(str, Enum):
@@ -51,12 +53,41 @@ class Owner(BaseModel):
 
 
 class AclRule(BaseModel):
-    """One native permission selector mapped onto platform attributes."""
+    """One native permission mapped onto group, clearance, and department.
+
+    All three are required. ``department`` may be ``*``, which means every
+    department. A missing attribute does not grant access. ``region`` stays
+    optional and is not an access predicate.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
     native: str = Field(min_length=1)
-    attributes: dict[PlatformAttribute, str] = Field(min_length=1)
+    attributes: dict[PlatformAttribute, str] = Field(
+        min_length=1,
+        description=(
+            "Requires group, clearance, and department. "
+            "clearance is public, internal, confidential, or restricted. "
+            "department * means every department."
+        ),
+    )
+
+    @model_validator(mode="after")
+    def require_explicit_grant(self) -> "AclRule":
+        values = {key.value: value for key, value in self.attributes.items()}
+        missing = [
+            name
+            for name in REQUIRED_ACL_ATTRIBUTES
+            if not isinstance(values.get(name), str) or not values[name].strip()
+        ]
+        if missing:
+            raise ValueError(
+                "acl rule requires group, clearance, and department: " + ", ".join(missing)
+            )
+        clearance = values["clearance"].strip()
+        if clearance not in CLEARANCE_LABELS:
+            raise ValueError("clearance must be one of " + ", ".join(CLEARANCE_LABELS))
+        return self
 
 
 class SourceContract(BaseModel):

@@ -54,6 +54,13 @@ def _root():
     return Path(__file__).resolve().parents[4]
 
 
+def _apply_sql(connection, name: str) -> None:
+    sql = (_root() / "database" / "postgres" / "migrations" / name).read_text()
+    for statement in sql.split(";"):
+        if statement.strip():
+            connection.execute(text(statement))
+
+
 def _contracts():
     found = load_contracts(_root() / "infrastructure" / "config" / "sources")
     return {item.source_id: item for item in found}
@@ -122,9 +129,16 @@ def test_upsert_is_idempotent_and_acl_does_not_embed(world) -> None:
     with admin.connect() as connection:
         groups = connection.execute(text("SELECT acl_groups FROM chunks LIMIT 1")).one().acl_groups
     assert groups == ["hr_admins"]
-    assert driver.execute_query(
-        "MATCH (p:Policy {id: $id}) RETURN p.acl_groups AS groups", id="pol-1"
-    )[0][0]["groups"] == ["hr_admins"]
+    stored = driver.execute_query(
+        """
+        MATCH (p:Policy {id: $id})
+        RETURN p.acl_groups AS groups, p.acl_departments AS departments, p.acl_rules AS rules
+        """,
+        id="pol-1",
+    )[0][0]
+    assert stored["groups"] == ["hr_admins"]
+    assert stored["departments"] == ["people"]
+    assert "hr_admins" in stored["rules"]
 
 
 def test_version_bump_replaces_chunks(world) -> None:
@@ -202,7 +216,8 @@ def test_two_principals_and_rls(world) -> None:
     assert found
     assert "Germany" in found[0].text
     assert store.search("Germany", outsider, request_id="req-2") == []
-    # Coarse columns include hr_admins at internal. The admin rule requires confidential.
+    # The row policy hides the mix. Search never sees a chunk, so the deny has no chunk id.
+    assert store.chunks.count_visible(admin_low) == 0
     assert store.search("Germany", admin_low, request_id="req-3") == []
     with admin.connect() as connection:
         decisions = {
@@ -211,7 +226,7 @@ def test_two_principals_and_rls(world) -> None:
         }
     assert ("ada", "allow", True) in decisions
     assert ("bob", "deny", False) in decisions
-    assert ("cam", "deny", True) in decisions
+    assert ("cam", "deny", False) in decisions
 
 
 def test_admin_only_policy_is_hidden_from_an_engineer(world) -> None:
@@ -268,15 +283,41 @@ def test_stored_employee_department_is_opened_by_the_migration(world) -> None:
     )
     engineer = Principal("eve", ("employees",), "internal", "engineering")
     assert store.chunks.count_visible(engineer) == 0
-    sql = (_root() / "database" / "postgres" / "migrations" / "003-abac-department.sql").read_text()
-    with admin.begin() as connection:
-        for statement in sql.split(";"):
-            if statement.strip():
-                connection.execute(text(statement))
-    assert store.chunks.count_visible(engineer) == 1
-    found = store.search("Germany", engineer, request_id="rewritten")
-    assert found
-    assert found[0].object_id == "pol-old"
+    try:
+        with admin.begin() as connection:
+            _apply_sql(connection, "003-abac-department.sql")
+            _apply_sql(connection, "004-least-privilege.sql")
+        assert store.chunks.count_visible(engineer) == 1
+        found = store.search("Germany", engineer, request_id="rewritten")
+        assert found
+        assert found[0].object_id == "pol-old"
+        with admin.connect() as connection:
+            rules = connection.execute(
+                text("SELECT acl_rules FROM chunks WHERE object_id = 'pol-old'")
+            ).one().acl_rules
+        assert rules[0]["department"] == "*"
+    finally:
+        with admin.begin() as connection:
+            _apply_sql(connection, "004-least-privilege.sql")
+
+
+def test_gateway_cannot_read_the_audit_log(world) -> None:
+    store, _spy, client, admin, _driver = world
+    key = "raw/hr/policy/pol-1.md"
+    _put(client, key, POLICY, "hr_employee", "1", "hash-1")
+    store.upsert_object(_event("pol-1", key, "1", "hash-1"))
+    employee = Principal("ada", ("employees",), "internal", "engineering")
+    assert store.search("Germany", employee, request_id="req-priv")
+    with admin.connect() as connection:
+        written = connection.execute(
+            text("SELECT decision FROM audit_log WHERE request_id = 'req-priv'")
+        ).first()
+    assert written is not None
+    with (
+        pytest.raises(Exception, match="permission denied"),
+        store.chunks.reader.connect() as connection,
+    ):
+        connection.execute(text("SELECT count(*) AS n FROM audit_log")).one()
 
 
 def test_unmapped_acl_is_visible_to_nobody(world) -> None:
@@ -319,7 +360,13 @@ def test_reconcile_removes_orphans_and_backfills(world) -> None:
 def test_deal_edge_survives_either_order_and_dies_with_the_epic(neo4j_driver) -> None:
     graph = GraphWriter(neo4j_driver)
     neo4j_driver.execute_query("MATCH (n) DETACH DELETE n")
-    acl = AclView(("sales_team",), ("sales",), 0, ({"group": "sales_team", "department": "sales"},), ())
+    acl = AclView(
+        ("sales_team",),
+        ("sales",),
+        1,
+        ({"group": "sales_team", "department": "sales", "clearance": "internal"},),
+        (),
+    )
     graph.write("engineering", "epic", "epic-9", {"title": "Billing", "status": "unreleased"}, "Billing", acl, "1")
     graph.write("sales", "deal", "deal-1", {"account_id": "acme", "epic_id": "epic-9"}, "Acme", acl, "1")
     assert graph.depends_on("deal-1", "epic-9")

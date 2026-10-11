@@ -36,5 +36,5 @@ ALTER TABLE kbs.chunks ENABLE ROW LEVEL SECURITY;
 GRANT USAGE ON SCHEMA kbs TO ingestion_rw, gateway_ro;
 GRANT SELECT, INSERT, UPDATE, DELETE ON kbs.chunks TO ingestion_rw;
 GRANT USAGE, SELECT ON SEQUENCE kbs.chunks_id_seq TO ingestion_rw;
-GRANT SELECT ON kbs.chunks, kbs.audit_log TO gateway_ro;
+GRANT SELECT ON kbs.chunks TO gateway_ro;
 SQL

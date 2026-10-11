@@ -32,8 +32,13 @@ class GatewayService:
         self, principal: Principal, query: str, limit: int, request_id: str
     ) -> dict[str, object]:
         with RETRIEVAL_SECONDS.labels(tool="search", surface=self.surface).time():
-            hits = self.store.search(query, principal, limit=limit, request_id=request_id)
+            # The store limit counts chunks. A policy is several chunks, so ask
+            # for more and keep the best chunk of each object.
+            hits = self.store.search(
+                query, principal, limit=max(limit * 4, limit), request_id=request_id
+            )
             hits = apply_recheck(hits, principal, self.store.contracts, self.recheck)
+            hits = _one_chunk_per_object(hits)[:limit]
         source = hits[0].source_id if hits else "none"
         self._record("search", principal, request_id, len(hits), source, empty_rate=True)
         return {"request_id": request_id, "results": [_public_hit(hit) for hit in hits]}
@@ -70,8 +75,26 @@ class GatewayService:
         request_id: str,
     ) -> dict[str, object]:
         with RETRIEVAL_SECONDS.labels(tool="find_related", surface=self.surface).time():
-            paths = self.graph.related(kind, principal, entity_id, limit)
-        self._record("find_related", principal, request_id, len(paths), "none", empty_rate=False)
+            accesses = self.graph.related(kind, principal, entity_id, limit)
+            self.store.chunks.record_decisions(
+                principal,
+                request_id,
+                [
+                    (
+                        "allow" if item.allowed else "deny",
+                        item.source_id,
+                        item.rule,
+                        item.object_id,
+                    )
+                    for item in accesses
+                ],
+            )
+        paths = [item.path for item in accesses if item.allowed]
+        source = next(
+            (item.source_id for item in accesses if item.allowed and item.source_id),
+            "none",
+        )
+        self._record("find_related", principal, request_id, len(paths), source, empty_rate=False)
         return {"request_id": request_id, "kind": kind, "paths": paths}
 
     def _record(
@@ -108,6 +131,18 @@ class GatewayService:
         for item in payloads:
             item["last_success_at"] = sync.get(str(item["source_id"]))
         return payloads
+
+
+def _one_chunk_per_object(hits: list[Hit]) -> list[Hit]:
+    seen: set[tuple[str, str]] = set()
+    kept: list[Hit] = []
+    for hit in hits:
+        key = (hit.source_id, hit.object_id)
+        if key in seen:
+            continue
+        seen.add(key)
+        kept.append(hit)
+    return kept
 
 
 def _public_hit(hit: Hit) -> dict[str, object]:

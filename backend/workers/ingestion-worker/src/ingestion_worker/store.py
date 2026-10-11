@@ -1,17 +1,14 @@
-"""What the worker does with one event.
+"""Dispatch one change event to the store the consumer was given.
 
-Phase 1 ships an in-memory store for tests and a logging store for the
-process. The knowledge store replaces the logging store once Postgres and
-Neo4j writes exist. Both honor the same three calls.
+The process passes a KnowledgeStore. MemoryStore is the double the queue
+tests use, so those tests do not need Postgres or Neo4j. It dedupes on the
+event id. The real store does not: it dedupes on the content hash and the
+chunk key, and it writes Postgres before Neo4j.
 """
 
-import logging
 from typing import Protocol
 
 from ingest_contract.events import ChangeEvent, EventType
-from shared.logging import log_event
-
-LOG = logging.getLogger("ingestion-worker")
 
 
 class Store(Protocol):
@@ -54,19 +51,6 @@ class MemoryStore:
         return True
 
 
-class LoggingStore:
-    """No database yet. The line is what the manual gate reads."""
-
-    def upsert_object(self, event: ChangeEvent) -> None:
-        _log(event)
-
-    def apply_acl(self, event: ChangeEvent) -> None:
-        _log(event)
-
-    def delete_object(self, event: ChangeEvent) -> None:
-        _log(event)
-
-
 def dispatch(store: Store, event: ChangeEvent) -> None:
     if event.event_type == EventType.DELETE:
         store.delete_object(event)
@@ -74,14 +58,3 @@ def dispatch(store: Store, event: ChangeEvent) -> None:
         store.apply_acl(event)
     else:
         store.upsert_object(event)
-
-
-def _log(event: ChangeEvent) -> None:
-    log_event(
-        LOG,
-        "event handled",
-        source_id=event.source_id,
-        object_id=event.object_id,
-        event_type=event.event_type.value,
-        version=event.version or "",
-    )

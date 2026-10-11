@@ -7,7 +7,7 @@ import pytest
 from pydantic import ValidationError
 
 from shared.contracts.export_schema import SCHEMA_PATH, render_schema
-from shared.contracts.source_contract import SourceContract
+from shared.contracts.source_contract import PlatformAttribute, SourceContract
 from shared.contracts.validate import ContractLoadError, load_contracts, main
 
 
@@ -37,7 +37,11 @@ def _valid(**overrides: object) -> dict:
         "acl_mapping": [
             {
                 "native": "hr_employee",
-                "attributes": {"department": "people", "group": "employees"},
+                "attributes": {
+                    "department": "people",
+                    "clearance": "internal",
+                    "group": "employees",
+                },
             }
         ],
     }
@@ -56,7 +60,8 @@ def test_registry_contracts_load() -> None:
     hr = next(item for item in contracts if item.source_id == "hr")
     assert hr.freshness_tier.value == "P0"
     assert hr.acl_recheck_at_read is True
-    assert hr.acl_mapping
+    employee = next(rule for rule in hr.acl_mapping if rule.native == "hr_employee")
+    assert employee.attributes[PlatformAttribute.DEPARTMENT] == "*"
 
 
 def test_committed_schema_matches_model() -> None:
@@ -81,6 +86,69 @@ def test_cli_accepts_registry() -> None:
                 ]
             },
             "attributes",
+        ),
+        (
+            {
+                "acl_mapping": [
+                    {
+                        "native": "hr_employee",
+                        "attributes": {"clearance": "internal", "department": "people"},
+                    }
+                ]
+            },
+            "group",
+        ),
+        (
+            {
+                "acl_mapping": [
+                    {
+                        "native": "hr_employee",
+                        "attributes": {"group": "employees", "department": "people"},
+                    }
+                ]
+            },
+            "clearance",
+        ),
+        (
+            {
+                "acl_mapping": [
+                    {
+                        "native": "hr_employee",
+                        "attributes": {"group": "employees", "clearance": "internal"},
+                    }
+                ]
+            },
+            "department",
+        ),
+        (
+            {
+                "acl_mapping": [
+                    {
+                        "native": "hr_employee",
+                        "attributes": {
+                            "group": "employees",
+                            "clearance": "top-secret",
+                            "department": "people",
+                        },
+                    }
+                ]
+            },
+            "clearance",
+        ),
+        (
+            {
+                "acl_mapping": [
+                    {
+                        "native": "hr_employee",
+                        "attributes": {
+                            "group": "employees",
+                            "clearance": "internal",
+                            "department": "",
+                        },
+                    }
+                ]
+            },
+            "department",
         ),
         (
             {

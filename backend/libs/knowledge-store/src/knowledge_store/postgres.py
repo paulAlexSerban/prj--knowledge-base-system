@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
-from knowledge_store.acl import AclView, Principal, allows
+from knowledge_store.acl import AclView, Principal, allows, view_from_rules
 from knowledge_store.chunkers import ChunkDraft
 from knowledge_store.embedder import HASH_MODEL
 
@@ -291,7 +291,7 @@ class ChunkTable:
             for row, score in ranked:
                 if model == HASH_MODEL and int(row["id"]) not in lexical_ids:
                     continue
-                view = _view_from_rules(row["acl_rules"])
+                view = view_from_rules(row["acl_rules"])
                 allowed, rule = allows(view, principal)
                 if not allowed:
                     denied = True
@@ -320,13 +320,36 @@ class ChunkTable:
             row = connection.execute(statement, {"id": chunk_id}).mappings().first()
             if row is None:
                 return None
-            view = _view_from_rules(row["acl_rules"])
+            view = view_from_rules(row["acl_rules"])
             allowed, rule = allows(view, principal)
             if not allowed:
                 _audit(connection, principal, row, "deny", None, request_id)
                 return None
             _audit(connection, principal, row, "allow", rule, request_id)
             return _hit(row, 1.0)
+
+    def record_decisions(
+        self,
+        principal: Principal,
+        request_id: str,
+        decisions: list[tuple[str, str, dict[str, str] | None, str | None]],
+    ) -> None:
+        """Audit graph allows and denies. An empty list is one deny with no object."""
+        with self.reader.begin() as connection:
+            if not decisions:
+                _audit(connection, principal, None, "deny", None, request_id)
+                return
+            for decision, source_id, rule, object_id in decisions:
+                _audit(
+                    connection,
+                    principal,
+                    None,
+                    decision,
+                    rule,
+                    request_id,
+                    source_id=source_id,
+                    object_id=object_id,
+                )
 
     def last_success(self) -> dict[str, str | None]:
         statement = text("SELECT source_id, last_success_at FROM sync_state")
@@ -411,7 +434,16 @@ def _set_principal(connection, principal: Principal | None) -> None:
     connection.execute(text("SELECT set_config('kbs.department', :v, true)"), {"v": department})
 
 
-def _audit(connection, principal: Principal, row, decision: str, rule, request_id: str) -> None:
+def _audit(
+    connection,
+    principal: Principal,
+    row,
+    decision: str,
+    rule,
+    request_id: str,
+    source_id: str | None = None,
+    object_id: str | None = None,
+) -> None:
     attributes = {
         "groups": list(principal.groups),
         "clearance": principal.clearance,
@@ -419,6 +451,14 @@ def _audit(connection, principal: Principal, row, decision: str, rule, request_i
     }
     if rule:
         attributes["rule"] = rule
+    if object_id:
+        attributes["object_id"] = object_id
+    if row is None:
+        chunk_id = None
+        resolved_source = source_id or ""
+    else:
+        chunk_id = int(row["id"])
+        resolved_source = row["source_id"] if source_id is None else source_id
     connection.execute(
         text(
             """
@@ -430,21 +470,13 @@ def _audit(connection, principal: Principal, row, decision: str, rule, request_i
         ),
         {
             "principal": principal.subject,
-            "chunk_id": None if row is None else int(row["id"]),
+            "chunk_id": chunk_id,
             "attributes": json.dumps(attributes),
             "request_id": request_id,
             "decision": decision,
-            "source_id": "" if row is None else row["source_id"],
+            "source_id": resolved_source,
         },
     )
-
-
-def _view_from_rules(raw) -> AclView:
-    rules = raw if isinstance(raw, list) else json.loads(raw or "[]")
-    typed = tuple(dict(rule) for rule in rules)
-    groups = tuple(sorted({rule["group"] for rule in typed if rule.get("group")}))
-    departments = tuple(sorted({rule["department"] for rule in typed if rule.get("department")}))
-    return AclView(groups, departments, 0, typed, ())
 
 
 def _fuse(vector_rows: list, lexical_rows: list) -> list[tuple[object, float]]:

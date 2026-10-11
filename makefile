@@ -85,5 +85,6 @@ compose-check: $(ENV_FILE)
 	docker compose --env-file $(ENV_FILE) -f $(COMPOSE_DIR)/compose.knowledge-gateway.yaml config -q
 	docker compose --env-file $(ENV_FILE) -f $(COMPOSE_DIR)/compose.demo-harness.yaml config -q
 	docker compose --env-file $(ENV_FILE) -f $(COMPOSE_DIR)/compose.observability.yaml config -q
+	docker compose --env-file $(ENV_FILE) -f $(COMPOSE_DIR)/compose.frontend.yaml config -q
 	docker compose --env-file $(ENV_FILE) -f $(COMPOSE_DIR)/compose.notebooks.yaml config -q
 	docker compose --env-file $(ENV_FILE) -f $(COMPOSE_DIR)/compose.tools.yaml config -q

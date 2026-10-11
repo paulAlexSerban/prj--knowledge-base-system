@@ -23,6 +23,7 @@ acl_mapping:
   - native: account_team
     attributes:
       department: sales
+      clearance: internal
       group: sales_team
   - native: sales_leadership
     attributes:

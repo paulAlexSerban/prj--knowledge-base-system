@@ -22,6 +22,7 @@ def test_employee_mapping_is_coarse_and_exact() -> None:
     assert allowed
     assert rule is not None
     assert rule["group"] == "employees"
+    assert rule["department"] == "*"
 
 
 def test_admin_mapping_stays_inside_people() -> None:
@@ -44,6 +45,46 @@ def test_unmapped_native_acl_grants_nothing() -> None:
     assert view.rules == ()
     principal = Principal("ada", ("employees",), "restricted", "people")
     assert allows(view, principal) == (False, None)
+
+
+def test_a_rule_that_omits_a_field_grants_nothing() -> None:
+    from knowledge_store.acl import AclView
+
+    principal = Principal("ada", ("employees",), "restricted", "engineering")
+    missing_department = AclView(
+        ("employees",),
+        (),
+        1,
+        ({"group": "employees", "clearance": "internal"},),
+        (),
+    )
+    missing_clearance = AclView(
+        ("employees",),
+        ("engineering",),
+        0,
+        ({"group": "employees", "department": "engineering"},),
+        (),
+    )
+    missing_group = AclView(
+        ("employees",),
+        ("engineering",),
+        1,
+        ({"department": "engineering", "clearance": "internal"},),
+        (),
+    )
+    assert allows(missing_department, principal) == (False, None)
+    assert allows(missing_clearance, principal) == (False, None)
+    assert allows(missing_group, principal) == (False, None)
+
+
+def test_star_department_matches_any_department() -> None:
+    view = map_acl(["hr_employee"], _hr())
+    assert view.departments == ()
+    assert view.rules[0]["department"] == "*"
+    assert allows(view, Principal("ada", ("employees",), "internal", "engineering"))[0]
+    assert allows(view, Principal("bea", ("employees",), "internal", "people"))[0]
+    assert allows(view, Principal("cam", ("employees",), "public", "engineering")) == (False, None)
+    assert allows(view, Principal("dee", ("sales_team",), "internal", "sales")) == (False, None)
 
 
 def test_fine_check_rejects_a_mix_that_no_single_rule_allows() -> None:

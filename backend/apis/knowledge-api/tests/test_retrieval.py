@@ -18,6 +18,7 @@ from gateway_core.recheck import RecheckFailed
 from gateway_core.service import GatewayService
 from ingest_contract.events import RAW_BUCKET, ChangeEvent
 from knowledge_api.app import create_app
+from knowledge_store.acl import AclView, Principal, allows, view_from_rules
 from knowledge_store.embedder import HashEmbedder
 from knowledge_store.graph import GraphWriter
 from knowledge_store.postgres import ChunkTable
@@ -26,7 +27,10 @@ from shared.contracts.validate import load_contracts
 from shared.logging import JsonFormatter
 
 SECRET = "test-secret-test-secret-test-secret"
-DE = b"# Leave\n\n## Eligibility\n\nParental leave in Germany is sixteen weeks.\n"
+DE = (
+    b"# Leave\n\n## Eligibility\n\nParental leave in Germany is sixteen weeks.\n\n"
+    b"## Notice\n\nGermany requires notice to the manager.\n"
+)
 FR = b"# Leave\n\n## Eligibility\n\nParental leave in France is twenty eight weeks.\n"
 ADMIN = b"# Redundancy\n\n## Process\n\nThe redundancy procedure is confidential.\n"
 
@@ -139,6 +143,7 @@ def test_engineer_finds_the_germany_policy_and_outsider_does_not(api) -> None:
     assert body["results"]
     hit = body["results"][0]
     assert hit["object_id"] == "pol-de"
+    assert [item["object_id"] for item in body["results"]].count("pol-de") == 1
     assert hit["snippet"].startswith("<<<UNTRUSTED_CONTENT")
     assert "Germany" in hit["snippet"]
     assert hit["synced_at"]
@@ -257,6 +262,121 @@ def test_graph_paths_follow_the_caller(api) -> None:
         headers=_auth("employee_eng"),
     )
     assert missing.status_code == 400
+
+
+def test_graph_hides_a_sales_deal_and_a_mixed_rule(api) -> None:
+    http, admin = api
+    service = http.app.state.service
+    sales = AclView(
+        ("sales_team",),
+        ("sales",),
+        1,
+        ({"group": "sales_team", "department": "sales", "clearance": "internal"},),
+        (),
+    )
+    service.store.graph.write(
+        "sales",
+        "deal",
+        "deal-9",
+        {"account_id": "acme", "epic_id": ""},
+        "Acme",
+        sales,
+        "1",
+    )
+    service.store.graph.write("sales", "policy", "pol-sales", {}, "Forecast", sales, "1")
+    mixed = AclView(
+        ("employees", "hr_admins"),
+        (),
+        1,
+        (
+            {"group": "employees", "department": "*", "clearance": "internal"},
+            {"group": "hr_admins", "department": "people", "clearance": "confidential"},
+        ),
+        (),
+    )
+    service.store.graph.write("hr", "policy", "pol-mixed", {}, "Mixed", mixed, "1")
+
+    stored = service.graph.driver.execute_query(
+        """
+        MATCH (d:Deal {id: $id})
+        RETURN d.acl_departments AS departments, d.acl_rules AS rules
+        """,
+        id="deal-9",
+    )[0][0]
+    assert list(stored["departments"]) == ["sales"]
+    deal = view_from_rules(stored["rules"])
+    engineer = Principal("employee-eng", ("employees",), "internal", "engineering")
+    seller = Principal("sam", ("sales_team",), "internal", "sales")
+    assert allows(deal, engineer) == (False, None)
+    assert allows(deal, seller)[0] is True
+
+    engineer_ids = _policy_ids(service.graph.related("policies", engineer, None, 25))
+    assert "pol-sales" not in engineer_ids
+    assert "pol-de" in engineer_ids
+    assert "pol-mixed" in engineer_ids
+    seller_ids = _policy_ids(service.graph.related("policies", seller, None, 25))
+    assert seller_ids == {"pol-sales"}
+
+    low_admin = Principal("cam", ("hr_admins",), "internal", "people")
+    denied = service.find_related(low_admin, "policies", "pol-mixed", 25, "graph-mixed")
+    assert denied["paths"] == []
+    outsider = service.graph.related(
+        "policies", Principal("outsider", (), "internal", "engineering"), None, 25
+    )
+    assert outsider == []
+    with admin.connect() as connection:
+        row = connection.execute(
+            text(
+                """
+                SELECT decision, attributes->>'object_id' AS object_id
+                FROM audit_log WHERE request_id = 'graph-mixed'
+                """
+            )
+        ).one()
+    assert row.decision == "deny"
+    assert row.object_id == "pol-mixed"
+
+
+def test_find_related_audits_allow_and_deny(api) -> None:
+    http, admin = api
+    allowed = http.post(
+        "/v1/graph/related",
+        json={"kind": "policies", "entity_id": "pol-de"},
+        headers={**_auth("employee_eng"), "x-request-id": "graph-allow"},
+    )
+    assert allowed.status_code == 200
+    assert allowed.json()["paths"]
+    denied = http.post(
+        "/v1/graph/related",
+        json={"kind": "team", "entity_id": "People"},
+        headers={**_auth("outsider"), "x-request-id": "graph-deny"},
+    )
+    assert denied.json()["paths"] == []
+    with admin.connect() as connection:
+        rows = {
+            (row.request_id, row.decision, row.chunk_id)
+            for row in connection.execute(
+                text(
+                    """
+                    SELECT request_id, decision, chunk_id FROM audit_log
+                    WHERE request_id IN ('graph-allow', 'graph-deny')
+                    """
+                )
+            )
+        }
+    assert ("graph-allow", "allow", None) in rows
+    assert ("graph-deny", "deny", None) in rows
+
+
+def _policy_ids(accesses) -> set[str]:
+    found: set[str] = set()
+    for item in accesses:
+        if not item.allowed:
+            continue
+        for step in item.path["steps"]:
+            if step["type"] == "Policy":
+                found.add(step["id"])
+    return found
 
 
 def test_empty_search_is_a_deny_line_and_a_metric(api) -> None:

@@ -70,7 +70,7 @@ Sanity check on volume. 100,000 events per day is about 1.2 events per second on
 | Sources | Four mocked department services: HR, Sales, Product, Engineering. |
 | Corpus | A few hundred documents and records, enough to show citations, permission boundaries, and a multi-hop graph question. |
 | Freshness | The same three tiers exist as queue priority and a measured sync-lag metric. The 30-second and 5-minute targets are demonstrated on the local stack. They are not load-tested. |
-| Identity | A mock identity provider issues signed JWTs with department, clearance, and region claims. |
+| Identity | A dev endpoint signs HS256 JWTs. Claims are subject, groups, clearance, and department. Region is not a claim. This stands in for OIDC. |
 | Language models | OpenRouter via `OPENROUTER_API_KEY` for chat, when a key is set. The running embedder is local `hash-v1` (deterministic, not semantic). A semantic local model is optional and not locked. The constrained extractor is not built. |
 | Infrastructure | Docker Compose plus [floci](https://floci.io) for AWS emulation (SQS, S3, EventBridge Scheduler). Terraform talks to floci endpoint overrides. |
 
@@ -93,17 +93,18 @@ These are places where the stated requirements need a narrower reading before im
 
 ### In scope (built)
 
-- Four source connectors behind one interface, each with a written data contract.
-- Change detection that matches the source: polling, cursor feed, webhook, and updated-since listing.
-- An event pipeline: connector workers, SQS with a dead-letter queue, ingestion workers.
-- Hybrid retrieval: Postgres with pgvector and full-text search, merged with reciprocal rank fusion.
-- A Neo4j knowledge graph with a small ontology, populated deterministically from structured records and by a constrained extractor from product specs.
-- One service layer exposed twice: a REST API and an MCP server (`search_knowledge`, `get_document`, `find_related`, `list_sources`).
-- User-delegated authorization: JWT claims, coarse pre-filter in SQL and Cypher, fine-grained post-check, Postgres row-level security, and an audit record of which attributes justified a result.
+- One HR connector behind the shared interface, with a written data contract. Sales, Product, and Engineering have contracts and empty harness stubs. Their connectors are not built.
+- Change detection for HR: polling and an updated-since listing. The Product webhook receiver is a stub and does not enqueue.
+- An event pipeline: the HR connector, SQS with a dead-letter queue, and one ingestion worker.
+- Hybrid retrieval: Postgres with pgvector and full-text search, merged with reciprocal rank fusion. `hash-v1` only keeps a chunk that also matched the words.
+- A Neo4j knowledge graph with a small ontology, populated from structured HR records. The constrained extractor for product specs is not built. `Deal -DEPENDS_ON-> Epic` is tested with fixtures only.
+- One service layer, `gateway-core`, exposed twice: a REST API and an MCP server (`search_knowledge`, `get_document`, `find_related`, `list_sources`). Search returns one chunk per object. Neither adapter writes an answer.
+- User-delegated authorization: an HS256 JWT, a coarse pre-filter, a fine-grained post-check, Postgres row-level security, and an audit record of which attributes justified a result. Graph checks are the Cypher template and a read-only session. Neo4j Community has no roles.
 - Delete propagation, content-hash skip, idempotent upserts, and a reconciliation sweep.
-- A demo harness: FastAPI services with SQLite and files for HR, Sales, Product, and Engineering, plus a mutation script. HR stores rows with SQLAlchemy and can bulk-load Faker people or policies through `POST /admin/seed`. The HR connector polls that API, writes raw snapshots to S3, and enqueues change events. The other three sources are still empty stubs.
-- Docker Compose, floci, and Terraform for the FIFO queues, dead-letter queues, and snapshot bucket. Alloy collects metrics and container logs. Prometheus stores metrics, Loki stores logs, and Grafana shows both. Traces are deferred. The API key stays in the environment.
-- A golden evaluation set of about 20 questions, including questions with no answer, conflicting sources, and access-boundary cases.
+- A demo harness: FastAPI services with SQLite for HR, Sales, Product, and Engineering. HR stores rows with SQLAlchemy and can bulk-load through `POST /admin/seed`. The HR connector polls that API, writes raw snapshots to S3, and enqueues change events. The other three sources are empty stubs.
+- Docker Compose, floci, and Terraform for the FIFO queues, dead-letter queues, and snapshot bucket. Alloy collects metrics and container logs. Prometheus stores metrics, Loki stores logs, and Grafana shows both, including retrieval latency and the deny line. Traces are deferred. The API key stays in the environment.
+
+Not built, though the list above used to imply they were: the other three connectors, the spec extractor, the query router, answer synthesis, demo question 2, OIDC, and a golden set of about 20 questions. API tests cover one known chunk, a query with no shared terms, two countries, and an access boundary.
 
 ### Out of scope (production path, documented only)
 
@@ -121,7 +122,7 @@ Finance and other departments beyond the four. Real OAuth against Google, Notion
 | Scheduling | P0 poll loop inside the connector worker. EventBridge Scheduler, one-minute minimum, for P1/P2 polls and reconciliation. |
 | Workers | Connector workers (extract, detect change, emit). Ingestion workers (normalize, chunk, embed, upsert vectors and graph, tombstone deletes). |
 | Models | OpenRouter for chat when a key is set. The running embedder is local `hash-v1`. `fastembed` is optional and not locked. The constrained extractor is not built. |
-| Identity | Mock IdP issuing signed JWTs with department, clearance, and region claims. |
+| Identity | Dev-only HS256 JWTs. Claims are subject, groups, clearance, and department. |
 | Infra | Docker Compose. Terraform with floci endpoint overrides for queues and the snapshot bucket. |
 | Observability | Prometheus, Alloy, Loki, and Grafana. Traces are deferred. |
 
@@ -134,20 +135,20 @@ Finance and other departments beyond the four. Real OAuth against Google, Notion
 
 The demo is the acceptance test. Each step is observable in the API response, the graph path, or the dashboard.
 
-1. Ask the Germany parental-leave question as an employee who is allowed to read HR policies. The answer cites the policy chunk, source version, and last sync time.
-2. Ask the same question as a user whose claims do not include that policy. The result set is empty. The audit log records the deny as a JSON line (`decision` of `deny`, `request_id` in the line, not in a Loki label). Grafana opens that line from the dashboard. The empty-result rate for that permission group moves.
-3. Ask which high-ARR Q3 deals depend on unreleased engineering epics. The answer lists deals and epics and returns the path (deal, account or spec, epic, team).
-4. Edit a policy and delete a deal in the demo harness. Within the source's freshness tier, the edited chunk is re-embedded (content hash changed) and the deleted deal disappears from Postgres and Neo4j. Sync lag for that source is visible. The HR policy edit and delete are built at the store. Deleting a deal is not: Sales is not ingested.
-5. Stop an ingestion worker mid-batch, then start it again. In-flight messages return to the queue or land in the dead-letter queue. Replaying them does not duplicate chunks or edges, because the upsert key is source id plus version or content hash. This step is built. `make dlq-replay` sends dead-letter messages back, with a new deduplication id so FIFO does not drop them.
+1. Demonstrable. Ask the Germany parental-leave question as `employee_eng`. The gateway returns the policy chunk, its source version, and its sync time. It does not write the answer. Notebook `41`.
+2. Demonstrable. The same question as `outsider` returns nothing. The audit row and a JSON log line record the deny (`decision` of `deny`, `request_id` in the line, not in a Loki label). Grafana opens that line from the dashboard. Notebook `41`.
+3. Not demonstrable. Sales and Engineering are not ingested, so there is no live path from a deal to an epic.
+4. Demonstrable for an HR policy. Notebook `43` creates a policy, closes its ACL, and deletes it. Search and `find_related` drop it. Deleting a deal is not demonstrable.
+5. Demonstrable at the worker. Stop an ingestion worker mid-batch, then start it again. In-flight messages return to the queue or land in the dead-letter queue. Replaying them does not duplicate chunks or edges. `make dlq-replay` sends dead-letter messages back, with a new deduplication id so FIFO does not drop them.
 
-`make up` and `make test` exist. `make up` starts the stack, including the HR connector and the ingestion worker. The API and the MCP server still do not answer questions. `seed`, `demo`, and `eval` are still to be written. HR bulk load is the seed notebook.
+`make up` and `make test` exist. `make up` starts the stack, including the HR connector, the ingestion worker, and both gateways. `seed`, `demo`, and `eval` are still to be written. HR bulk load is notebook `00`. Notebooks `40`–`43` call the gateway.
 
 ## Risks and open questions
 
 - floci's documentation lists SQS, S3, Scheduler, IAM, and Bedrock Runtime, among others. A local apply created the FIFO queues and one send/receive worked. That is not a fidelity or load test. Model calls go to OpenRouter or the local fallback because the design should not depend on one cloud model API.
 - Two stores (Postgres and Neo4j) can diverge. The document in Postgres is the authority for prose. The graph is a derived index. The worker commits Postgres, then writes Neo4j. A failed graph write leaves the message unacknowledged, so the event retries. Until that retry the chunk can exist without the node. A retry whose content hash already matches still writes the graph.
 - LLM extraction of edges from product specs will be wrong some of the time. Every extracted edge carries confidence and a source span. The demo question is answered from deterministic edges extracted from structured records. Extracted edges are visible and are not trusted for the headline answer.
-- Permission propagation has a window. High-sensitivity sources re-check the ACL against the source at read time. Lower-sensitivity sources accept the sync window and document it on the contract. The POC shows both behaviors on HR (re-check) and Product (window).
+- Permission propagation has a window. HR policy search re-checks the harness ACL and fails closed when that call does not answer. A failed check drops the whole page, not only the policy that timed out. People records are not re-checked. Sales, Product, and Engineering are not ingested, so their sync-window behavior is written on the contract and is not demonstrated.
 - Entity resolution beyond shared ids and email addresses is deferred. If Sales and Engineering use different identifiers for the same product, the demo data uses one shared product key on purpose. Production will need a resolution step; pretending the demo key is that step would be dishonest.
 - The 250 ms budget and the 30-second SLA are design targets with a metric, not a load-test result.
 
@@ -167,9 +168,10 @@ The demo is the acceptance test. Each step is observable in the API response, th
 | `backend/libs/connector-core` | Connector interface and snapshot sync. A library, not a service. |
 | `backend/libs/ingest-contract` | Change events, queue names, and the snapshot hash. A library, not a service. |
 | `backend/libs/knowledge-store` | Chunking, embeddings, Postgres chunks, and the Neo4j writer. A library, not a service. |
+| `backend/libs/gateway-core` | Retrieval, JWT checks, Neo4j read templates, and the tool text. A library, not a service. |
 | `database` | Postgres and Neo4j schema. |
 | `demo-harness/` | HR, Sales, Product, and Engineering mock services. |
-| `notebooks/` | Jupyter notebooks that seed, inspect, and edit the HR harness. |
+| `notebooks/` | Jupyter notebooks for the HR harness (`00`–`30`) and the gateway (`40`–`43`). |
 | `infrastructure/` | Compose orchestration, Terraform provisioning, floci config, and `config/sources` YAML contracts. |
 | `observability` | Alloy, Loki, Prometheus, one dashboard, and metric definitions. |
 | `shared` | Contracts, the registry gate, and logging. Source contracts in `shared/src/shared/contracts` are checked by `make contracts-check`. |

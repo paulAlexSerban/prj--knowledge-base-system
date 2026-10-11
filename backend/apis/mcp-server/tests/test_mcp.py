@@ -129,6 +129,45 @@ def _call(tool, **kwargs):
     return asyncio.run(tool.fn(**kwargs))
 
 
+def test_search_over_the_http_transport(mcp) -> None:
+    """The SDK runs tools off the request thread. Call the real transport."""
+    import asyncio
+
+    import httpx2
+    from mcp import ClientSession
+    from mcp.client.streamable_http import streamable_http_client
+
+    server, _service = mcp
+    app = server.streamable_http_app(
+        transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False)
+    )
+    employee = issue_token("employee_eng", SECRET)
+    outsider = issue_token("outsider", SECRET)
+
+    async def search(token: str) -> dict:
+        transport = httpx2.ASGITransport(app=app)
+        headers = {"Authorization": f"Bearer {token}"}
+        async with httpx2.AsyncClient(  # noqa: SIM117 - the client is an argument of the next one
+            transport=transport, base_url="http://testserver", headers=headers
+        ) as http:
+            async with streamable_http_client(
+                "http://testserver/mcp", http_client=http
+            ) as streams:
+                async with ClientSession(streams[0], streams[1]) as session:
+                    await session.initialize()
+                    result = await session.call_tool(
+                        "search_knowledge", {"query": "Germany", "limit": 5}
+                    )
+                    assert result.is_error is False
+                    return result.structured_content
+
+    with TestClient(app):
+        found = asyncio.run(search(employee))
+        hidden = asyncio.run(search(outsider))
+    assert {item["object_id"] for item in found["results"]} == {"pol-de"}
+    assert hidden["results"] == []
+
+
 def test_two_personas_match_the_service(mcp) -> None:
     server, service = mcp
     search = server._tool_manager.get_tool("search_knowledge")

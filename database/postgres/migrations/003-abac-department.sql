@@ -3,6 +3,8 @@
 -- still requires a match. A missing session setting still sees no rows.
 -- hr_employee no longer carries a department. Rows indexed before that
 -- change are rewritten here so a re-embed is not required.
+-- 004-least-privilege.sql replaces the SELECT policy below and writes
+-- a missing department as "*".
 
 DROP POLICY IF EXISTS chunks_read_by_acl ON kbs.chunks;
 CREATE POLICY chunks_read_by_acl ON kbs.chunks

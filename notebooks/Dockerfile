@@ -24,6 +24,7 @@ COPY demo-harness/hr/pyproject.toml demo-harness/hr/pyproject.toml
 COPY demo-harness/sales/pyproject.toml demo-harness/sales/pyproject.toml
 COPY demo-harness/product/pyproject.toml demo-harness/product/pyproject.toml
 COPY demo-harness/engineering/pyproject.toml demo-harness/engineering/pyproject.toml
+COPY frontend/pyproject.toml frontend/pyproject.toml
 RUN uv sync --frozen --no-dev --only-group notebooks --no-default-groups
 
 WORKDIR /notebooks

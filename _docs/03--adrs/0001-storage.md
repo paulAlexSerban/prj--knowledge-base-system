@@ -16,7 +16,7 @@ Full-text search is a generated `tsvector` with a GIN index. Embeddings are `vec
 
 The document row in Postgres is authoritative for prose. The graph is a derived index. The worker commits Postgres, then writes Neo4j. A failed graph write leaves the message unacknowledged.
 
-Neo4j is reached as the single `neo4j` user. That is a POC shortcut. The graph is not filtered per principal.
+Neo4j is reached as the single `neo4j` user. That is a POC shortcut: Community has no roles, so the gateway and the worker share the credential. Read templates filter on group, department, and clearance, then the service checks each stored rule. A read-only session is the only database guard on that user.
 
 ## Why
 
@@ -34,7 +34,7 @@ One relational database covers the parts that must be correct and filterable: pe
 ## Consequences
 
 - Two stores can diverge until a retry finishes. Postgres is committed first. Upserts are idempotent (spike 04). A matching content hash still writes the graph, so the retry completes the node.
-- Operators run Postgres and Neo4j in Compose. Schema lives under `database/`. `postgres-migrate` applies `001-sync-state.sql` and `002-knowledge-store.sql` on every start. The API connects as `gateway_ro`. Ingestion connects as `ingestion_rw`. The table owner bypasses row-level security. `chunks_read_by_acl` lets `gateway_ro` read a row only when `kbs.groups`, `kbs.clearance`, and `kbs.department` are set and match the coarse ACL columns. `chunks_ingestion_all` lets `ingestion_rw` read and write every row. `kbs.audit_log` is append-only.
+- Operators run Postgres and Neo4j in Compose. Schema lives under `database/`. `postgres-migrate` applies the files in `database/postgres/migrations/` on every start, in name order. The API connects as `gateway_ro`. Ingestion connects as `ingestion_rw`. The table owner bypasses row-level security. `chunks_read_by_acl` lets `gateway_ro` read a row only when `kbs.groups`, `kbs.clearance`, and `kbs.department` are set and one `acl_rules` element matches all three. `chunks_ingestion_all` lets `ingestion_rw` read and write every row. `kbs.audit_log` is append-only. `gateway_ro` can insert a row and cannot select one.
 - A later move of vectors to a dedicated engine is possible because chunk identity and ACL attributes stay in Postgres. That move is not free and is not scheduled.
 
 ## Production path

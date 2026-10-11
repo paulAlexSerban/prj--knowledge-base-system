@@ -87,7 +87,8 @@ services:
         i=0
         until psql -v ON_ERROR_STOP=1 -f /migrations/001-sync-state.sql \
           && psql -v ON_ERROR_STOP=1 -f /migrations/002-knowledge-store.sql \
-          && psql -v ON_ERROR_STOP=1 -f /migrations/003-abac-department.sql; do
+          && psql -v ON_ERROR_STOP=1 -f /migrations/003-abac-department.sql \
+          && psql -v ON_ERROR_STOP=1 -f /migrations/004-least-privilege.sql; do
           i=$$((i + 1))
           if [ "$$i" -ge 30 ]; then
             exit 1

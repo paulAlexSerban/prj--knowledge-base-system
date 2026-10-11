@@ -2,12 +2,13 @@
   "$defs": {
     "AclRule": {
       "additionalProperties": false,
-      "description": "One native permission selector mapped onto platform attributes.",
+      "description": "One native permission mapped onto group, clearance, and department.\n\nAll three are required. ``department`` may be ``*``, which means every\ndepartment. A missing attribute does not grant access. ``region`` stays\noptional and is not an access predicate.",
       "properties": {
         "attributes": {
           "additionalProperties": {
             "type": "string"
           },
+          "description": "Requires group, clearance, and department. clearance is public, internal, confidential, or restricted. department * means every department.",
           "minProperties": 1,
           "propertyNames": {
             "$ref": "#/$defs/PlatformAttribute"

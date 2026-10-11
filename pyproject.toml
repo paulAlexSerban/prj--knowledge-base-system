@@ -29,6 +29,7 @@ dev = [
   "harness-sales",
   "harness-product",
   "harness-engineering",
+  "chat-ui",
 ]
 notebooks = [
   "boto3>=1.43.111",
@@ -54,6 +55,7 @@ members = [
   "demo-harness/sales",
   "demo-harness/product",
   "demo-harness/engineering",
+  "frontend",
 ]
 
 [tool.uv.sources]
@@ -72,6 +74,7 @@ harness-hr = { workspace = true }
 harness-sales = { workspace = true }
 harness-product = { workspace = true }
 harness-engineering = { workspace = true }
+chat-ui = { workspace = true }
 
 [tool.ruff]
 line-length = 100
@@ -93,6 +96,7 @@ known-first-party = [
   "harness_sales",
   "harness_product",
   "harness_engineering",
+  "chat_ui",
 ]
 
 [tool.pytest.ini_options]
@@ -110,6 +114,7 @@ testpaths = [
   "backend/tests/integration",
   "demo-harness/hr/tests",
   "notebooks/tests",
+  "frontend/tests",
 ]
 markers = [
   "e2e: requires the live compose stack",

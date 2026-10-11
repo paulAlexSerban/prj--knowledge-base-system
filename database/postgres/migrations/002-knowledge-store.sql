@@ -1,7 +1,7 @@
 -- Idempotent. Applied on every start by postgres-migrate.
 -- Chunks gain the ADR 0003 columns, ACL columns, full-text search, and an HNSW
--- index. Row-level security for gateway_ro is the coarse ACL check. ingestion_rw
--- writes every row. The table owner bypasses RLS, so the API must not use it.
+-- index. Later migrations replace the SELECT policy. ingestion_rw writes every
+-- row. The table owner bypasses RLS, so the API must not use it.
 --
 -- vector is created in public by an older init script. Connections use
 -- search_path=kbs, so the type and its operators have to live in kbs.

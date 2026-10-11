@@ -7,10 +7,12 @@ start floci. The manual gate runs the same path against floci.
 import json
 import logging
 from datetime import UTC, datetime
+from pathlib import Path
 
 import boto3
 import pytest
 from moto import mock_aws
+from sqlalchemy import text
 
 from ingest_contract.events import (
     P0_DLQ,
@@ -19,11 +21,17 @@ from ingest_contract.events import (
     P1_QUEUE,
     P2_DLQ,
     P2_QUEUE,
+    RAW_BUCKET,
     ChangeEvent,
 )
 from ingestion_worker.consumer import MAX_RECEIVE, Consumer
 from ingestion_worker.replay import replay_queue
 from ingestion_worker.store import MemoryStore
+from knowledge_store.embedder import HashEmbedder
+from knowledge_store.graph import GraphWriter
+from knowledge_store.postgres import ChunkTable
+from knowledge_store.store import KnowledgeStore
+from shared.contracts.validate import load_contracts
 from shared.logging import configure
 
 QUEUES = (P0_QUEUE, P1_QUEUE, P2_QUEUE)
@@ -197,6 +205,89 @@ def test_handled_log_names_the_decision_and_drops_the_payload(sqs, capsys) -> No
         "chunk text",
     ):
         assert forbidden not in raw
+
+
+class _GraphOnce:
+    """Fail the first graph write. Later calls go to Neo4j."""
+
+    def __init__(self, inner: GraphWriter, admin) -> None:
+        self.inner = inner
+        self.admin = admin
+        self.chunks_before_write: list[int] = []
+        self.attempts = 0
+
+    def write(self, *args, **kwargs) -> None:
+        with self.admin.connect() as connection:
+            count = connection.execute(text("SELECT count(*) AS n FROM chunks")).one().n
+        self.chunks_before_write.append(int(count))
+        self.attempts += 1
+        if self.attempts == 1:
+            raise RuntimeError("neo4j down")
+        self.inner.write(*args, **kwargs)
+
+    def delete(self, *args, **kwargs) -> None:
+        self.inner.delete(*args, **kwargs)
+
+    def set_acl(self, *args, **kwargs) -> None:
+        self.inner.set_acl(*args, **kwargs)
+
+    def count_node(self, source_id: str, object_id: str) -> int:
+        return self.inner.count_node(source_id, object_id)
+
+
+def test_graph_failure_leaves_the_message_and_the_replay_writes_once(
+    sqs, database, neo4j_driver
+) -> None:
+    with database["admin"].begin() as connection:
+        connection.execute(text("TRUNCATE chunks, tombstones, source_objects"))
+    neo4j_driver.execute_query("MATCH (n) DETACH DELETE n")
+    client = boto3.client("s3", region_name="us-east-1")
+    client.create_bucket(Bucket=RAW_BUCKET)
+    key = "raw/hr/policy/pol-queue.md"
+    body = (
+        b"# Leave\n\n## Eligibility\n\nParental leave in Germany is sixteen weeks.\n\n"
+        b"## Notice\n\nTell the manager four weeks ahead.\n"
+    )
+    client.put_object(
+        Bucket=RAW_BUCKET,
+        Key=key,
+        Body=body,
+        Metadata={"kbs-content-hash": "hash-q", "kbs-version": "1", "kbs-native-acl": "hr_employee"},
+    )
+    graph = _GraphOnce(GraphWriter(neo4j_driver), database["admin"])
+    root = Path(__file__).resolve().parents[3]
+    contracts = load_contracts(root / "infrastructure" / "config" / "sources")
+    store = KnowledgeStore(
+        ChunkTable(database["writer"], database["reader"]),
+        graph,
+        client,
+        RAW_BUCKET,
+        HashEmbedder(),
+        {item.source_id: item for item in contracts},
+    )
+    consumer = Consumer(sqs, store, visibility_timeout=0)
+    event = ChangeEvent(
+        source_id="hr",
+        object_id="pol-queue",
+        event_type="create",
+        version="1",
+        content_hash="hash-q",
+        occurred_at=datetime(2026, 1, 15, 9, 0, tzinfo=UTC),
+        s3_pointer=key,
+    )
+    _send(sqs, P0_QUEUE, event)
+    assert consumer.poll_once() == 0
+    assert graph.chunks_before_write == [2]
+    assert graph.count_node("hr", "pol-queue") == 0
+    with database["admin"].connect() as connection:
+        after_failure = connection.execute(text("SELECT count(*) AS n FROM chunks")).one().n
+    assert after_failure == 2
+    assert consumer.poll_once() == 1
+    assert graph.count_node("hr", "pol-queue") == 1
+    with database["admin"].connect() as connection:
+        after_replay = connection.execute(text("SELECT count(*) AS n FROM chunks")).one().n
+    assert after_replay == 2
+    assert graph.attempts == 2
 
 
 def _visible(client, name: str) -> int:

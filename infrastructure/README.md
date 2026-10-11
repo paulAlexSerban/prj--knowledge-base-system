@@ -42,7 +42,7 @@ Scheduler schedules are not created. EventBridge Scheduler cannot run faster tha
 
 The three tier queues use `visibility_timeout_seconds` 60 and `maxReceiveCount` 5. The worker also copies a message to the dead-letter queue when the receive count exceeds 5, because floci's redrive was not observed.
 
-`postgres-migrate` applies `database/postgres/migrations/001-sync-state.sql` and `002-knowledge-store.sql` on every start. `01-init.sh` runs only on an empty volume. The `vector` extension is moved into schema `kbs` because application connections set `search_path=kbs`.
+`postgres-migrate` applies every file in `database/postgres/migrations/` on every start, in name order. `01-init.sh` runs only on an empty volume. The `vector` extension is moved into schema `kbs` because application connections set `search_path=kbs`.
 
 Worker environment that is not in `.env`: `EMBEDDER=hash` and `RECONCILE_INDEX_SECONDS=60`. Passwords and `FAIL_OBJECT_ID` come from `.env`. `GATEWAY_DB_PASSWORD` is the `gateway_ro` password the worker uses for the read path inside `search`. Neo4j is the single user `neo4j`. That is a POC shortcut.
 

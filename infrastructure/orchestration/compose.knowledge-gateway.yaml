@@ -15,7 +15,7 @@ services:
       NEO4J_PASSWORD: ${NEO4J_PASSWORD}
       EMBEDDER: hash
       GATEWAY_JWT_SECRET: ${GATEWAY_JWT_SECRET}
-      DEV_TOKEN_ENDPOINT: ${DEV_TOKEN_ENDPOINT:-1}
+      DEV_TOKEN_ENDPOINT: ${DEV_TOKEN_ENDPOINT:-0}
       HARNESS_HR_URL: http://harness-hr:8080
     volumes:
       - ../config/sources:/contracts:ro
