@@ -26,6 +26,9 @@ COPY demo-harness/product/pyproject.toml demo-harness/product/pyproject.toml
 COPY demo-harness/engineering/pyproject.toml demo-harness/engineering/pyproject.toml
 
 COPY shared shared
+COPY backend/libs/ingest-contract backend/libs/ingest-contract
+COPY backend/libs/knowledge-store backend/libs/knowledge-store
+COPY backend/libs/gateway-core backend/libs/gateway-core
 COPY backend/apis/mcp-server backend/apis/mcp-server
 
 RUN uv sync --frozen --no-dev --no-default-groups --package mcp-server

@@ -1663,6 +1663,7 @@ name = "mcp-server"
 version = "0.1.0"
 source = { editable = "backend/apis/mcp-server" }
 dependencies = [
+    { name = "gateway-core" },
     { name = "mcp" },
     { name = "prometheus-client" },
     { name = "shared" },
@@ -1670,6 +1671,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "gateway-core", editable = "backend/libs/gateway-core" },
     { name = "mcp", specifier = ">=2.3.0" },
     { name = "prometheus-client", specifier = ">=0.26.0" },
     { name = "shared", editable = "shared" },

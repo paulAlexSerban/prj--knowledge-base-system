@@ -103,6 +103,7 @@ testpaths = [
   "backend/libs/knowledge-store/tests",
   "backend/libs/gateway-core/tests",
   "backend/apis/knowledge-api/tests",
+  "backend/apis/mcp-server/tests",
   "backend/connectors/hr/tests",
   "backend/workers/ingestion-worker/tests",
   "backend/tests/integration",
