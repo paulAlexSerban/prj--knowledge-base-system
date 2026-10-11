@@ -128,6 +128,8 @@ Finance and other departments beyond the four. Real OAuth against Google, Notion
 
 ![Container Diagram](00-c4-l2--container-diagram--knowledge-base-system.png)
 
+![Component Diagram](00-c4-l3--component-diagram--kowledge-base-system.png)
+
 
 ```mermaid
 flowchart LR
