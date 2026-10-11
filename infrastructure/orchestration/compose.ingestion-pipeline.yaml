@@ -1,9 +1,17 @@
+# floci-ready is defined with the emulator. Include it so this file stays valid
+# on its own, and so the connector and worker wait until floci answers.
+include:
+  - path: compose.aws.yaml
+
 services:
   connector-hr:
     build:
       context: ../..
       dockerfile: backend/connectors/hr/Dockerfile
     command: ["python", "-m", "connector_hr"]
+    depends_on:
+      floci-ready:
+        condition: service_completed_successfully
     environment:
       CONTRACTS_DIR: /contracts
       METRICS_PORT: "9100"
@@ -43,6 +51,9 @@ services:
       context: ../..
       dockerfile: backend/workers/ingestion-worker/Dockerfile
     command: ["python", "-m", "ingestion_worker"]
+    depends_on:
+      floci-ready:
+        condition: service_completed_successfully
     environment:
       AWS_ENDPOINT_URL: http://floci:4566
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
