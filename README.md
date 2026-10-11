@@ -6,13 +6,17 @@ This repository is a proof of concept for that gateway. The design is written do
 
 ## Status
 
-| Built | Planned |
-| ----- | ------- |
-| Project brief, spikes, ADRs, and the architecture outline | Retrieval, chunking, embeddings, and the two demo answers |
-| C4 diagrams (context, containers, components, connector containers) | Mock identity provider and access-boundary tests |
-| Source-contract model, four YAML contracts, validator, tests, and CI | Golden evaluation set |
+
+| Built                                                                                                | Planned                                                       |
+| ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| Project brief, spikes, ADRs, and the architecture outline                                            | Retrieval, chunking, embeddings, and the two demo answers     |
+| C4 diagrams (context, containers, components, connector containers)                                  | Mock identity provider and access-boundary tests              |
+| Source-contract model, four YAML contracts, validator, tests, and CI                                 | Golden evaluation set                                         |
 | Compose projects for the harness, gateway, ingestion, store, floci, and Grafana, with stub processes | The eight freshness and authorization panels on the dashboard |
-| Terraform on floci: three FIFO queues, three dead-letter queues, one snapshot bucket | Seed data and `make demo` |
+| Terraform on floci: three FIFO queues, three dead-letter queues, one snapshot bucket                 | Seed data and `make demo`                                     |
+
+
+
 
 ## Problem
 
@@ -29,28 +33,30 @@ Assumptions, the requirements that were narrowed, and the in-scope list are in t
 
 System context: agents talk to the gateway, and the gateway reads department sources.
 
-![System context](_docs/00--project-brief/00-c4-l1--system-context.png)
+System context
 
 Containers: an access layer, an ingestion pipeline, and a knowledge store.
 
-![Containers](_docs/00--project-brief/00-c4-l2--container-diagram--knowledge-base-system.png)
+Containers
 
 Connector containers: one worker per harness service, a validated contract, and a queue.
 
-![Connector containers](_docs/00--project-brief/01-c4-l2--container-connectors.png)
+Connector containers
 
 Component view of the gateway:
 
-![Components](_docs/00--project-brief/00-c4-l3--component-diagram--kowledge-base-system.png)
+Components
 
-| Concern | Choice |
-| ------- | ------ |
-| Language and HTTP | Python 3.12, FastAPI. The API and the MCP server are thin adapters over one service layer. |
-| Documents, vectors, lexical search, authorization | Postgres with pgvector, full-text search, and row-level security. |
-| Knowledge graph | Neo4j, small typed ontology. |
-| Messaging and objects | SQS FIFO per object, with a dead-letter queue, and S3, both on floci. Scheduler, when added, drives P1/P2 polls and reconciliation. P0 polling is in the connector process. |
-| Models | OpenRouter when `OPENROUTER_API_KEY` is set. A local embedder and a deterministic extractor for offline runs. |
-| Observability | Prometheus scrapes `/metrics`. One Grafana dashboard. Traces are deferred. |
+
+| Concern                                           | Choice                                                                                                                                                                      |
+| ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Language and HTTP                                 | Python 3.12, FastAPI. The API and the MCP server are thin adapters over one service layer.                                                                                  |
+| Documents, vectors, lexical search, authorization | Postgres with pgvector, full-text search, and row-level security.                                                                                                           |
+| Knowledge graph                                   | Neo4j, small typed ontology.                                                                                                                                                |
+| Messaging and objects                             | SQS FIFO per object, with a dead-letter queue, and S3, both on floci. Scheduler, when added, drives P1/P2 polls and reconciliation. P0 polling is in the connector process. |
+| Models                                            | OpenRouter when `OPENROUTER_API_KEY` is set. A local embedder and a deterministic extractor for offline runs.                                                               |
+| Observability                                     | Prometheus scrapes `/metrics`. One Grafana dashboard. Traces are deferred.                                                                                                  |
+
 
 Decisions, and what was rejected:
 
@@ -60,12 +66,14 @@ Decisions, and what was rejected:
 - Ingestion is a stream of create, update, delete, and ACL events. Deletes are hard deletes plus a reconciliation sweep. SQS is enough at the stated volume; Kafka is a production path. [Spike 04](_docs/01--spikes/04--self-maintaing-over-time-refelcting-additions-modifications-n-deletions-in-the-source-systems-without-manual-intervention.md).
 - Chunks record `embedding_model` and `chunker_version`. [ADR 0003](_docs/03--adrs/0003-embedding-and-chunk-versioning.md). Sync lag, dead-letter depth, and empty-result rate by permission group are the dashboard. [ADR 0002](_docs/03--adrs/0002-observability.md).
 
+
+
 ## Quickstart
 
 Works today. From the repository root. [uv](https://docs.astral.sh/uv/) installs Python 3.12 and the dependencies:
 
 ```bash
-uv sync
+make sync
 make test
 cp .env.example .env
 make up
@@ -73,15 +81,17 @@ make up
 
 `make test` runs the contract tests and the stub tests. `make up` builds the images and starts every Compose project. The first start downloads images and the Terraform AWS provider. Neo4j needs about two minutes before it is healthy. Expect several gigabytes of RAM. Postgres and Neo4j are not published on the host.
 
-| Port | Service |
-| ---- | ------- |
-| 8000 | Knowledge API (`/health`, `/v1/sources`) |
-| 8001 | MCP server (`/health`, streamable HTTP at `/mcp`) |
-| 8090 | Product webhook receiver |
-| 8101–8104 | HR, Sales, Product, Engineering harness |
-| 9090 | Prometheus |
-| 3000 | Grafana, anonymous admin, dev only |
-| 4566 | floci, bound to 127.0.0.1 |
+
+| Port      | Service                                           |
+| --------- | ------------------------------------------------- |
+| 8000      | Knowledge API (`/health`, `/v1/sources`)          |
+| 8001      | MCP server (`/health`, streamable HTTP at `/mcp`) |
+| 8090      | Product webhook receiver                          |
+| 8101–8104 | HR, Sales, Product, Engineering harness           |
+| 9090      | Prometheus                                        |
+| 3000      | Grafana, anonymous admin, dev only                |
+| 4566      | floci, bound to 127.0.0.1                         |
+
 
 ```bash
 make down
@@ -99,6 +109,8 @@ These five steps are the acceptance test. The processes start today. None of the
 4. Edit a policy and delete a deal in the harness. The edited chunk is re-embedded and the deal disappears from Postgres and Neo4j. Sync lag for that source is on the dashboard.
 5. Stop an ingestion worker mid-batch and start it again. Messages retry or land in the dead-letter queue. Replaying them does not duplicate chunks or edges.
 
+
+
 ## Source contracts
 
 A connector starts only when its YAML contract validates. Required: an owner (team and contact), a freshness tier (`P0`, `P1`, or `P2`), and at least one ACL mapping onto `department`, `clearance`, `region`, or `group`. High sensitivity requires an ACL re-check at read time. Fields named `salary`, `compensation`, `ssn`, or `national_id` cannot be in scope.
@@ -107,21 +119,25 @@ Contracts live in [infrastructure/config/sources](infrastructure/config/sources)
 
 ## Repository map
 
-| Path | Role |
-| ---- | ---- |
-| `_docs/00--project-brief/` | Brief and C4 diagrams. |
-| `_docs/01--spikes/` | Decisions for ingestion, knowledge representation, access, and synchronization. |
-| `_docs/02--architecture/` | Architecture document. Outline, body not written yet. |
-| `_docs/03--adrs/` | Storage, observability, and embedding and chunk versioning. |
-| `shared/contracts/` | Source-contract model, schema, validator, and tests. |
-| `infrastructure/config/sources/` | The four YAML contracts. |
-| `backend/` | API, MCP, workers, and the change-event model. Stubs. |
-| `database/` | Postgres init (pgvector, roles, placeholder RLS) and Neo4j constraints. |
-| `demo-harness/` | Four FastAPI services. Empty SQLite. No documents yet. |
-| `infrastructure/` | Compose projects, Terraform for floci, source contracts. |
-| `observability/` | Prometheus scrape config and a two-panel Grafana dashboard. |
-| `tools/` | Seed, mutation, and evaluation scripts. Empty. |
-| `.github/workflows/` | Contract gate and Compose config CI. |
+
+| Path                             | Role                                                                            |
+| -------------------------------- | ------------------------------------------------------------------------------- |
+| `_docs/00--project-brief/`       | Brief and C4 diagrams.                                                          |
+| `_docs/01--spikes/`              | Decisions for ingestion, knowledge representation, access, and synchronization. |
+| `_docs/02--architecture/`        | Architecture document. Outline, body not written yet.                           |
+| `_docs/03--adrs/`                | Storage, observability, and embedding and chunk versioning.                     |
+| `shared/contracts/`              | Source-contract model, schema, validator, and tests.                            |
+| `infrastructure/config/sources/` | The four YAML contracts.                                                        |
+| `backend/`                       | API, MCP, workers, and the change-event model. Stubs.                           |
+| `database/`                      | Postgres init (pgvector, roles, placeholder RLS) and Neo4j constraints.         |
+| `demo-harness/`                  | Four FastAPI services. Empty SQLite. No documents yet.                          |
+| `infrastructure/`                | Compose projects, Terraform for floci, source contracts.                        |
+| `observability/`                 | Prometheus scrape config and a two-panel Grafana dashboard.                     |
+| `tools/`                         | Seed, mutation, and evaluation scripts. Empty.                                  |
+| `.github/workflows/`             | Contract gate and Compose config CI.                                            |
+
+
+
 
 ## Assumptions and limits
 
@@ -148,6 +164,8 @@ Design, implementation, tests, and review on this POC were done with an AI codin
 - Testing. The contract tests were generated with the model: the four real contracts pass, and incomplete contracts fail (missing owner, missing tier, empty ACL mapping, forbidden fields). `make contracts-check` is the command a reviewer can run today.
 - Review. The human reads the docs against the assignment: reasoning, rejected alternatives, explicit assumptions, and honesty about what is not built. The status table in this file is part of that review. Access-boundary tests and the golden set are specified in the spikes and are not implemented yet.
 
+
+
 ## Documentation
 
 - [Project brief](_docs/00--project-brief/00-project-brief.md)
@@ -159,3 +177,4 @@ Design, implementation, tests, and review on this POC were done with an AI codin
 - [ADR 0001: storage](_docs/03--adrs/0001-storage.md)
 - [ADR 0002: observability](_docs/03--adrs/0002-observability.md)
 - [ADR 0003: embedding and chunk versioning](_docs/03--adrs/0003-embedding-and-chunk-versioning.md)
+
