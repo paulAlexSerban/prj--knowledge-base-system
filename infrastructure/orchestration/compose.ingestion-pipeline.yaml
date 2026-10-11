@@ -56,7 +56,9 @@ services:
       POSTGRES_DB: kbs
       POSTGRES_USER: ingestion_rw
       INGESTION_DB_PASSWORD: ${INGESTION_DB_PASSWORD}
+      GATEWAY_DB_PASSWORD: ${GATEWAY_DB_PASSWORD}
       NEO4J_URI: bolt://neo4j:7687
+      RECONCILE_INDEX_SECONDS: "60"
       NEO4J_PASSWORD: ${NEO4J_PASSWORD}
       # Set FAIL_OBJECT_ID to one object id to force that message onto the DLQ.
       FAIL_OBJECT_ID: ${FAIL_OBJECT_ID:-}

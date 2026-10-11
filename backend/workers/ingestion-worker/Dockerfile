@@ -11,6 +11,7 @@ ENV UV_COMPILE_BYTECODE=1 \
 COPY pyproject.toml uv.lock ./
 COPY shared/pyproject.toml shared/pyproject.toml
 COPY backend/libs/ingest-contract/pyproject.toml backend/libs/ingest-contract/pyproject.toml
+COPY backend/libs/knowledge-store/pyproject.toml backend/libs/knowledge-store/pyproject.toml
 COPY backend/libs/connector-core/pyproject.toml backend/libs/connector-core/pyproject.toml
 COPY backend/apis/knowledge-api/pyproject.toml backend/apis/knowledge-api/pyproject.toml
 COPY backend/apis/mcp-server/pyproject.toml backend/apis/mcp-server/pyproject.toml
@@ -25,6 +26,7 @@ COPY demo-harness/engineering/pyproject.toml demo-harness/engineering/pyproject.
 
 COPY shared shared
 COPY backend/libs/ingest-contract backend/libs/ingest-contract
+COPY backend/libs/knowledge-store backend/libs/knowledge-store
 COPY backend/workers/ingestion-worker backend/workers/ingestion-worker
 
 RUN uv sync --frozen --no-dev --no-default-groups --package ingestion-worker

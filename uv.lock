@@ -19,6 +19,7 @@ members = [
     "ingestion-worker",
     "knowledge-api",
     "knowledge-base-system",
+    "knowledge-store",
     "mcp-server",
     "shared",
     "webhook-receiver",
@@ -961,6 +962,7 @@ source = { editable = "backend/workers/ingestion-worker" }
 dependencies = [
     { name = "boto3" },
     { name = "ingest-contract" },
+    { name = "knowledge-store" },
     { name = "prometheus-client" },
     { name = "shared" },
 ]
@@ -969,6 +971,7 @@ dependencies = [
 requires-dist = [
     { name = "boto3", specifier = ">=1.43.111" },
     { name = "ingest-contract", editable = "backend/libs/ingest-contract" },
+    { name = "knowledge-store", editable = "backend/libs/knowledge-store" },
     { name = "prometheus-client", specifier = ">=0.26.0" },
     { name = "shared", editable = "shared" },
 ]
@@ -1405,6 +1408,7 @@ dev = [
     { name = "ingest-contract" },
     { name = "ingestion-worker" },
     { name = "knowledge-api" },
+    { name = "knowledge-store" },
     { name = "mcp-server" },
     { name = "moto", extra = ["s3"] },
     { name = "pytest" },
@@ -1432,6 +1436,7 @@ dev = [
     { name = "ingest-contract", editable = "backend/libs/ingest-contract" },
     { name = "ingestion-worker", editable = "backend/workers/ingestion-worker" },
     { name = "knowledge-api", editable = "backend/apis/knowledge-api" },
+    { name = "knowledge-store", editable = "backend/libs/knowledge-store" },
     { name = "mcp-server", editable = "backend/apis/mcp-server" },
     { name = "moto", extras = ["s3"], specifier = ">=5.2.3" },
     { name = "pytest", specifier = ">=8" },
@@ -1443,6 +1448,31 @@ notebooks = [
     { name = "boto3", specifier = ">=1.43.111" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "jupyter", specifier = ">=1.1" },
+]
+
+[[package]]
+name = "knowledge-store"
+version = "0.1.0"
+source = { editable = "backend/libs/knowledge-store" }
+dependencies = [
+    { name = "boto3" },
+    { name = "ingest-contract" },
+    { name = "neo4j" },
+    { name = "prometheus-client" },
+    { name = "psycopg", extra = ["binary"] },
+    { name = "shared" },
+    { name = "sqlalchemy" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "boto3", specifier = ">=1.43.111" },
+    { name = "ingest-contract", editable = "backend/libs/ingest-contract" },
+    { name = "neo4j", specifier = ">=5" },
+    { name = "prometheus-client", specifier = ">=0.26.0" },
+    { name = "psycopg", extras = ["binary"], specifier = ">=3.3.6" },
+    { name = "shared", editable = "shared" },
+    { name = "sqlalchemy", specifier = ">=2.1.4" },
 ]
 
 [[package]]
@@ -1720,6 +1750,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/31/72/b3446efab8756e7df4b8ec587f8e611cb5a7249e4323db480802f1d3be04/nbformat-5.11.1.tar.gz", hash = "sha256:32d4521c68c6e7d5b29c76defaeed9f42ea733142b9b19f88277ce10390b9c4d", size = 147775, upload-time = "2026-08-17T08:10:51.942Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/1a/69/ee613f74085ca7103f79cd08d579c4f3177d1d26e5d3d9528d2d6536a707/nbformat-5.11.1-py3-none-any.whl", hash = "sha256:cc6698fa75f4fab8755ead786317815f13a6fee3b53311c0abb1a8b51d52f7ec", size = 79849, upload-time = "2026-08-17T08:10:50.18Z" },
+]
+
+[[package]]
+name = "neo4j"
+version = "6.4.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pytz" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/80/db/024bd576bde5d97436d0acb71b41cf928c036ed8fec95ea1122eb05e47d1/neo4j-6.4.0.tar.gz", hash = "sha256:056676698f080b5af5b24b0fc5abb485b8db1b95edf366d01dcfd63bcff9b71d", size = 287786, upload-time = "2026-10-05T15:37:45.216Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c9/5d/519aefe3b38a490924641e980a16ea6c70f6c96c08d84cf661d32c4a08c2/neo4j-6.4.0-py3-none-any.whl", hash = "sha256:fdd048ba827be138063b045cf59e40056fbf0405ac02dadc24f64e369fbd9d3d", size = 390611, upload-time = "2026-10-05T15:37:43.491Z" },
 ]
 
 [[package]]
@@ -2185,6 +2227,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/5b/42/55c32bb9b12693c092ad250a0e82edb5b31ddeda6eb772de5f308b3804ad/python_multipart-0.0.32.tar.gz", hash = "sha256:be54b7f3fa167bb83e4fcd936b887b708f4e57fe75911c02aebf53efaf8d938e", size = 46881, upload-time = "2026-06-04T16:18:58.647Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/e1/04/e8135ebd1ad02c56ec633277529b2602ff99ff634be76cdba5744cf554fd/python_multipart-0.0.32-py3-none-any.whl", hash = "sha256:ff6d3f776f16878c894e52e107296ffc890e913c611b1a4ec6c44e2821fe2e23", size = 30042, upload-time = "2026-06-04T16:18:57.319Z" },
+]
+
+[[package]]
+name = "pytz"
+version = "2026.5"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/14/21/d83d6ef28c4c912c4bb4d1dcf591f7b8c6bde87b9c66f9f454677314e16d/pytz-2026.5.tar.gz", hash = "sha256:fa23724b9c486543b9ff54a327ee7569ac83ade54bb9afd0fc18676620401c86", size = 318572, upload-time = "2026-10-04T02:37:58.719Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/4f/ef/c66110d46fb800dda0bf33164182dfadabe26a90e4476844d502a23dca8e/pytz-2026.5-py2.py3-none-any.whl", hash = "sha256:e658af3757f9e26a9d25dd2aff38335acd92bc9104f890a894b2c1ba28311b03", size = 506342, upload-time = "2026-10-04T02:37:56.814Z" },
 ]
 
 [[package]]

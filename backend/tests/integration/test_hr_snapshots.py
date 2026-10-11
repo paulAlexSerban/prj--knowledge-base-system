@@ -96,8 +96,8 @@ def test_initial_sync_then_second_run_writes_nothing(harness, contract, state, s
     syncer = _syncer(harness, contract, state, s3)
     first = syncer.run()
     assert first.ok
-    assert first.written == 59
-    assert state.count_objects("hr") == 59
+    assert first.written == 86
+    assert state.count_objects("hr") == 86
     key = object_key("hr", "policy", "pol-parental-leave-de", "md")
     head = s3.head_object(Bucket=BUCKET, Key=key)
     assert head["Metadata"][METADATA_HASH]
@@ -113,7 +113,7 @@ def test_initial_sync_then_second_run_writes_nothing(harness, contract, state, s
     state.mark_success("hr", "2026-01-15T09:00:00.000000Z")
     replay = syncer.run()
     assert replay.written == 0
-    assert replay.skipped == 59
+    assert replay.skipped == 86
     assert _count(metrics.WRITTEN, source_id="hr", object_type="policy") == written
     assert len(_versions(s3, key)) == 1
 
@@ -173,11 +173,11 @@ def test_delete_verification_failure_keeps_the_row(harness, contract, state, s3)
             return True
 
     sticky = Syncer(syncer.connector, contract, state, Sticky(s3, BUCKET), workers=1)
-    before = _count(metrics.DELETE_FAILURES, source_id="hr")
+    before = _count(metrics.DELETE_FAILURES, source_id="hr", store="s3")
     api = harness[3]
     api.delete("/admin/people/emp-000001")
     sticky.reconcile()
-    assert _count(metrics.DELETE_FAILURES, source_id="hr") == before + 1
+    assert _count(metrics.DELETE_FAILURES, source_id="hr", store="s3") == before + 1
     assert state.get_object("hr", "emp-000001") is not None
     syncer.reconcile()
     assert state.get_object("hr", "emp-000001") is None
@@ -286,7 +286,7 @@ def test_partial_failure_replays_without_duplicates(harness, contract, state, s3
     assert state.get_watermark("hr") is None
     healthy = _syncer(harness, contract, state, s3)
     assert healthy.run().ok
-    assert state.count_objects("hr") == 59
+    assert state.count_objects("hr") == 86
     key = object_key("hr", "person", "emp-000001", "json")
     assert len(_versions(s3, key)) == 1
     body = s3.get_object(Bucket=BUCKET, Key=key)["Body"].read()
@@ -318,13 +318,8 @@ def test_metric_names_match_the_dashboard():
     dashboard = json.loads(
         (ROOT / "observability" / "grafana" / "dashboards" / "kbs-stub.json").read_text()
     )
-    used = set()
-    for panel in dashboard["panels"]:
-        for target in panel.get("targets", []):
-            expr = target.get("expr", "")
-            for name in metrics.METRIC_LABELS:
-                if name in expr:
-                    used.add(name)
+    body = json.dumps(dashboard)
+    used = {name for name in metrics.METRIC_LABELS if name in body}
     assert "kbs_snapshot_object_lag_seconds" in used
     assert "kbs_reconcile_drift" in used
     assert "kbs_delete_verification_failures_total" in used

@@ -2,6 +2,23 @@
 -- Chunks gain the ADR 0003 columns, ACL columns, full-text search, and an HNSW
 -- index. Row-level security for gateway_ro is the coarse ACL check. ingestion_rw
 -- writes every row. The table owner bypasses RLS, so the API must not use it.
+--
+-- vector is created in public by an older init script. Connections use
+-- search_path=kbs, so the type and its operators have to live in kbs.
+
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'vector') THEN
+        CREATE EXTENSION vector SCHEMA kbs;
+    ELSIF (
+        SELECT n.nspname
+        FROM pg_extension e
+        JOIN pg_namespace n ON n.oid = e.extnamespace
+        WHERE e.extname = 'vector'
+    ) IS DISTINCT FROM 'kbs' THEN
+        ALTER EXTENSION vector SET SCHEMA kbs;
+    END IF;
+END $$;
 
 CREATE OR REPLACE FUNCTION kbs.clearance_rank(label text) RETURNS smallint
 LANGUAGE sql IMMUTABLE AS $$

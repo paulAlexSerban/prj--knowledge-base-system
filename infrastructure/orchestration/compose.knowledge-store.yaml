@@ -85,7 +85,8 @@ services:
     command:
       - |
         i=0
-        until psql -v ON_ERROR_STOP=1 -f /migrations/001-sync-state.sql; do
+        until psql -v ON_ERROR_STOP=1 -f /migrations/001-sync-state.sql \
+          && psql -v ON_ERROR_STOP=1 -f /migrations/002-knowledge-store.sql; do
           i=$$((i + 1))
           if [ "$$i" -ge 30 ]; then
             exit 1

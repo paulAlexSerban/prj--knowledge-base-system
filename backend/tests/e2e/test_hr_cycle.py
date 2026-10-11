@@ -148,8 +148,8 @@ def test_hr_snapshot_cycle() -> None:
     _request("POST", "/admin/reset")
     _wait_until(
         lambda: _metric("kbs_reconcile_drift", source_id="hr") == 0
-        and _metric("kbs_source_objects", source_id="hr") == 59
-        and _s3_count() == 59,
+        and _metric("kbs_source_objects", source_id="hr") == 86
+        and _s3_count() == 86,
         seconds=1200,
         label="reset to the curated seed",
     )
@@ -204,9 +204,9 @@ def test_hr_snapshot_cycle() -> None:
 
     _request("POST", "/admin/reset")
     _wait_until(
-        lambda: _request("GET", "/discover")["counts"] == {"person": 48, "policy": 11}
+        lambda: _request("GET", "/discover")["counts"] == {"person": 48, "policy": 38}
         and _metric("kbs_reconcile_drift", source_id="hr") == 0
-        and _s3_count() == 59,
+        and _s3_count() == 86,
         seconds=1200,
         label="reset after the cycle",
     )

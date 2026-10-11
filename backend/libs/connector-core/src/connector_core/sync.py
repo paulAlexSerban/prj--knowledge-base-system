@@ -320,7 +320,7 @@ class Syncer:
             )
             return
         if self.snapshots.exists(key):
-            metrics.DELETE_FAILURES.labels(source_id).inc()
+            metrics.DELETE_FAILURES.labels(source_id, "s3").inc()
             log_event(
                 LOG,
                 "delete verification failed",

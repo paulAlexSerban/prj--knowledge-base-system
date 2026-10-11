@@ -17,6 +17,7 @@ dev = [
   "shared",
   "ingest-contract",
   "connector-core",
+  "knowledge-store",
   "connector-hr",
   "knowledge-api",
   "mcp-server",
@@ -39,6 +40,7 @@ members = [
   "shared",
   "backend/libs/ingest-contract",
   "backend/libs/connector-core",
+  "backend/libs/knowledge-store",
   "backend/apis/knowledge-api",
   "backend/apis/mcp-server",
   "backend/apis/webhook-receiver",
@@ -55,6 +57,7 @@ members = [
 shared = { workspace = true }
 ingest-contract = { workspace = true }
 connector-core = { workspace = true }
+knowledge-store = { workspace = true }
 connector-hr = { workspace = true }
 knowledge-api = { workspace = true }
 mcp-server = { workspace = true }
@@ -74,6 +77,7 @@ known-first-party = [
   "shared",
   "ingest_contract",
   "connector_core",
+  "knowledge_store",
   "connector_hr",
   "knowledge_api",
   "mcp_server",
@@ -92,6 +96,7 @@ testpaths = [
   "shared/src/shared/contracts/tests",
   "backend/libs/ingest-contract/tests",
   "backend/libs/connector-core/tests",
+  "backend/libs/knowledge-store/tests",
   "backend/apis/knowledge-api/tests",
   "backend/connectors/hr/tests",
   "backend/workers/ingestion-worker/tests",

@@ -1,6 +1,6 @@
 """Prometheus metrics for the connector. Names and labels are the contract with the dashboard."""
 
-from prometheus_client import Counter, Gauge, Histogram
+from prometheus_client import REGISTRY, Counter, Gauge, Histogram
 
 SYNC_RUNS = Counter(
     "kbs_connector_sync_runs_total",
@@ -54,10 +54,18 @@ ERRORS = Counter(
     "Snapshot failures by stage",
     ["source_id", "stage"],
 )
-DELETE_FAILURES = Counter(
+def _counter(name: str, documentation: str, labelnames: tuple[str, ...]) -> Counter:
+    """Reuse a collector when another package registered the same name in-process."""
+    found = REGISTRY._names_to_collectors.get(name)
+    if found is not None:
+        return found
+    return Counter(name, documentation, labelnames)
+
+
+DELETE_FAILURES = _counter(
     "kbs_delete_verification_failures_total",
-    "Deletes whose verification head still found the key",
-    ["source_id"],
+    "Deletes whose verification still found the object",
+    ("source_id", "store"),
 )
 SOURCE_OBJECTS = Gauge(
     "kbs_source_objects",
@@ -99,7 +107,7 @@ METRIC_LABELS = {
     "kbs_snapshots_deleted_total": ("source_id",),
     "kbs_snapshot_bytes_total": ("source_id",),
     "kbs_snapshot_errors_total": ("source_id", "stage"),
-    "kbs_delete_verification_failures_total": ("source_id",),
+    "kbs_delete_verification_failures_total": ("source_id", "store"),
     "kbs_source_objects": ("source_id",),
     "kbs_snapshot_objects": ("source_id",),
     "kbs_reconcile_drift": ("source_id",),
