@@ -101,7 +101,7 @@ These are places where the stated requirements need a narrower reading before im
 - One service layer exposed twice: a REST API and an MCP server (`search_knowledge`, `get_document`, `find_related`, `list_sources`).
 - User-delegated authorization: JWT claims, coarse pre-filter in SQL and Cypher, fine-grained post-check, Postgres row-level security, and an audit record of which attributes justified a result.
 - Delete propagation, content-hash skip, idempotent upserts, and a reconciliation sweep.
-- A demo harness: FastAPI services with SQLite and files for HR, Sales, Product, and Engineering, plus a mutation script. HR stores rows with SQLAlchemy and can bulk-load Faker people or policies through `POST /admin/seed`. A Jupyter notebook drives that load. The other three sources are still empty stubs.
+- A demo harness: FastAPI services with SQLite and files for HR, Sales, Product, and Engineering, plus a mutation script. HR stores rows with SQLAlchemy and can bulk-load Faker people or policies through `POST /admin/seed`. The HR connector polls that API and writes raw snapshots to S3. The other three sources are still empty stubs.
 - Docker Compose, floci, and Terraform for the FIFO queues, dead-letter queues, and snapshot bucket. Alloy collects metrics and container logs. Prometheus stores metrics, Loki stores logs, and Grafana shows both. Traces are deferred. The API key stays in the environment.
 - A golden evaluation set of about 20 questions, including questions with no answer, conflicting sources, and access-boundary cases.
 
@@ -157,7 +157,7 @@ The demo is the acceptance test. Each step is observable in the API response, th
 | ---- | ---- |
 | `_docs/00--project-brief/` | This brief, the C4 system-context diagram, and the [C4 container diagram](01-c4-l2--container-connectors.png) for connector workers. |
 | `_docs/01--spikes/` | Decision records for ingestion, knowledge representation, access, and synchronization. |
-| `_docs/02--architecture/` | Architecture document. Outline only until the next pass. |
+| `_docs/02--architecture/` | Architecture document. Deliverable 1, written from this brief, the spikes, and the ADRs. |
 | `_docs/03--adrs/` | Short ADRs for storage, observability, and embedding/chunk versioning. |
 | `backend/apis` | Knowledge API and MCP server adapters. |
 | `backend/services` | Retrieval, authorization, and ingestion service layer. |

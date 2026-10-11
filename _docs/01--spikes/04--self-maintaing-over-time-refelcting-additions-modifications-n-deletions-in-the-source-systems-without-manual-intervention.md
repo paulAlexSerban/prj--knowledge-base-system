@@ -17,7 +17,7 @@ Treat ingestion as a stream of change events (create, update, delete, acl_change
 ### Pipeline
 
 1. Connector worker runs on the cadence in the source contract. P0 (HR) is an in-process loop, because EventBridge Scheduler cannot fire faster than once a minute. Scheduler, when wired, sends P1/P2 poll ticks and the reconciliation sweep to a queue. The Product harness calls the webhook receiver directly.
-2. `list_changes` yields events. The worker writes the raw payload to S3 and enqueues a message.
+2. `list_changes` yields events. The worker writes the raw payload to S3 and enqueues a message. The HR connector writes the snapshot today. The enqueue is the next step; the message's `s3_pointer` will be the key this connector already stores.
 3. Ingestion worker chunks, embeds, and upserts Postgres and Neo4j, or applies a tombstone.
 4. Retrieval reads only the stores, plus the high-sensitivity ACL re-check from spike 03.
 
@@ -28,13 +28,13 @@ Message body: `source_id`, `object_id`, `event_type`, `version` or `content_hash
 - Upsert key is `source_id + object_id + version` (or content hash when the source has no version).
 - If the stored content hash matches, the worker updates sync metadata and skips the embedding call.
 - Replaying a message after a crash does not duplicate chunks or edges.
-- ACL-only changes update attributes in place and do not re-embed.
+- ACL-only changes update attributes in place and do not re-embed. The HR snapshot hash is sha256 of the raw bytes plus the sorted native ACL, so an ACL-only change still rewrites the S3 object. The harness does not bump the policy version for that change.
 
 ### Deletes
 
 - A delete event writes a tombstone, then hard-deletes the chunks (pgvector and full-text), the graph nodes that this object owns, and the S3 object.
 - A verification query after the delete asserts the id is gone from both stores. Failure retries the tombstone.
-- A reconciliation sweep on a slower cadence lists ids from the source and diffs them against indexed ids. Ids present only in the index are tombstoned. This catches deletes that a cursor or webhook missed. It lists ids, not bodies, so it is cheap relative to a full re-embed.
+- A reconciliation sweep on a slower cadence lists ids from the source and diffs them against indexed ids. Ids present only in the index are tombstoned. This catches deletes that a cursor or webhook missed. It lists ids, not bodies, so it is cheap relative to a full re-embed. For HR this sweep is the only delete path: the harness has no delete feed. The connector removes every S3 version, checks the key is gone, then deletes the `kbs.source_objects` row. A failed check is counted and retried. The chunk and graph tombstone waits for the ingestion worker.
 
 ### Priority
 

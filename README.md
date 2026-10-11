@@ -2,17 +2,17 @@
 
 The Unified Knowledge Gateway is an event-driven hybrid knowledge base. It ingests department data, turns it into knowledge agents can use, and serves it through one API and one MCP server with the caller's permissions applied in the data layer.
 
-This repository is a proof of concept for that gateway. The design is written down. The source-contract gate is implemented and checked in CI. Compose starts the harness, workers, stores, API, MCP server, floci, Jupyter, and the observability stack (Alloy, Loki, Prometheus, and Grafana). The gateway processes are stubs: they answer health checks and list registered sources. They do not retrieve or answer questions yet. The HR harness serves a seeded directory and policies.
+This repository is a proof of concept for that gateway. The design is written down. The source-contract gate is implemented and checked in CI. Compose starts the harness, workers, stores, API, MCP server, floci, Jupyter, and the observability stack (Alloy, Loki, Prometheus, and Grafana). The gateway and the ingestion worker are stubs: they answer health checks and do not retrieve or answer questions yet. The HR harness serves a seeded directory and policies. The HR connector polls it and writes raw snapshots to S3 on floci.
 
 ## Status
 
 
 | Built                                                                                                | Planned                                                       |
 | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
-| Project brief, spikes, ADRs, and the architecture outline                                            | Retrieval, chunking, embeddings, and the two demo answers     |
+| Project brief, spikes, ADRs, and the architecture document                                           | Retrieval, chunking, embeddings, and the two demo answers     |
 | C4 diagrams (context, containers, components, connector containers)                                  | Mock identity provider and access-boundary tests              |
 | Source-contract model, four YAML contracts, validator, tests, and CI                                 | Golden evaluation set                                         |
-| Compose projects for the harness, gateway, ingestion, store, floci, Jupyter, and observability (Alloy, Loki, Prometheus, Grafana). Gateway processes are stubs. The HR harness is seeded. | The eight freshness and authorization panels on the dashboard |
+| Compose projects for the harness, gateway, ingestion, store, floci, Jupyter, and observability (Alloy, Loki, Prometheus, Grafana). The HR harness is seeded. The HR connector writes raw snapshots to S3. | Queue emit, chunking, retrieval, and the remaining dashboard panels |
 | Terraform on floci: three FIFO queues, three dead-letter queues, one snapshot bucket                 | Seed data for Sales, Product, and Engineering, and `make demo` |
 
 
@@ -125,7 +125,7 @@ Contracts live in [infrastructure/config/sources](infrastructure/config/sources)
 | -------------------------------- | ------------------------------------------------------------------------------- |
 | `_docs/00--project-brief/`       | Brief and C4 diagrams.                                                          |
 | `_docs/01--spikes/`              | Decisions for ingestion, knowledge representation, access, and synchronization. |
-| `_docs/02--architecture/`        | Architecture document. Outline, body not written yet.                           |
+| `_docs/02--architecture/`        | Architecture document (Deliverable 1).                                          |
 | `_docs/03--adrs/`                | Storage, observability, and embedding and chunk versioning.                     |
 | `shared/contracts/`              | Source-contract model, schema, validator, and tests.                            |
 | `infrastructure/config/sources/` | The four YAML contracts.                                                        |
@@ -175,7 +175,7 @@ Design, implementation, tests, and review on this POC were done with an AI codin
 - [Spike 02: knowledge representation](_docs/01--spikes/02--transforming-data-into-knowledge-that-ai-agents-can-easily-interpret-and-use.md)
 - [Spike 03: agent access](_docs/01--spikes/03--exposing-knowledge-to-ai-agents-though-consistent-access-layer.md)
 - [Spike 04: staying current](_docs/01--spikes/04--self-maintaing-over-time-refelcting-additions-modifications-n-deletions-in-the-source-systems-without-manual-intervention.md)
-- [Architecture document](_docs/02--architecture/01--architecture-document.md) (outline)
+- [Architecture document](_docs/02--architecture/01--architecture-document.md)
 - [ADR 0001: storage](_docs/03--adrs/0001-storage.md)
 - [ADR 0002: observability](_docs/03--adrs/0002-observability.md)
 - [ADR 0003: embedding and chunk versioning](_docs/03--adrs/0003-embedding-and-chunk-versioning.md)

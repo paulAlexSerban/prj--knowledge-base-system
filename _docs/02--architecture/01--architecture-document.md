@@ -1,59 +1,221 @@
 # Architecture Document: Knowledge Base Gateway
 
-Status: outline only. The body is the next pass. Decisions already taken live in the [project brief](../00--project-brief/00-project-brief.md), the [spikes](../01--spikes/), and the [ADRs](../03--adrs/0001-storage.md).
-
-This document answers the assignment's first deliverable. Each section below states what it must contain so the write-up stays tied to the POC and does not grow a second design.
-
-## Overview
-
-One paragraph: what the gateway does, the two demo questions, and the line between what is built and what is a production path. Point at the system-context diagram and the connector container diagram in the brief.
-
-## Requirements
-
-### Functional requirements
-
-Ingest the four sources, keep indexes current from change events, answer the policy question from authorized chunks with citations, and answer the roadmap question with a graph path.
-
-### Non-functional requirements
-
-The production targets (volume, freshness tiers, 250 ms p95, user-delegated access) and the POC scale assumptions, copied from the brief rather than restated with new numbers.
+This is Deliverable 1. It answers the assignment's eight questions and states its assumptions. Long-form reasoning lives in the [project brief](../00--project-brief/00-project-brief.md), the [spikes](../01--spikes/), and the [ADRs](../03--adrs/0001-storage.md). The POC and the AI-SDLC description are Deliverable 2 ([README](../../README.md#how-ai-was-used)).
 
 ## Executive summary
 
-The design in a few sentences: event-driven ingestion, Postgres for documents and hybrid search, Neo4j for a small ontology, one service layer behind a REST API and an MCP server, authorization in the data path.
+Departments own sources that change independently and have no shared schema. Agents need knowledge that is accurate, current, and authorized at the moment they act. The design is a knowledge gateway:
+
+- Connectors detect changes at each source and emit events onto priority queues.
+- Workers normalize, chunk, embed, and upsert into Postgres (prose, lineage, permissions, hybrid search) and a derived Neo4j graph (a small typed ontology).
+- One service layer sits behind a REST API and an MCP server. Authorization runs in the data path under the caller's identity. Agents hold no store credentials and have no write tools.
+- Deletes are hard deletes with verification and a reconciliation backstop.
+
+The POC proves this on four mocked sources and two questions:
+
+1. "What is our parental leave policy in Germany?" Answered from authorized chunks, with a citation to the chunk, version, and sync time.
+2. "Which high-ARR Sales deals in Q3 depend on unreleased Engineering epics?" Answered from a graph path (deal, account or spec, epic, team).
+
+## Assumptions
+
+The discussion starts from the production set. The POC is sized to the second set and does not claim to have proven the first.
+
+| Topic | Production assumption | POC assumption |
+| ----- | --------------------- | -------------- |
+| Scale | About 2,000 employees, about 10 million objects across Sales, Product, Engineering, and HR. | Four mocked sources, a few hundred documents and records. |
+| Change volume | About 100,000 changes a day, about 1.2 per second on average. Bursts of 10 to 20 times are still within one queue and a small worker pool. The constraints are embedding cost, source rate limits, and delete correctness. | Same pipeline, demo volume. |
+| Freshness | HR policy and security: under 30 seconds. Jira and Confluence: under 5 minutes. Archives: daily. | Same three tiers as queue priority plus a sync-lag metric. Demonstrated locally, not load-tested. |
+| Security | Zero-trust, user-delegated access. Every query inherits the caller's identity and attributes. Agents hold no elevated privilege. | Mock identity provider signing JWTs with department, clearance, region, and group claims. |
+| Queries | Semantic search and multi-hop traversal. | The two demo questions. |
+| Latency | Under 250 ms p95 for retrieval, excluding model generation. | A design target with a metric, not a load-test result. |
+| Infrastructure | Not specified. | Docker Compose, [floci](https://floci.io) for SQS, S3, and EventBridge Scheduler, Terraform against floci. |
+| Models | Not specified. | OpenRouter, with a local embedder and deterministic extractor for offline runs. |
+
+Requirements I narrowed, and why:
+
+- The 30-second target holds only for a source that can push, or be polled that fast. Freshness is a per-source contract, not a platform promise. EventBridge Scheduler cannot fire faster than once a minute, so the P0 poll loop lives in the connector worker.
+- The 250 ms budget covers hybrid search with an authorization filter. A reranker or unbounded graph expansion is a separate decision, made only if metrics show a gap.
+- "Without manual intervention" means no human re-indexes the corpus. It still needs a named owner per connector, a dead-letter queue, and a reconciliation job.
+- Compensation figures and national identifiers are not ingested (`salary`, `compensation`, `ssn`, `national_id`). Data minimization is safer than attribute-based access on a retrieval index.
+- The graph is used for the multi-hop question only. Policy prose stays in chunks.
 
 ## Architecture
 
-Components, how they interact, and the path of a document from source event to agent tool result. Include the mermaid flow from the brief and walk one create, one update, and one delete. Name the transformation at each hop (normalize, chunk, embed, upsert, authorize).
+![Container diagram](../00--project-brief/00-c4-l2--container-diagram--knowledge-base-system.png)
+
+Further views: [system context](../00--project-brief/00-c4-l1--system-context.png), [connector containers](../00--project-brief/01-c4-l2--container-connectors.png), and [components](../00--project-brief/00-c4-l3--component-diagram--kowledge-base-system.png). The harness (HR, Sales, Product, Engineering) is outside the gateway. Postgres, Neo4j, and S3 are on an internal network. The only ingress is the API and the MCP server.
+
+### Components
+
+| Component | Role |
+| --------- | ---- |
+| Connector workers | `discover`, `list_changes`, `fetch`, `get_acl`, `normalize`. Emit change events. Never embed. |
+| Queues | SQS FIFO, one per freshness tier (P0, P1, P2), each with a dead-letter queue. Message group is source id plus object id. |
+| Object storage | S3. Raw payloads and document blobs. |
+| Ingestion workers | Chunk, embed, upsert Postgres and Neo4j, or apply a tombstone. |
+| Postgres | Authoritative for prose, lineage, ACL attributes, sync state, hashes, pgvector, full-text search. |
+| Neo4j | Derived graph index. |
+| Service layer | Query router, hybrid retrieval, graph traversal, authorization. |
+| API and MCP server | Thin adapters over the service layer. Validate the JWT. |
+| Observability | Alloy, Prometheus, Loki, Grafana. |
+
+### Data flow from source to agent
+
+| Hop | Component | Transformation |
+| --- | --------- | -------------- |
+| 1 | Source | A record is created, edited, or deleted in its own schema. |
+| 2 | Connector worker | Detect the change, `fetch` the body, map the native permission with `get_acl`, `normalize` into a platform document (source id, version, content hash, payload, ACL attributes). Raw payload goes to S3. |
+| 3 | Queue | Event: source id, object id, event type, version or hash, `occurred_at`, S3 pointer. Ordered per object. |
+| 4 | Ingestion worker | Chunk with the format-aware splitter. Embed only if the content hash changed. |
+| 5 | Ingestion worker | Upsert chunk, vector, full-text, ACL columns, and graph edges as one unit, retried together. |
+| 6 | Service layer | Route the question, pre-filter, over-fetch, post-check, apply row-level security, audit. High-sensitivity sources re-check the ACL at the source. |
+
+Create, update, and delete walk the same path:
+
+- Create: the new object is polled or pushed, normalized, chunked, embedded, and upserted. It is visible to a principal whose claims match the ACL.
+- Update: if the content hash changed, re-chunk and re-embed. If it matches, update sync metadata and skip the embedding call. An ACL-only change updates attributes in place and travels on the P0 queue.
+- Delete: tombstone, then hard-delete the chunks, the graph nodes the object owns, and the S3 object, then run a verification query. A reconciliation sweep diffs source ids against indexed ids and tombstones the difference.
 
 ## Data connection
 
-The connector interface, capability flags, and the four demo sources. Link [spike 01](../01--spikes/01--handling-data-from-distributed-sources-w-diff-formats-access-methods-n-ownership.md). State why federated query and a generic ELT tool were rejected.
+Detail: [spike 01](../01--spikes/01--handling-data-from-distributed-sources-w-diff-formats-access-methods-n-ownership.md).
+
+Source-specific complexity (auth, pagination, format quirks) stays inside a connector that implements one interface. Each source has a YAML contract with a required owner, a freshness tier, a sensitivity, and at least one rule mapping its native permissions to `department`, `clearance`, `region`, or `group`. `load_contracts` is the registration gate: a connector with an invalid contract does not start. A high-sensitivity source must declare an ACL re-check at read time.
+
+A connector uses the cheapest change signal its source really has. The four demo sources exercise each one:
+
+| Source | Shape | Change signal | Sensitivity |
+| ------ | ----- | ------------- | ----------- |
+| HR | Markdown and PDF policies, SQLite people directory | Poll | High. ACL re-checked at read time. |
+| Sales | SQLite CRM | Cursor change feed | Medium |
+| Product | Markdown specs | Webhook | Low. Bounded sync window. |
+| Engineering | Jira-like epics in SQLite | `updated_since` listing | Medium |
+
+Chunking is format-aware (markdown by heading, PDF by section, records as one chunk per row), never one fixed window.
 
 ## Knowledge representation
 
-Hybrid retrieval, the ontology, which representation is authoritative for which question class, and what was left out (reranker, community summaries, fuzzy entity resolution). Link [spike 02](../01--spikes/02--transforming-data-into-knowledge-that-ai-agents-can-easily-interpret-and-use.md) and [ADR 0001](../03--adrs/0001-storage.md).
+Detail: [spike 02](../01--spikes/02--transforming-data-into-knowledge-that-ai-agents-can-easily-interpret-and-use.md), [ADR 0001](../03--adrs/0001-storage.md), [ADR 0003](../03--adrs/0003-embedding-and-chunk-versioning.md).
+
+Similarity search answers semantic questions and fails relational ones. A graph answers relational questions and fails on prose. The source document stays the unit of truth, and each question goes to the representation that is authoritative for it.
+
+- Hybrid retrieval in Postgres: structure-aware chunks with a contextual header (title plus section path), pgvector dense search, full-text search for exact identifiers, merged with reciprocal rank fusion. Each chunk records `chunker_version` and `embedding_model`.
+- Graph in Neo4j, kept small:
+
+| Nodes | Edges |
+| ----- | ----- |
+| Person, Team, Account, Deal, Epic, Spec, Policy | `OWNS`, `DEPENDS_ON`, `REFERENCES`, `BELONGS_TO` |
+
+- Edges from structured sources are extracted in code and are deterministic. The roadmap answer trusts only those. Edges extracted from specs carry a confidence and a source span and are supporting evidence only.
+- Entities join on a shared source key or email. The demo data uses one product key across three sources on purpose. Fuzzy entity resolution is not built.
+
+The router makes authority a code decision: semantic questions use chunk text, relational questions use the graph, and hybrid questions use the graph to find entities and chunks for wording.
 
 ## Agent access
 
-MCP tools, the REST API, JWT delegation, pre-filter plus post-check, row-level security, audit, and prompt-injection handling. Link [spike 03](../01--spikes/03--exposing-knowledge-to-ai-agents-though-consistent-access-layer.md).
+Detail: [spike 03](../01--spikes/03--exposing-knowledge-to-ai-agents-though-consistent-access-layer.md).
+
+MCP gives every client the same tools. It does not authenticate the user or enforce access, so the server does both on every call.
+
+| MCP tool | REST | Behavior |
+| -------- | ---- | -------- |
+| `search_knowledge` | `POST /v1/search` | Hybrid or graph-routed retrieval for the caller. Returns chunk ids, snippets, source, version, sync time. |
+| `get_document` | `GET /v1/documents/{id}` | One authorized document or chunk with provenance. |
+| `find_related` | `POST /v1/graph/related` | Bounded traversal from a known entity. Returns the path. |
+| `list_sources` | `GET /v1/sources` | Owner, tier, last sync. No bodies. |
+
+There is no write tool and no open SQL or Cypher. The token's claims become the principal. Authorization runs in this order:
+
+1. A coarse pre-filter in SQL and Cypher on department, clearance, and region. Restricted users are not starved.
+2. Over-fetch, then a fine-grained post-check against the ACL attributes on the chunk.
+3. Postgres row-level security reads the principal from session settings, so a query that forgets the predicate still cannot read another principal's rows.
+4. An audit row names the attributes that justified each allow. Denies are audited too.
+
+Permission staleness is explicit. HR (high sensitivity) puts ACL changes on the P0 queue and re-checks the source at read time, and that latency is reported separately from search. Sales, Engineering, and Product trust the indexed ACL inside a documented sync window.
+
+Retrieved text is data. Snippets are delimited and the prompt says embedded instructions are not followed. No tool can write, so retrieved text has nothing to trigger.
 
 ## Self-maintenance
 
-Events, idempotency, content-hash skip, tombstones, reconciliation, priority queues, retries, and the dead-letter queue. Link [spike 04](../01--spikes/04--self-maintaing-over-time-refelcting-additions-modifications-n-deletions-in-the-source-systems-without-manual-intervention.md).
+Detail: [spike 04](../01--spikes/04--self-maintaing-over-time-refelcting-additions-modifications-n-deletions-in-the-source-systems-without-manual-intervention.md).
+
+- Ingestion is a stream of create, update, delete, and ACL-change events. A periodic job exists only for reconciliation.
+- The upsert key is source id plus object id plus version (or content hash). The queue is at-least-once, so the idempotent upsert provides exactly-once. A replay after a crash duplicates nothing.
+- A matching content hash skips the embedding call. An ACL-only change does not re-embed.
+- Three queues match the tiers: P0 (HR body and any ACL change, under 30 seconds where the source allows), P1 (Sales, Engineering, Product, under 5 minutes), P2 (backfill and reconciliation, daily). Workers drain P0 first.
+- Messages that exhaust retries go to the dead-letter queue and appear in the sync-lag metric. A poison message does not block its group, because groups are per object.
+- Deletes are hard deletes plus a verification query. Soft delete is rejected because hidden rows surface through a missed filter and the graph keeps traversable edges.
+- Postgres and Neo4j are written as one unit. On partial failure the whole message retries.
 
 ## Technology choices
 
-One row per component: choice, why, what was excluded and why. Cover FastAPI, Postgres with pgvector, Neo4j, SQS, S3, EventBridge Scheduler, floci, Terraform, OpenRouter with a local embedder, Alloy, Loki, Prometheus, and Grafana. Traces are deferred. Use the ADRs as the long form for storage, observability, and versioning.
+| Component | Choice | Why | Excluded, and why |
+| --------- | ------ | --- | ----------------- |
+| Service | Python, FastAPI, Pydantic | One service layer, two thin adapters. Contracts are typed and exported as JSON Schema. | Not evaluated in the spikes. |
+| Metadata, vectors, lexical, authorization | Postgres with pgvector, full-text, row-level security | The ACL pre-filter is a normal SQL predicate next to the vectors. One authorization implementation. | OpenSearch plus Neo4j plus Postgres: three query languages and three authorization models for a volume that does not need them. Dedicated vector DB: ACL, lineage, and RLS still need Postgres. |
+| Graph | Neo4j | The roadmap question is a short typed traversal, and the path is the explanation. | Recursive SQL over edge tables: viable in production if the ontology stays small. Revisit if Neo4j is the thing that fails in setup. |
+| Messaging | SQS FIFO on floci, queue per tier, DLQ per queue | Per-object order, at-least-once delivery, visible poison messages. | Kafka or Kinesis: justified when a second consumer needs replay, not at about 1.2 events per second. |
+| Objects | S3 on floci | Raw payloads and blobs. Postgres holds the pointer. | Not evaluated in the spikes. |
+| Scheduling | In-process loop for P0, EventBridge Scheduler for P1/P2 and reconciliation | Scheduler cannot fire faster than once a minute. | Scheduler for P0. Full reindex on a schedule: re-embeds unchanged content or misses the tier. |
+| Local AWS and IaC | floci, Terraform with endpoint overrides | Real Terraform resources against an emulator. | CloudWatch on floci: metrics and logs stay on Prometheus and Loki so they behave the same in Compose. |
+| Ingestion | Custom connectors on one interface | The graded problem is ACL normalization, tombstones, and freshness contracts. | Airbyte or Fivetran: load a warehouse, own none of those three. Federated query: puts latency and partial failure inside the user's query. CDC: the platform does not own source databases. |
+| Models | OpenRouter, plus a local embedder and deterministic extractor | Tests pass without a key. Model names are config. | Mixing vectors from two models in one active version. Fine-tuning: does not keep knowledge current or enforce per-user access. |
+| Identity | Mock IdP issuing JWTs | The claim contract is what the service enforces. | MCP as the authorization boundary. Per-agent store access. |
+| Retrieval extras | Reciprocal rank fusion only | No score calibration needed. | Reranker and community-summary GraphRAG: no measured gap yet. Vector-only search: fails the dependency question. |
+| Observability | Alloy, Prometheus, Loki, Grafana ([ADR 0002](../03--adrs/0002-observability.md)) | Freshness and authorization are distributions, and a deny is one log line. | Logs only. Direct Prometheus scraping with no collector. Tracing backend: no latency regression has needed one, and Tempo is the production path. |
 
 ## Trade-offs
 
-The short list from the spikes: freshness versus embedding cost, two stores versus one, SQS versus a log, indexed ACL versus read-time check, deterministic edges versus extracted edges, and the 250 ms budget versus the HR re-check.
+| Trade-off | Accepted cost | Where it shows |
+| --------- | ------------- | -------------- |
+| Freshness versus embedding cost | Real-time only for P0. Unchanged content skips embedding. | Skipped-embed metric, P0 lag. |
+| Two stores versus one | Postgres and Neo4j can diverge. | Delete verification, retried pair. |
+| SQS versus a log | No cross-object order and no independent replay. | Dead-letter depth. |
+| Indexed ACL versus read-time check | HR pays a live call. Other sources are stale inside the window. | Latency split, window on the contract. |
+| Deterministic versus extracted edges | Extracted edges never decide the headline answer, so recall on spec links is lower. | Path versus supporting edges. |
+| 250 ms versus the HR re-check | The re-check can miss 250 ms. The two numbers are reported separately. | Latency histograms. |
 
 ## Quality evaluation
 
-The golden set (recall@k, MRR, abstention, conflicting sources, access-boundary tests), the dashboard panels in [ADR 0002](../03--adrs/0002-observability.md), and the action when a panel or a golden-set row fails (replay from the dead-letter queue, quarantine a connector, roll back `chunker_version` or `embedding_model`).
+A golden set of about 20 questions runs on every change to chunking, the embedding model, prompts, or retrieval parameters:
+
+| Category | Pass condition |
+| -------- | -------------- |
+| Known supporting chunk | In the retrieved set (recall@k, MRR). |
+| No answer in the corpus | The system abstains. |
+| Conflicting sources | Both versions are surfaced. |
+| Access boundary | Two principals on one pool. The unauthorized one gets an empty set. Security tests. |
+
+Faithfulness is a citation check: every claim maps to a returned chunk id. A model-graded judge is a production addition.
+
+Monitoring follows [ADR 0002](../03--adrs/0002-observability.md). Only process-up, worker-up, and an error and deny log panel exist today. The remaining SLO panels are specified and not emitted yet: sync lag and last sync per source, queue depth per tier, dead-letter depth, search latency split from the HR re-check, empty-result rate per permission group, embeds skipped by hash, and indexed-minus-source id drift. POC alerts are dashboard thresholds: P0 lag over 30 seconds, any dead-letter message, ACL re-check failures.
+
+| Symptom | Action |
+| ------- | ------ |
+| Dead-letter messages | Fix the cause, replay. The upsert key makes replay safe. |
+| Lag breach or a stalled connector | Proposed: stop that connector's intake and notify its contract owner. No such mechanism is built. |
+| Indexed ids exceed source ids | Run reconciliation. |
+| Recall drops after a chunker or model change | Roll back `chunker_version` or `embedding_model`. |
+| Empty-result rate rises for one group | Treat as an authorization defect first. Check the ACL mapping, the pre-filter, and the RLS settings. |
+| HR re-check errors | Proposed: fail closed. Not yet written in spike 03. |
 
 ## Risks
 
-Point at the brief's risk list. Do not add risks that the spikes have not already accepted.
+- floci fidelity is unproven. One send and receive worked on `kbs-p0.fifo`. That checks the API shape, not ordering under load or production SQS.
+- The two stores can diverge. Postgres is authoritative and the graph is derived. A partial write retries the pair.
+- LLM-extracted edges will sometimes be wrong. They carry confidence and a span and never decide the headline answer.
+- Permissions are stale inside the sync window for medium and low sources. The window is on the contract.
+- Entity resolution beyond shared keys is deferred, and the demo uses one product key on purpose. That is not a resolution step.
+- The 250 ms and 30-second targets are design targets with metrics, not load-test results.
+- A missed delete lives until the next reconciliation sweep. Drift is a panel.
+- Session-scoped RLS is easy to get wrong under connection pooling. The policy committed today is a placeholder and must be replaced before demo data loads.
+- The demo sources are cooperative. Real Jira, Drive, or HubSpot connectors will spend their budget on pagination, token refresh, and rate limits.
+- The company is global, and data residency and multi-region behavior are not designed here.
+
+## What is built
+
+Built: the design documents and diagrams, the source-contract gate with tests and CI, four YAML contracts, Compose, Terraform on floci (three FIFO queues, three dead-letter queues, one bucket), Postgres and Neo4j init, the observability stack, and a seeded HR harness. The gateway processes answer health checks and list sources. They do not retrieve or answer questions.
+
+Not built: connector and ingestion logic, chunking, embedding, hybrid search, the router, the mock identity provider, a restrictive RLS policy, the audit table, the Sales, Product, and Engineering harness data, the golden set and `make eval`, the dead-letter replay command, the reconciliation query, and the remaining dashboard panels. These statements come from the README and the spikes and were not re-verified by running the stack.
+
+Open gap: one diagram in the house drawio style showing every component, the data flow, and the transformation at each hop. The hop table above carries the transformations for now.

@@ -94,4 +94,4 @@ Ingestion health is a first-class metric: sync recency per source, failed syncs,
 
 ## Open TODOs
 
-- Connector worker code that calls `load_contracts` at startup and implements `discover`, `list_changes`, `fetch`, `get_acl`, and `normalize`.
+- HR connector is built. It calls `load_contracts` at startup and implements `discover`, `list_changes`, `fetch`, and `get_acl`. It writes raw snapshots to S3 and sync state to Postgres. `normalize`, the queue message, and the Sales, Product, and Engineering connectors are not built.
