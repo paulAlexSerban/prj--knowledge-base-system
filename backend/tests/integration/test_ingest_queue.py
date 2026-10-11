@@ -5,6 +5,7 @@ start floci. The manual gate runs the same path against floci.
 """
 
 import json
+import logging
 from datetime import UTC, datetime
 
 import boto3
@@ -23,6 +24,7 @@ from ingest_contract.events import (
 from ingestion_worker.consumer import MAX_RECEIVE, Consumer
 from ingestion_worker.replay import replay_queue
 from ingestion_worker.store import MemoryStore
+from shared.logging import configure
 
 QUEUES = (P0_QUEUE, P1_QUEUE, P2_QUEUE)
 DLQS = (P0_DLQ, P1_DLQ, P2_DLQ)
@@ -154,6 +156,47 @@ def test_invalid_body_is_not_acknowledged(sqs) -> None:
         AttributeNames=["ApproximateReceiveCount"],
     )
     assert again["Messages"][0]["Body"] == "not-json"
+
+
+def test_handled_log_names_the_decision_and_drops_the_payload(sqs, capsys) -> None:
+    root = logging.getLogger()
+    previous_handlers = root.handlers[:]
+    previous_level = root.level
+    try:
+        configure("ingestion-worker", "ingestion")
+        consumer = Consumer(sqs, MemoryStore(), visibility_timeout=0)
+        _send(sqs, P0_QUEUE, _event("emp-1", "1", "create"))
+        url = sqs.get_queue_url(QueueName=P0_QUEUE)["QueueUrl"]
+        sqs.send_message(
+            QueueUrl=url,
+            MessageBody=(
+                '{"salary":90000,"compensation":1,"ssn":"111","national_id":"NID",'
+                '"api_key":"sk-secret","content":"Ada Lovelace chunk text"}'
+            ),
+            MessageGroupId="hr:poison",
+            MessageDeduplicationId="poison-salary",
+        )
+        for _ in range(4):
+            consumer.poll_once()
+    finally:
+        root.handlers[:] = previous_handlers
+        root.setLevel(previous_level)
+    raw = capsys.readouterr().out
+    assert '"decision": "ok"' in raw
+    assert '"decision": "invalid"' in raw
+    assert '"event_type": "create"' in raw
+    assert "request_id" in raw
+    for forbidden in (
+        "salary",
+        "compensation",
+        "ssn",
+        "national_id",
+        "90000",
+        "sk-secret",
+        "Ada Lovelace",
+        "chunk text",
+    ):
+        assert forbidden not in raw
 
 
 def _visible(client, name: str) -> int:

@@ -13,7 +13,8 @@ This repository is a proof of concept for that gateway. The design is written do
 | Source-contract model, four YAML contracts, validator, tests, and CI | Mock identity provider (signed JWTs) |
 | Compose for the harness, gateway, ingestion, store, floci, Jupyter, pgAdmin, SQLite viewers, and observability. The HR harness is seeded. | Seed data and connectors for Sales, Product, and Engineering, and `make demo` |
 | Terraform on floci: three FIFO queues, three dead-letter queues, one snapshot bucket. The HR connector enqueues change events. `make dlq-replay` sends dead-letter messages back. | Golden evaluation set and `make eval` |
-| Ingestion worker: chunking, hash embeddings (`hash-v1`, 384 dimensions, not semantic), Postgres chunks (full-text, HNSW, ACL columns, row-level security, tombstones), and the Neo4j writer. HR writes Person, Team, and Policy. `Deal -DEPENDS_ON-> Epic` is tested with fixtures only. | Grafana panels for the ingestion series. Traces. |
+| Ingestion worker: chunking, hash embeddings (`hash-v1`, 384 dimensions, not semantic), Postgres chunks (full-text, HNSW, ACL columns, row-level security, tombstones), and the Neo4j writer. HR writes Person, Team, and Policy. `Deal -DEPENDS_ON-> Epic` is tested with fixtures only. | Traces |
+| Grafana overview: connector row plus ingestion lag, queue depth, dead-letter depth, embed calls, index drift, and store writes | Retrieval latency and empty-result rate. A text panel says they are not built. |
 | Store-level search and access-boundary tests (two principals, one pool). The API does not call search. | Read-time ACL re-check and Cypher authorization |
 
 

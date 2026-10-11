@@ -50,4 +50,4 @@ Exposed on `ingestion-worker:9101`. Queue depth is `GetQueueAttributes` (`Approx
 
 `kbs_delete_verification_failures_total` is the same series as the connector, with `store` `postgres` or `neo4j`.
 
-Not built yet: retrieval latency and empty-result rate. There is no retrieval endpoint, so those series are not emitted.
+Not built yet: retrieval latency and empty-result rate. There is no retrieval endpoint, so those series are not emitted. The overview dashboard says so in a text panel. It does not query `kbs.audit_log`.

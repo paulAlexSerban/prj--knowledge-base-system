@@ -18,20 +18,24 @@ Loki labels are `service`, `trust_area`, `level`, and `source_id`. Services writ
 
 Grafana requires a sign-in. The local account is `admin`, and the password is `GRAFANA_ADMIN_PASSWORD`, which defaults to `admin`. The UI stays on `127.0.0.1`. Changes made in the UI are stored in Grafana's database and kept across restarts while the JSON file is unchanged. To keep a change in git, export the JSON and commit it under `observability/grafana/dashboards/`.
 
-The dashboard has `up`, `kbs_worker_up`, a logs panel for errors and audit denies, and an HR connector row. Definitions are in [metrics.md](../../observability/metrics.md). Sync lag, last successful sync, snapshots skipped by hash, and reconciliation drift are built for the HR connector. The panels below that are not built yet stay on the list:
+The dashboard is [kbs-overview.json](../../observability/grafana/dashboards/kbs-overview.json). Definitions are in [metrics.md](../../observability/metrics.md). Built panels:
 
-| Panel | Why it exists |
-| ----- | ------------- |
-| Sync lag per source | Freshness SLO. Lag is now minus the newest unprocessed event time. |
-| Last successful sync per source | Detects a connector that stopped. |
-| Queue depth per priority (P0, P1, P2) | Shows a bulk backfill blocking, or not blocking, policy updates. |
-| Dead-letter depth | Demo step 5 and any poison message. |
-| Retrieval latency, split into search and high-sensitivity ACL re-check | The 250 ms target and the HR re-check are different numbers. |
-| Empty-result rate by permission group | Post-filter starvation and mistaken denies. A global rate is not sufficient. |
-| Embed calls skipped by content hash | Confirms the cost control in spike 04 is real. |
-| Indexed id count minus source id count | Reconciliation drift. |
+| Panel | Source |
+| ----- | ------ |
+| Scrape targets and workers | `up`, `kbs_worker_up` (connector and ingestion), `kbs_worker_dependency_up` |
+| Snapshot lag, last successful sync, write and skip rate, snapshot errors, snapshot drift, connector logs | HR connector series already on the dashboard |
+| Sync lag per source | `kbs_ingest_event_lag_seconds` p95 and `kbs_connector_watermark_lag_seconds`. Red above 30 seconds. Event lag is now minus `occurred_at` when the worker finishes the message. SQS does not expose oldest-message age outside CloudWatch, so that is not the panel. |
+| Queue depth per tier | `kbs_queue_depth`, from `GetQueueAttributes` in the worker, not from CloudWatch |
+| Dead-letter depth | `kbs_dlq_depth`. Red when any message is visible. |
+| Embed calls and skips | `kbs_embed_calls_total` and `kbs_embed_skipped_unchanged_total` |
+| Index drift | `kbs_index_drift`, next to snapshot reconciliation drift |
+| Store write latency and errors | `kbs_store_write_seconds`, `kbs_store_errors_total` |
+| Delete verification failures | `kbs_delete_verification_failures_total`. Red on any failure. |
+| Ingestion logs | Loki `{service="ingestion-worker"}`. `event_type` and `decision` are in the line. `request_id` stays in the line. |
 
-Alerts for the POC are dashboard thresholds, not a paging system: P0 lag over 30 seconds, any dead-letter message, ACL re-check failures.
+Not built, and not charted: retrieval latency (search versus the ACL re-check) and empty-result rate by permission group. A text panel says so. Store-level search writes `kbs.audit_log`. The dashboard does not query that table.
+
+Alerts for the POC are dashboard colors, not a paging system and not Alertmanager: P0 lag over 30 seconds, any dead-letter message, any delete verification failure.
 
 Traces are deferred until a latency regression cannot be explained from the histograms. Alloy can grow an OTLP receiver later without changing the metric or log pipeline. Tempo is the production path for trace storage.
 

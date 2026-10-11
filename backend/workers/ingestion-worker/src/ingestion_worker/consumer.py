@@ -119,21 +119,21 @@ class Consumer:
             return self._move_to_dlq(queue_name, message)
         try:
             event = ChangeEvent.from_json(message["Body"])
-        except (ValidationError, ValueError) as exc:
+        except (ValidationError, ValueError):
             metrics.EVENTS.labels(source_id="unknown", event_type="invalid", result="invalid").inc()
             log_event(
                 LOG,
                 "invalid event",
                 level=logging.ERROR,
                 request_id=message.get("MessageId", ""),
-                error=str(exc),
+                decision="invalid",
             )
             return False
         try:
             if self.fail_object_id and event.object_id == self.fail_object_id:
                 raise HandlerError(f"FAIL_OBJECT_ID matched {event.object_id}")
             dispatch(self.store, event)
-        except Exception as exc:  # noqa: BLE001 - leave the message for SQS to retry
+        except Exception:  # noqa: BLE001 - leave the message for SQS to retry
             metrics.EVENTS.labels(
                 source_id=event.source_id,
                 event_type=event.event_type.value,
@@ -147,7 +147,7 @@ class Consumer:
                 object_id=event.object_id,
                 event_type=event.event_type.value,
                 request_id=message.get("MessageId", ""),
-                error=str(exc),
+                decision="retry",
             )
             return False
         self._delete(queue_name, message)
@@ -164,6 +164,7 @@ class Consumer:
             object_id=event.object_id,
             event_type=event.event_type.value,
             request_id=message.get("MessageId", ""),
+            decision="ok",
         )
         return True
 

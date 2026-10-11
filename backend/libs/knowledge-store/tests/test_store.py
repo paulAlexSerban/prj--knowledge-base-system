@@ -1,5 +1,6 @@
 """Chunks, ACL, search, and the graph against Postgres and Neo4j."""
 
+import logging
 from datetime import UTC, datetime
 
 import boto3
@@ -14,6 +15,7 @@ from knowledge_store.graph import GraphWriter
 from knowledge_store.postgres import ChunkTable
 from knowledge_store.store import KnowledgeStore
 from shared.contracts.validate import load_contracts
+from shared.logging import JsonFormatter
 
 BUCKET = RAW_BUCKET
 POLICY = b"# Leave\n\n## Eligibility\n\nEveryone in Germany is eligible.\n\n## Pay\n\nSixteen weeks.\n"
@@ -31,6 +33,18 @@ class Spy(HashEmbedder):
     def embed(self, texts: list[str]) -> list[list[float]]:
         self.calls += len(texts)
         return super().embed(texts)
+
+
+def _attach_worker_logs():
+    from io import StringIO
+
+    stream = StringIO()
+    handler = logging.StreamHandler(stream)
+    handler.setFormatter(JsonFormatter("ingestion-worker", "ingestion"))
+    logger = logging.getLogger("ingestion-worker")
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
+    return stream
 
 
 def _root():
@@ -131,7 +145,12 @@ def test_delete_is_verified_and_replay_does_not_resurrect(world) -> None:
     store, _spy, client, admin, driver = world
     key = "raw/hr/person/emp-1.json"
     _put(client, key, PERSON, "hr_employee", "1", "hash-p")
+    logs = _attach_worker_logs()
     store.upsert_object(_event("emp-1", key, "1", "hash-p"))
+    written = logs.getvalue()
+    for forbidden in ("salary", "compensation", "ssn", "national_id", "90000", "NID-SECRET", "Ada Lovelace"):
+        assert forbidden not in written
+    assert "record-v1" in written
     team = driver.execute_query(
         "MATCH (:Person {id: 'emp-1'})-[:BELONGS_TO]->(t:Team) RETURN t.id AS id"
     )[0]

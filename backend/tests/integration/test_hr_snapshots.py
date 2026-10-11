@@ -316,7 +316,7 @@ def test_unimplemented_sources_are_not_started():
 
 def test_metric_names_match_the_dashboard():
     dashboard = json.loads(
-        (ROOT / "observability" / "grafana" / "dashboards" / "kbs-stub.json").read_text()
+        (ROOT / "observability" / "grafana" / "dashboards" / "kbs-overview.json").read_text()
     )
     body = json.dumps(dashboard)
     used = {name for name in metrics.METRIC_LABELS if name in body}

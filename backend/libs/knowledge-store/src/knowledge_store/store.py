@@ -149,6 +149,8 @@ class KnowledgeStore:
                 "acl updated",
                 source_id=event.source_id,
                 object_id=event.object_id,
+                event_type=event.event_type.value,
+                chunker_version=_chunker_version(parsed),
             )
             return
         if content_hash and self.chunks.same_hash(
@@ -157,6 +159,7 @@ class KnowledgeStore:
             self.chunks.touch(event.source_id, event.object_id, version)
             metrics.EMBED_SKIPPED.labels(source_id=event.source_id).inc()
             self._graph_write(event, parsed, acl, version)
+            _log_written(event, parsed)
             return
         vectors = self.embedder.embed([chunk.text for chunk in parsed.chunks])
         metrics.EMBED_CALLS.labels(model=self.embedder.name).inc(len(parsed.chunks))
@@ -177,6 +180,7 @@ class KnowledgeStore:
             metrics.STORE_ERRORS.labels(store="postgres", op="upsert").inc()
             raise
         self._graph_write(event, parsed, acl, version)
+        _log_written(event, parsed)
 
     def _graph_write(self, event: ChangeEvent, parsed: Parsed, acl, version: str) -> None:
         try:
@@ -217,6 +221,23 @@ class KnowledgeStore:
             raise StoreError("snapshot hash does not match the event")
         native = [part for part in meta.get("kbs-native-acl", "").split(",") if part]
         return body, native, _object_type(key)
+
+
+def _chunker_version(parsed: Parsed) -> str:
+    if not parsed.chunks:
+        return ""
+    return parsed.chunks[0].chunker_version
+
+
+def _log_written(event: ChangeEvent, parsed: Parsed) -> None:
+    log_event(
+        LOG,
+        "object written",
+        source_id=event.source_id,
+        object_id=event.object_id,
+        event_type=event.event_type.value,
+        chunker_version=_chunker_version(parsed),
+    )
 
 
 def _object_type(key: str) -> str:
