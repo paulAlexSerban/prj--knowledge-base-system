@@ -1,6 +1,6 @@
-# Local notebooks. They call the harness over HTTP and never join kbs-data,
-# so they cannot reach Postgres or Neo4j. Jupyter has no /metrics endpoint
-# and is not a Prometheus target.
+# Local notebooks. They call the harness and the gateway over HTTP and never
+# join kbs-data, so they cannot reach Postgres or Neo4j. Jupyter has no
+# /metrics endpoint and is not a Prometheus target.
 
 services:
   jupyter:
@@ -20,6 +20,9 @@ services:
     environment:
       JUPYTER_TOKEN: ${JUPYTER_TOKEN:-dev-only-notebook}
       HARNESS_HR_URL: http://harness-hr:8080
+      GATEWAY_API_URL: http://gateway-api:8000
+      GATEWAY_MCP_URL: http://gateway-mcp:8001/mcp
+      LOKI_URL: http://loki:3100
       CONNECTOR_METRICS_URL: http://connector-hr:9100/metrics
       AWS_ENDPOINT_URL: http://floci:4566
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}

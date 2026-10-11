@@ -16,7 +16,8 @@ GET_DOCUMENT = (
 )
 FIND_RELATED = (
     "Bounded graph lookup. kind is teammates (people who share a person's team), "
-    "team (people on a team), or policies (policies the caller may see). "
+    "team (people on a team), or policies (policies the caller may see; "
+    "an entity id asks about one policy). "
     "Returns the path. There is no open Cypher. Does not write."
 )
 LIST_SOURCES = (

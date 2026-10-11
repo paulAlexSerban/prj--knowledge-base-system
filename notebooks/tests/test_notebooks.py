@@ -19,6 +19,10 @@ EXPECTED = [
     "21-person-update.ipynb",
     "22-person-acl-and-delete.ipynb",
     "30-end-to-end-cycle.ipynb",
+    "40-gateway-identity.ipynb",
+    "41-gateway-search-abac.ipynb",
+    "42-gateway-mcp.ipynb",
+    "43-gateway-freshness.ipynb",
 ]
 CRUD = {
     "10-policy-create-read.ipynb": ("/admin/policies", "409", "422"),
@@ -124,3 +128,23 @@ def test_helpers_are_importable_and_match_the_connector():
     assert helpers.parse_metric(sample, "kbs_snapshots_deleted_total", {"source_id": "hr"}) == 4.0
     created = 'kbs_snapshots_deleted_total_created{source_id="hr"} 1\n'
     assert helpers.parse_metric(created, "kbs_snapshots_deleted_total", {"source_id": "hr"}) is None
+
+
+def test_gateway_notebooks_stay_off_the_databases():
+    needles = {
+        "40-gateway-identity.ipynb": ("employee_eng", "outsider", "401"),
+        "41-gateway-search-abac.ipynb": ("pol-parental-leave-de", "decision", "nb-deny"),
+        "42-gateway-mcp.ipynb": ("search_knowledge", "mcp_tools", "pol-parental-leave-de"),
+        "43-gateway-freshness.ipynb": ("pol-demo-gateway", "policies", "hr_policy_admin"),
+    }
+    for name, expected in needles.items():
+        text = cell_text(load_notebook(name))
+        assert "psycopg" not in text and "neo4j" not in text
+        for needle in expected:
+            assert needle in text, name
+    spec = importlib.util.spec_from_file_location("gateway_demo", NOTEBOOKS / "gateway_demo.py")
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    for name in ("token", "search", "related", "decision_line", "mcp_tools", "mcp_call"):
+        assert callable(getattr(module, name))

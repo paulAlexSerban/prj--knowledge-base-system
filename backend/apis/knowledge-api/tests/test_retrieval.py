@@ -239,6 +239,18 @@ def test_graph_paths_follow_the_caller(api) -> None:
     }
     assert "pol-de" in policy_ids
     assert "pol-redundancy" not in policy_ids
+    one = http.post(
+        "/v1/graph/related",
+        json={"kind": "policies", "entity_id": "pol-de"},
+        headers=_auth("employee_eng"),
+    )
+    one_ids = {
+        step["id"]
+        for path in one.json()["paths"]
+        for step in path["steps"]
+        if step["type"] == "Policy"
+    }
+    assert one_ids == {"pol-de"}
     missing = http.post(
         "/v1/graph/related",
         json={"kind": "teammates"},

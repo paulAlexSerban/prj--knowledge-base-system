@@ -1443,6 +1443,7 @@ notebooks = [
     { name = "boto3" },
     { name = "httpx" },
     { name = "jupyter" },
+    { name = "mcp" },
 ]
 
 [package.metadata]
@@ -1472,6 +1473,7 @@ notebooks = [
     { name = "boto3", specifier = ">=1.43.111" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "jupyter", specifier = ">=1.1" },
+    { name = "mcp", specifier = ">=2.3.0" },
 ]
 
 [[package]]

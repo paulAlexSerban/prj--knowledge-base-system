@@ -32,7 +32,8 @@ LIMIT $limit
 
 POLICIES = """
 MATCH (p:Policy)
-WHERE any(g IN coalesce(p.acl_groups, []) WHERE g IN $groups)
+WHERE ($id = "" OR p.id = $id)
+  AND any(g IN coalesce(p.acl_groups, []) WHERE g IN $groups)
   AND coalesce(p.min_clearance, 99) <= $clearance
 RETURN p.id AS policy_id, p.title AS title, p.version AS version, p.source_id AS source_id
 LIMIT $limit
