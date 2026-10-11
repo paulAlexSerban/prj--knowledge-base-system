@@ -2,7 +2,7 @@
 
 Service `harness-hr`, host port 8101, container port 8080. FastAPI, SQLAlchemy on SQLite, and policy files on disk. Status: built.
 
-The source stands in for an HR system. An empty database is seeded on start with 48 Faker people and eleven curated policies (nine Markdown, two PDF, including Germany parental leave). Those rows carry the fixed timestamp `2026-01-15T09:00:00Z`. Larger loads use `POST /admin/seed`.
+The source stands in for an HR system. An empty database is seeded on start with 48 Faker people and thirty-eight curated policies (thirty-four Markdown, four PDF). Parental leave and annual leave cover Germany, the United States, the United Kingdom, France, the Netherlands, Spain, Ireland, and Canada. Those rows carry the fixed timestamp `2026-01-15T09:00:00Z`. Larger loads use `POST /admin/seed`.
 
 Change signal: `updated_since` plus `snapshot_diff`. There is no webhook and no delete feed. The connector polls `/changes` in-process because the source is tier P0, and the reconciliation sweep reads `/ids`.
 
@@ -18,7 +18,7 @@ Change signal: `updated_since` plus `snapshot_diff`. There is no webhook and no 
 | `GET /policies/{id}/acl`, `/people/{id}/acl` | Live native ACL. The gateway re-checks this at read time because HR is high sensitivity. |
 | `GET /people`, `/people/{id}` | Directory records. |
 
-Native ACL names are `hr_employee` and `hr_policy_admin`, mapped to platform attributes by [hr.yaml](../../infrastructure/config/sources/hr.yaml). Two policies are admin-only: `pol-disciplinary-procedure` and `pol-compensation-review`. Each policy has a `region` (`DE`, `US`, `UK`, or `GLOBAL`).
+Native ACL names are `hr_employee` and `hr_policy_admin`, mapped to platform attributes by [hr.yaml](../../infrastructure/config/sources/hr.yaml). Three policies are admin-only: `pol-disciplinary-procedure`, `pol-compensation-review`, and `pol-redundancy-procedure`. Each policy has a `region` (`DE`, `US`, `UK`, `FR`, `NL`, `ES`, `IE`, `CA`, or `GLOBAL`).
 
 An ACL change moves `updated_at` but not `version` or `content_hash`. The HR connector hashes the raw bytes together with the sorted native ACL, so that change still rewrites the S3 object.
 

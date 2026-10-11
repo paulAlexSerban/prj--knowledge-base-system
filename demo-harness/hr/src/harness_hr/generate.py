@@ -9,14 +9,20 @@ from faker import Faker
 
 # team, head role, member role, seats in one wave, regions
 TEAMS = [
-    ("people", "Head of People", "People Partner", 4, ["DE", "US"]),
-    ("platform", "Engineering Manager", "Software Engineer", 7, ["DE", "UK"]),
-    ("payments", "Engineering Manager", "Software Engineer", 6, ["DE", "FR"]),
-    ("identity", "Engineering Manager", "Software Engineer", 5, ["US", "UK"]),
+    ("people", "Head of People", "People Partner", 4, ["DE", "US", "NL"]),
+    ("platform", "Engineering Manager", "Software Engineer", 7, ["DE", "UK", "ES"]),
+    ("payments", "Engineering Manager", "Software Engineer", 6, ["DE", "FR", "IE"]),
+    ("identity", "Engineering Manager", "Software Engineer", 5, ["US", "UK", "CA"]),
     ("data", "Engineering Manager", "Data Engineer", 5, ["DE", "US"]),
     ("product", "Head of Product", "Product Manager", 5, ["DE", "US", "UK"]),
-    ("sales-emea", "Regional Sales Director", "Account Executive", 8, ["DE", "UK", "FR"]),
-    ("sales-amer", "Regional Sales Director", "Account Executive", 8, ["US"]),
+    (
+        "sales-emea",
+        "Regional Sales Director",
+        "Account Executive",
+        8,
+        ["DE", "UK", "FR", "NL", "ES", "IE"],
+    ),
+    ("sales-amer", "Regional Sales Director", "Account Executive", 8, ["US", "CA"]),
 ]
 CATEGORIES = [
     "leave",
@@ -26,7 +32,7 @@ CATEGORIES = [
     "working-conditions",
     "finance",
 ]
-REGIONS = ["DE", "US", "UK", "FR", "GLOBAL"]
+REGIONS = ["DE", "US", "UK", "FR", "NL", "ES", "IE", "CA", "GLOBAL"]
 SEATS = [
     (team, head if seat == 0 else member, regions[seat % len(regions)], seat == 0)
     for team, head, member, count, regions in TEAMS

@@ -7,6 +7,13 @@ from harness_hr.app import create_app
 from harness_hr.store import Store
 
 FORBIDDEN = ("salary", "compensation", "ssn", "national_id")
+KNOWN_REGIONS = {"DE", "US", "UK", "FR", "NL", "ES", "IE", "CA", "GLOBAL"}
+NEW_COUNTRIES = ("fr", "nl", "es", "ie", "ca")
+ADMIN_ONLY = {
+    "pol-disciplinary-procedure",
+    "pol-compensation-review",
+    "pol-redundancy-procedure",
+}
 
 
 class Clock:
@@ -46,7 +53,7 @@ def all_changes(client: TestClient, since: str | None = None, limit: int = 100) 
 
 def test_seed_loads_people_and_policies(client):
     body = client.get("/discover").json()
-    assert body["counts"] == {"person": 48, "policy": 11}
+    assert body["counts"] == {"person": 48, "policy": 38}
     assert body["capabilities"] == ["updated_since", "snapshot_diff"]
 
 
@@ -72,6 +79,24 @@ def test_restricted_policies_carry_admin_acl(client):
     ]
 
 
+def test_curated_regions_leave_and_admin_acl(client):
+    items = client.get("/policies").json()["items"]
+    by_id = {item["policy_id"]: item for item in items}
+    assert {item["region"] for item in items} <= KNOWN_REGIONS
+    for code in NEW_COUNTRIES:
+        parental = by_id[f"pol-parental-leave-{code}"]
+        annual = by_id[f"pol-annual-leave-{code}"]
+        assert parental["region"] == annual["region"] == code.upper()
+        assert parental["native_acl"] == annual["native_acl"] == ["hr_employee"]
+    admin = {item["policy_id"] for item in items if "hr_policy_admin" in item["native_acl"]}
+    assert admin == ADMIN_ONLY
+    assert all("hr_employee" not in by_id[policy_id]["native_acl"] for policy_id in ADMIN_ONLY)
+    assert by_id["pol-grievance-procedure"]["format"] == "pdf"
+    assert by_id["pol-performance-review"]["format"] == "pdf"
+    people_regions = {item["region"] for item in client.get("/people").json()["items"]}
+    assert {"FR", "NL", "ES", "IE", "CA"} <= people_regions
+
+
 def test_no_endpoint_returns_forbidden_fields(client):
     def keys(node: object) -> set[str]:
         if isinstance(node, dict):
@@ -94,7 +119,7 @@ def test_changes_paginates_without_loss_or_duplicates(client):
     small = all_changes(client, limit=7)
     big = all_changes(client, limit=500)
     assert [i["id"] for i in small] == [i["id"] for i in big]
-    assert len({i["id"] for i in big}) == 59
+    assert len({i["id"] for i in big}) == 86
 
 
 def test_updated_since_returns_only_the_edit(client):
@@ -147,7 +172,7 @@ def test_person_edit_and_delete(client):
 def test_reset_restores_seed(client):
     client.delete("/admin/policies/pol-expenses")
     client.post("/admin/reset")
-    assert client.get("/discover").json()["counts"] == {"person": 48, "policy": 11}
+    assert client.get("/discover").json()["counts"] == {"person": 48, "policy": 38}
 
 
 # Negative cases

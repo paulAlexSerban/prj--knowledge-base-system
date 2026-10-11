@@ -14,4 +14,8 @@ Where local law allows, the company matches pension contributions up to 4 percen
 
 ## Wellbeing days
 
-Every employee receives three wellbeing days per year, in addition to annual leave.
+Every employee receives three wellbeing days per year, in addition to annual leave. The employee assistance programme, the learning budget, and the home-office allowance each have their own policy.
+
+## Country rules
+
+France, the Netherlands, Spain, Ireland, and Canada each have a benefits supplement. Where a supplement differs from this page, the supplement applies. Annual leave and parental leave depend on the country of employment.
