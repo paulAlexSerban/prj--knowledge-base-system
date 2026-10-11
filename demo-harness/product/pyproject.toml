@@ -1,0 +1,16 @@
+[project]
+name = "harness-product"
+version = "0.1.0"
+description = "Product harness stub. Webhook capability, empty until the source is built."
+requires-python = ">=3.12"
+dependencies = ["harness-common"]
+
+[tool.uv.sources]
+harness-common = { workspace = true }
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]

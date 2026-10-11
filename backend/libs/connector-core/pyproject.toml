@@ -1,0 +1,23 @@
+[project]
+name = "connector-core"
+version = "0.1.0"
+description = "Connector interface, snapshot sync, object store, and sync state."
+requires-python = ">=3.12"
+dependencies = [
+  "boto3>=1.43.111",
+  "ingest-contract",
+  "prometheus-client>=0.26.0",
+  "shared",
+  "sqlalchemy>=2.1.4",
+]
+
+[tool.uv.sources]
+ingest-contract = { workspace = true }
+shared = { workspace = true }
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]

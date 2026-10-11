@@ -12,11 +12,19 @@ This repository is a POC knowledge gateway: ingest four department sources, keep
 | `_docs/01--spikes/` | Ingestion, knowledge representation, access, synchronization. |
 | `_docs/02--architecture/` | Architecture write-up. Fill the outline; do not add sections the assignment did not ask for. |
 | `_docs/03--adrs/` | Storage, observability, embedding and chunk versioning. |
-| `shared/contracts/` | Source-contract model, generated JSON Schema, validator, tests. |
+| `shared/` | Source contracts, the start-up registry gate, and JSON logging. Every process depends on it. |
 | `infrastructure/config/sources/` | One YAML contract per source. |
-| `backend/` | API, MCP, service layer, connectors, workers, messaging. |
+| `backend/apis/knowledge-api/` | REST gateway. Own image. |
+| `backend/apis/mcp-server/` | MCP gateway. Own image. |
+| `backend/apis/webhook-receiver/` | Product webhook stub. Own image. Production path is API Gateway plus Lambda; that function does not exist yet. |
+| `backend/workers/ingestion-worker/` | Queue consumer stub. Own image. |
+| `backend/connectors/hr/` | HR connector process (`connector-hr`). Own image. |
+| `backend/libs/connector-core/` | Connector interface, snapshot sync, S3 store, and Postgres sync state. Library, no image. |
+| `backend/libs/ingest-contract/` | Change-event model, queue names, and the snapshot hash. Library, no image. |
+| `backend/tests/integration/` | Tests that cross a deployable boundary. |
+| `backend/tests/e2e/` | Opt-in live-stack test. `make e2e`. |
 | `database/` | Postgres and Neo4j schema. |
-| `demo-harness/` | HR, Sales, Product, Engineering mocks. |
+| `demo-harness/` | One image per source. HR is built. Sales, Product, and Engineering are stubs on `harness-common`. |
 | `notebooks/` | Jupyter seed and inspect notebooks for the HR harness. |
 | `infrastructure/orchestration/` | One Compose file per trust area, plus `compose.yaml` which includes them. |
 | `infrastructure/provisioning/terraform/` | Queues, dead-letter queues, and the snapshot bucket on floci. |
@@ -25,20 +33,20 @@ This repository is a POC knowledge gateway: ingest four department sources, keep
 
 ## Stack and commands
 
-Python 3.12, FastAPI, Pydantic v2, pytest, Ruff (line length 100, first-party package `shared`). [uv](https://docs.astral.sh/uv/) is the package manager and the way to run Python. Run commands from the repository root.
+Python 3.12, FastAPI, Pydantic v2, pytest, Ruff (line length 100). [uv](https://docs.astral.sh/uv/) is the package manager. The repository is a uv workspace: each deployable and library has its own `pyproject.toml`, and `uv.lock` stays at the root. Run commands from the repository root.
 
 ```bash
 uv sync
 make test
 make compose-check
-uv run ruff check shared backend
+uv run ruff check shared backend demo-harness
 ```
 
-Add a runtime dependency with `uv add` and a dev dependency with `uv add --dev`. Image-only libraries go in the `backend`, `harness`, or `notebooks` dependency group (`uv add --group backend ...`). Commit `uv.lock`. Do not use `pip` or `python -m venv`. Do not add dependencies outside `pyproject.toml`.
+Add a dependency to the package that imports it: `uv add --package connector-hr <name>`. Add a test-only dependency with `uv add --group dev`. The notebooks group is `uv add --group notebooks`. Commit `uv.lock`. Do not use `pip` or `python -m venv`. Do not add dependencies outside a `pyproject.toml`.
 
-`make up` starts the stub stack. `make notebooks` starts Jupyter. `make seed`, `make demo`, and `make eval` are not written yet. Add a target only when the command it wraps exists, and update the README quickstart in that same change. HR bulk load is the notebook, which calls `POST /admin/seed`.
+`make up` starts the stack, then applies Terraform on the host. `make notebooks` starts Jupyter. `make tools` starts pgAdmin and the SQLite viewers. `make e2e` runs the live HR snapshot cycle and is not part of `make test`. `make seed`, `make demo`, and `make eval` are not written yet. Add a target only when the command it wraps exists, and update the README quickstart in that same change. HR bulk load is the notebook, which calls `POST /admin/seed`.
 
-Dockerfiles install with `uv sync --frozen`. Do not publish Postgres or Neo4j ports. One Compose network per trust boundary (`kbs-data` is internal). Service names are globally unique. New services need a healthcheck and a Prometheus target. Jupyter is the exception: it has a healthcheck and no `/metrics` endpoint, and Alloy does not scrape it.
+Dockerfiles install one package with `uv sync --frozen --no-dev --no-default-groups --package <name>`. There is no Lambda directory until a function exists. Do not publish Postgres or Neo4j ports. One Compose network per trust boundary (`kbs-data` is internal). Service names are globally unique. New services need a healthcheck and a Prometheus target. Jupyter, pgAdmin, and the SQLite viewers are the exception: they have a healthcheck and no `/metrics` endpoint, and Alloy does not scrape them. Harness images stay root because they write a SQLite file on a volume. The other images run as `nobody`.
 
 ## Design rules
 

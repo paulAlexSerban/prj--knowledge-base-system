@@ -159,17 +159,19 @@ The demo is the acceptance test. Each step is observable in the API response, th
 | `_docs/01--spikes/` | Decision records for ingestion, knowledge representation, access, and synchronization. |
 | `_docs/02--architecture/` | Architecture document. Deliverable 1, written from this brief, the spikes, and the ADRs. |
 | `_docs/03--adrs/` | Short ADRs for storage, observability, and embedding/chunk versioning. |
-| `backend/apis` | Knowledge API and MCP server adapters. |
-| `backend/services` | Retrieval, authorization, and ingestion service layer. |
-| `backend/workers` | Connector and ingestion workers. |
-| `backend/messaging` | Queue contracts and event types. |
-| `backend/functions` | Small pure functions (chunking, fusion, hashing). |
+| `backend/apis/knowledge-api` | REST gateway. Its own image. |
+| `backend/apis/mcp-server` | MCP gateway. Its own image. |
+| `backend/apis/webhook-receiver` | Product webhook stub. Its own image. The production path is API Gateway plus Lambda, and that function is not built. |
+| `backend/connectors/hr` | HR connector process, `connector-hr`. Its own image. |
+| `backend/workers/ingestion-worker` | Queue consumer stub. Its own image. |
+| `backend/libs/connector-core` | Connector interface and snapshot sync. A library, not a service. |
+| `backend/libs/ingest-contract` | Change events, queue names, and the snapshot hash. A library, not a service. |
 | `database` | Postgres and Neo4j schema. |
 | `demo-harness/` | HR, Sales, Product, and Engineering mock services. |
 | `notebooks/` | Jupyter notebooks that seed and inspect the HR harness. |
 | `infrastructure/` | Compose orchestration, Terraform provisioning, floci config, and `config/sources` YAML contracts. |
 | `observability` | Alloy, Loki, Prometheus, one dashboard, and metric definitions. |
-| `shared` | Contracts shared by the harness and the gateway. Source contracts in `shared/contracts` are checked by `make contracts-check`. |
+| `shared` | Contracts, the registry gate, and logging. Source contracts in `shared/src/shared/contracts` are checked by `make contracts-check`. |
 | `tools` | Seed, mutation, and evaluation scripts. |
 
 ## Related decisions

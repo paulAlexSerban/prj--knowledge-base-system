@@ -6,6 +6,24 @@ resolution-markers = [
     "python_full_version < '3.14'",
 ]
 
+[manifest]
+members = [
+    "connector-core",
+    "connector-hr",
+    "harness-common",
+    "harness-engineering",
+    "harness-hr",
+    "harness-product",
+    "harness-sales",
+    "ingest-contract",
+    "ingestion-worker",
+    "knowledge-api",
+    "knowledge-base-system",
+    "mcp-server",
+    "shared",
+    "webhook-receiver",
+]
+
 [[package]]
 name = "annotated-doc"
 version = "0.0.5"
@@ -461,6 +479,54 @@ wheels = [
 ]
 
 [[package]]
+name = "connector-core"
+version = "0.1.0"
+source = { editable = "backend/libs/connector-core" }
+dependencies = [
+    { name = "boto3" },
+    { name = "ingest-contract" },
+    { name = "prometheus-client" },
+    { name = "shared" },
+    { name = "sqlalchemy" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "boto3", specifier = ">=1.43.111" },
+    { name = "ingest-contract", editable = "backend/libs/ingest-contract" },
+    { name = "prometheus-client", specifier = ">=0.26.0" },
+    { name = "shared", editable = "shared" },
+    { name = "sqlalchemy", specifier = ">=2.1.4" },
+]
+
+[[package]]
+name = "connector-hr"
+version = "0.1.0"
+source = { editable = "backend/connectors/hr" }
+dependencies = [
+    { name = "boto3" },
+    { name = "connector-core" },
+    { name = "httpx" },
+    { name = "ingest-contract" },
+    { name = "prometheus-client" },
+    { name = "psycopg", extra = ["binary"] },
+    { name = "shared" },
+    { name = "sqlalchemy" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "boto3", specifier = ">=1.43.111" },
+    { name = "connector-core", editable = "backend/libs/connector-core" },
+    { name = "httpx", specifier = ">=0.28.1" },
+    { name = "ingest-contract", editable = "backend/libs/ingest-contract" },
+    { name = "prometheus-client", specifier = ">=0.26.0" },
+    { name = "psycopg", extras = ["binary"], specifier = ">=3.3.6" },
+    { name = "shared", editable = "shared" },
+    { name = "sqlalchemy", specifier = ">=2.1.4" },
+]
+
+[[package]]
 name = "cryptography"
 version = "50.0.2"
 source = { registry = "https://pypi.org/simple" }
@@ -645,6 +711,77 @@ wheels = [
 ]
 
 [[package]]
+name = "harness-common"
+version = "0.1.0"
+source = { editable = "demo-harness/common" }
+dependencies = [
+    { name = "fastapi" },
+    { name = "prometheus-client" },
+    { name = "uvicorn", extra = ["standard"] },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "fastapi", specifier = ">=0.143.0" },
+    { name = "prometheus-client", specifier = ">=0.26.0" },
+    { name = "uvicorn", extras = ["standard"], specifier = ">=0.54.0" },
+]
+
+[[package]]
+name = "harness-engineering"
+version = "0.1.0"
+source = { editable = "demo-harness/engineering" }
+dependencies = [
+    { name = "harness-common" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "harness-common", editable = "demo-harness/common" }]
+
+[[package]]
+name = "harness-hr"
+version = "0.1.0"
+source = { editable = "demo-harness/hr" }
+dependencies = [
+    { name = "faker" },
+    { name = "fastapi" },
+    { name = "prometheus-client" },
+    { name = "sqlalchemy" },
+    { name = "uvicorn", extra = ["standard"] },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "faker", specifier = ">=40.43.0" },
+    { name = "fastapi", specifier = ">=0.143.0" },
+    { name = "prometheus-client", specifier = ">=0.26.0" },
+    { name = "sqlalchemy", specifier = ">=2.1.4" },
+    { name = "uvicorn", extras = ["standard"], specifier = ">=0.54.0" },
+]
+
+[[package]]
+name = "harness-product"
+version = "0.1.0"
+source = { editable = "demo-harness/product" }
+dependencies = [
+    { name = "harness-common" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "harness-common", editable = "demo-harness/common" }]
+
+[[package]]
+name = "harness-sales"
+version = "0.1.0"
+source = { editable = "demo-harness/sales" }
+dependencies = [
+    { name = "harness-common" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "harness-common", editable = "demo-harness/common" }]
+
+[[package]]
 name = "httpcore"
 version = "1.0.9"
 source = { registry = "https://pypi.org/simple" }
@@ -804,6 +941,36 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/f5/08/8eea9d4b8302028f3abb2c0813953f7aec26d33b7a8960ed760e65ff29fa/idna-3.20.tar.gz", hash = "sha256:a7db850025b95ded1eae8a46181a1a6c56c92c96f0e2b005d9ff8dc0210cab44", size = 216463, upload-time = "2026-09-17T14:11:04.752Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/58/a2/bb081bab032533a855d44de1d56f8e8426114ff1ba5d1f07a438a0a654f8/idna-3.20-py3-none-any.whl", hash = "sha256:ab7ae7122974553370f0bdb919e1a960b2cd1bc1ef0276416d896db81c14582c", size = 69583, upload-time = "2026-09-17T14:11:03.168Z" },
+]
+
+[[package]]
+name = "ingest-contract"
+version = "0.1.0"
+source = { editable = "backend/libs/ingest-contract" }
+dependencies = [
+    { name = "pydantic" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "pydantic", specifier = ">=2.6" }]
+
+[[package]]
+name = "ingestion-worker"
+version = "0.1.0"
+source = { editable = "backend/workers/ingestion-worker" }
+dependencies = [
+    { name = "boto3" },
+    { name = "ingest-contract" },
+    { name = "prometheus-client" },
+    { name = "shared" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "boto3", specifier = ">=1.43.111" },
+    { name = "ingest-contract", editable = "backend/libs/ingest-contract" },
+    { name = "prometheus-client", specifier = ">=0.26.0" },
+    { name = "shared", editable = "shared" },
 ]
 
 [[package]]
@@ -1203,40 +1370,47 @@ wheels = [
 ]
 
 [[package]]
-name = "knowledge-base-system"
+name = "knowledge-api"
 version = "0.1.0"
-source = { editable = "." }
+source = { editable = "backend/apis/knowledge-api" }
 dependencies = [
-    { name = "email-validator" },
-    { name = "pydantic" },
-    { name = "pyyaml" },
-]
-
-[package.dev-dependencies]
-backend = [
-    { name = "boto3" },
     { name = "fastapi" },
-    { name = "httpx" },
-    { name = "mcp" },
-    { name = "neo4j" },
     { name = "prometheus-client" },
-    { name = "psycopg", extra = ["binary"] },
-    { name = "sqlalchemy" },
+    { name = "shared" },
     { name = "uvicorn", extra = ["standard"] },
 ]
+
+[package.metadata]
+requires-dist = [
+    { name = "fastapi", specifier = ">=0.143.0" },
+    { name = "prometheus-client", specifier = ">=0.26.0" },
+    { name = "shared", editable = "shared" },
+    { name = "uvicorn", extras = ["standard"], specifier = ">=0.54.0" },
+]
+
+[[package]]
+name = "knowledge-base-system"
+version = "0.1.0"
+source = { virtual = "." }
+
+[package.dev-dependencies]
 dev = [
-    { name = "faker" },
-    { name = "httpx" },
+    { name = "connector-core" },
+    { name = "connector-hr" },
+    { name = "harness-common" },
+    { name = "harness-engineering" },
+    { name = "harness-hr" },
+    { name = "harness-product" },
+    { name = "harness-sales" },
+    { name = "ingest-contract" },
+    { name = "ingestion-worker" },
+    { name = "knowledge-api" },
+    { name = "mcp-server" },
     { name = "moto", extra = ["s3"] },
     { name = "pytest" },
     { name = "ruff" },
-]
-harness = [
-    { name = "faker" },
-    { name = "fastapi" },
-    { name = "prometheus-client" },
-    { name = "sqlalchemy" },
-    { name = "uvicorn", extra = ["standard"] },
+    { name = "shared" },
+    { name = "webhook-receiver" },
 ]
 notebooks = [
     { name = "boto3" },
@@ -1245,37 +1419,25 @@ notebooks = [
 ]
 
 [package.metadata]
-requires-dist = [
-    { name = "email-validator", specifier = ">=2" },
-    { name = "pydantic", specifier = ">=2.6" },
-    { name = "pyyaml", specifier = ">=6" },
-]
 
 [package.metadata.requires-dev]
-backend = [
-    { name = "boto3", specifier = ">=1.43.111" },
-    { name = "fastapi", specifier = ">=0.143.0" },
-    { name = "httpx", specifier = ">=0.28.1" },
-    { name = "mcp", specifier = ">=2.3.0" },
-    { name = "neo4j", specifier = ">=6.4.0" },
-    { name = "prometheus-client", specifier = ">=0.26.0" },
-    { name = "psycopg", extras = ["binary"], specifier = ">=3.3.6" },
-    { name = "sqlalchemy", specifier = ">=2.1.4" },
-    { name = "uvicorn", extras = ["standard"], specifier = ">=0.54.0" },
-]
 dev = [
-    { name = "faker", specifier = ">=40.43.0" },
-    { name = "httpx", specifier = ">=0.28.1" },
+    { name = "connector-core", editable = "backend/libs/connector-core" },
+    { name = "connector-hr", editable = "backend/connectors/hr" },
+    { name = "harness-common", editable = "demo-harness/common" },
+    { name = "harness-engineering", editable = "demo-harness/engineering" },
+    { name = "harness-hr", editable = "demo-harness/hr" },
+    { name = "harness-product", editable = "demo-harness/product" },
+    { name = "harness-sales", editable = "demo-harness/sales" },
+    { name = "ingest-contract", editable = "backend/libs/ingest-contract" },
+    { name = "ingestion-worker", editable = "backend/workers/ingestion-worker" },
+    { name = "knowledge-api", editable = "backend/apis/knowledge-api" },
+    { name = "mcp-server", editable = "backend/apis/mcp-server" },
     { name = "moto", extras = ["s3"], specifier = ">=5.2.3" },
     { name = "pytest", specifier = ">=8" },
     { name = "ruff", specifier = ">=0.6" },
-]
-harness = [
-    { name = "faker", specifier = ">=40.43.0" },
-    { name = "fastapi", specifier = ">=0.143.0" },
-    { name = "prometheus-client", specifier = ">=0.26.0" },
-    { name = "sqlalchemy", specifier = ">=2.1.4" },
-    { name = "uvicorn", extras = ["standard"], specifier = ">=0.54.0" },
+    { name = "shared", editable = "shared" },
+    { name = "webhook-receiver", editable = "backend/apis/webhook-receiver" },
 ]
 notebooks = [
     { name = "boto3", specifier = ">=1.43.111" },
@@ -1443,6 +1605,23 @@ wheels = [
 ]
 
 [[package]]
+name = "mcp-server"
+version = "0.1.0"
+source = { editable = "backend/apis/mcp-server" }
+dependencies = [
+    { name = "mcp" },
+    { name = "prometheus-client" },
+    { name = "shared" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "mcp", specifier = ">=2.3.0" },
+    { name = "prometheus-client", specifier = ">=0.26.0" },
+    { name = "shared", editable = "shared" },
+]
+
+[[package]]
 name = "mcp-types"
 version = "2.3.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1541,18 +1720,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/31/72/b3446efab8756e7df4b8ec587f8e611cb5a7249e4323db480802f1d3be04/nbformat-5.11.1.tar.gz", hash = "sha256:32d4521c68c6e7d5b29c76defaeed9f42ea733142b9b19f88277ce10390b9c4d", size = 147775, upload-time = "2026-08-17T08:10:51.942Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/1a/69/ee613f74085ca7103f79cd08d579c4f3177d1d26e5d3d9528d2d6536a707/nbformat-5.11.1-py3-none-any.whl", hash = "sha256:cc6698fa75f4fab8755ead786317815f13a6fee3b53311c0abb1a8b51d52f7ec", size = 79849, upload-time = "2026-08-17T08:10:50.18Z" },
-]
-
-[[package]]
-name = "neo4j"
-version = "6.4.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "pytz" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/80/db/024bd576bde5d97436d0acb71b41cf928c036ed8fec95ea1122eb05e47d1/neo4j-6.4.0.tar.gz", hash = "sha256:056676698f080b5af5b24b0fc5abb485b8db1b95edf366d01dcfd63bcff9b71d", size = 287786, upload-time = "2026-10-05T15:37:45.216Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/c9/5d/519aefe3b38a490924641e980a16ea6c70f6c96c08d84cf661d32c4a08c2/neo4j-6.4.0-py3-none-any.whl", hash = "sha256:fdd048ba827be138063b045cf59e40056fbf0405ac02dadc24f64e369fbd9d3d", size = 390611, upload-time = "2026-10-05T15:37:43.491Z" },
 ]
 
 [[package]]
@@ -1831,6 +1998,11 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/2d/eb/9146591cc819d040475bf7f2be786710c7f7eb8083693bf859728da2ca9c/pydantic-2.14.0-py3-none-any.whl", hash = "sha256:15fab1bea6f1dc5003b54fc2ecab230c1fd1dbade2acd4addc52d81e32416d4b", size = 487109, upload-time = "2026-10-08T14:34:46.864Z" },
 ]
 
+[package.optional-dependencies]
+email = [
+    { name = "email-validator" },
+]
+
 [[package]]
 name = "pydantic-core"
 version = "2.50.0"
@@ -2013,15 +2185,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/5b/42/55c32bb9b12693c092ad250a0e82edb5b31ddeda6eb772de5f308b3804ad/python_multipart-0.0.32.tar.gz", hash = "sha256:be54b7f3fa167bb83e4fcd936b887b708f4e57fe75911c02aebf53efaf8d938e", size = 46881, upload-time = "2026-06-04T16:18:58.647Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/e1/04/e8135ebd1ad02c56ec633277529b2602ff99ff634be76cdba5744cf554fd/python_multipart-0.0.32-py3-none-any.whl", hash = "sha256:ff6d3f776f16878c894e52e107296ffc890e913c611b1a4ec6c44e2821fe2e23", size = 30042, upload-time = "2026-06-04T16:18:57.319Z" },
-]
-
-[[package]]
-name = "pytz"
-version = "2026.5"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/14/21/d83d6ef28c4c912c4bb4d1dcf591f7b8c6bde87b9c66f9f454677314e16d/pytz-2026.5.tar.gz", hash = "sha256:fa23724b9c486543b9ff54a327ee7569ac83ade54bb9afd0fc18676620401c86", size = 318572, upload-time = "2026-10-04T02:37:58.719Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/4f/ef/c66110d46fb800dda0bf33164182dfadabe26a90e4476844d502a23dca8e/pytz-2026.5-py2.py3-none-any.whl", hash = "sha256:e658af3757f9e26a9d25dd2aff38335acd92bc9104f890a894b2c1ba28311b03", size = 506342, upload-time = "2026-10-04T02:37:56.814Z" },
 ]
 
 [[package]]
@@ -2383,6 +2546,21 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/c5/f0/184b4b5f8d00f2a92cf96eec8967a3d550b52cf94362dad1100df9e48d57/send2trash-2.1.0.tar.gz", hash = "sha256:1c72b39f09457db3c05ce1d19158c2cbef4c32b8bedd02c155e49282b7ea7459", size = 17255, upload-time = "2026-01-14T06:27:36.056Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/1c/78/504fdd027da3b84ff1aecd9f6957e65f35134534ccc6da8628eb71e76d3f/send2trash-2.1.0-py3-none-any.whl", hash = "sha256:0da2f112e6d6bb22de6aa6daa7e144831a4febf2a87261451c4ad849fe9a873c", size = 17610, upload-time = "2026-01-14T06:27:35.218Z" },
+]
+
+[[package]]
+name = "shared"
+version = "0.1.0"
+source = { editable = "shared" }
+dependencies = [
+    { name = "pydantic", extra = ["email"] },
+    { name = "pyyaml" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "pydantic", extras = ["email"], specifier = ">=2.6" },
+    { name = "pyyaml", specifier = ">=6" },
 ]
 
 [[package]]
@@ -2782,6 +2960,25 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/d5/a0/8fd707bcb776a7be556bad06a2ea5fb9bd519df78ef8e26f70ccf0f38bff/webencodings-0.6.1.tar.gz", hash = "sha256:565f9ad031c702dae404e27a099e3e09186a3ab1b9520f06d215502b651fd910", size = 15001, upload-time = "2026-08-15T14:22:57.549Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/77/c6/040cbc72480d789a5f40d63fb484d3106554c4dfa2d2b70ad5022057750f/webencodings-0.6.1-py3-none-any.whl", hash = "sha256:7fab6269c8bf237c657876b52058ccb182e861518d1c695c1a9aaa8c1c105d5b", size = 8745, upload-time = "2026-08-15T14:22:56.31Z" },
+]
+
+[[package]]
+name = "webhook-receiver"
+version = "0.1.0"
+source = { editable = "backend/apis/webhook-receiver" }
+dependencies = [
+    { name = "fastapi" },
+    { name = "prometheus-client" },
+    { name = "shared" },
+    { name = "uvicorn", extra = ["standard"] },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "fastapi", specifier = ">=0.143.0" },
+    { name = "prometheus-client", specifier = ">=0.26.0" },
+    { name = "shared", editable = "shared" },
+    { name = "uvicorn", extras = ["standard"], specifier = ">=0.54.0" },
 ]
 
 [[package]]

@@ -1,6 +1,6 @@
 # Connector metrics
 
-The HR connector exposes these on `connector-worker:9100`. Alloy scrapes that target as job `connector-worker` and remote-writes to Prometheus. Labels are `source_id` plus the label named below. Object ids and principals are not labels.
+The HR connector exposes these on `connector-hr:9100`. Alloy scrapes that target as job `connector-hr` and remote-writes to Prometheus. Labels are `source_id` plus the label named below. Object ids and principals are not labels.
 
 | Metric | Labels | Meaning |
 | ------ | ------ | ------- |
@@ -22,6 +22,6 @@ The HR connector exposes these on `connector-worker:9100`. Alloy scrapes that ta
 
 `kbs_worker_up{worker="connector"}` stays 1 after the contract registry loads, including while the worker is waiting for Postgres or the bucket.
 
-Logs are JSON on stdout. `source_id` is a Loki label. A snapshot line names the object type, version, and byte count. It does not contain the body. `{service="connector-worker"}` is the connector panel.
+Logs are JSON on stdout. `source_id` is a Loki label. A snapshot line names the object type, version, and byte count. It does not contain the body. `{service="connector-hr"}` is the connector panel.
 
 Not built yet: queue depth, dead-letter depth, retrieval latency, and empty-result rate.

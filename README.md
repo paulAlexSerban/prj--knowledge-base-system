@@ -2,7 +2,7 @@
 
 The Unified Knowledge Gateway is an event-driven hybrid knowledge base. It ingests department data, turns it into knowledge agents can use, and serves it through one API and one MCP server with the caller's permissions applied in the data layer.
 
-This repository is a proof of concept for that gateway. The design is written down. The source-contract gate is implemented and checked in CI. Compose starts the harness, workers, stores, API, MCP server, floci, Jupyter, and the observability stack (Alloy, Loki, Prometheus, and Grafana). The gateway and the ingestion worker are stubs: they answer health checks and do not retrieve or answer questions yet. The HR harness serves a seeded directory and policies. The HR connector polls it and writes raw snapshots to S3 on floci.
+This repository is a proof of concept for that gateway. The design is written down. The source-contract gate is implemented and checked in CI. Compose starts the harness, workers, stores, API, MCP server, floci, Jupyter, pgAdmin, the SQLite viewers, and the observability stack (Alloy, Loki, Prometheus, and Grafana). The gateway and the ingestion worker are stubs: they answer health checks and do not retrieve or answer questions yet. The HR harness serves a seeded directory and policies. The HR connector polls it and writes raw snapshots to S3 on floci.
 
 ## Status
 
@@ -12,7 +12,7 @@ This repository is a proof of concept for that gateway. The design is written do
 | Project brief, spikes, ADRs, and the architecture document                                           | Retrieval, chunking, embeddings, and the two demo answers     |
 | C4 diagrams (context, containers, components, connector containers)                                  | Mock identity provider and access-boundary tests              |
 | Source-contract model, four YAML contracts, validator, tests, and CI                                 | Golden evaluation set                                         |
-| Compose projects for the harness, gateway, ingestion, store, floci, Jupyter, and observability (Alloy, Loki, Prometheus, Grafana). The HR harness is seeded. The HR connector writes raw snapshots to S3. | Queue emit, chunking, retrieval, and the remaining dashboard panels |
+| Compose projects for the harness, gateway, ingestion, store, floci, Jupyter, pgAdmin, SQLite viewers, and observability (Alloy, Loki, Prometheus, Grafana). The HR harness is seeded. The HR connector writes raw snapshots to S3. | Queue emit, chunking, retrieval, and the remaining dashboard panels |
 | Terraform on floci: three FIFO queues, three dead-letter queues, one snapshot bucket                 | Seed data for Sales, Product, and Engineering, and `make demo` |
 
 
@@ -79,7 +79,9 @@ cp .env.example .env
 make up
 ```
 
-`make test` runs the contract tests and the stub tests. `make up` builds the images and starts every Compose project. The first start downloads images and the Terraform AWS provider. Neo4j needs about two minutes before it is healthy. Expect several gigabytes of RAM. Postgres and Neo4j are not published on the host.
+`make test` runs the contract tests and the stub tests. `make up` builds the images and starts every Compose project, then runs Terraform on the host. The first start downloads images and the AWS provider. Neo4j needs about two minutes before it is healthy. Expect several gigabytes of RAM. Postgres and Neo4j are not published on the host. `terraform` must be on `PATH` (1.5 or newer).
+
+Postgres 18 cannot open a data directory written by 16. If `kbs_pgdata` already exists from the older image, remove it once before `make up`: `docker volume rm kbs_pgdata`. There is no upgrade step in this POC.
 
 
 | Port      | Service                                           |
@@ -88,9 +90,11 @@ make up
 | 8001      | MCP server (`/health`, streamable HTTP at `/mcp`) |
 | 8090      | Product webhook receiver                          |
 | 8101–8104 | HR, Sales, Product, Engineering harness           |
+| 8111–8114 | SQLite viewers for HR, Sales, Product, Engineering. Read-only. |
 | 8888      | Jupyter (`make notebooks`). Token is `JUPYTER_TOKEN`. |
+| 5050      | pgAdmin, desktop mode, no login. Dev only.        |
 | 9090      | Prometheus                                        |
-| 3000      | Grafana, anonymous admin, dev only. Logs are read here. Loki and Alloy are not published. |
+| 3000      | Grafana, anonymous viewer, dev only. Logs are read here. Loki and Alloy are not published. |
 | 4566      | floci, bound to 127.0.0.1                         |
 
 
@@ -98,7 +102,7 @@ make up
 make down
 ```
 
-`make notebooks` starts Jupyter on port 8888. The seed notebook loads up to 10,000 HR people or policies through the harness. `make seed`, `make demo`, and `make eval` do not exist yet. Details of networks and how to start one project alone are in [infrastructure/README.md](infrastructure/README.md).
+`make notebooks` starts Jupyter on port 8888. The seed notebook loads up to 10,000 HR people or policies through the harness. `make tools` starts pgAdmin and the four SQLite viewers, plus Postgres and the harness so those databases exist. `make tf-apply` creates the queues and the snapshot bucket again. `make seed`, `make demo`, and `make eval` do not exist yet. Details of networks and how to start one project alone are in [infrastructure/README.md](infrastructure/README.md).
 
 ## Demo script
 
@@ -116,7 +120,7 @@ These five steps are the acceptance test. The processes start today. None of the
 
 A connector starts only when its YAML contract validates. Required: an owner (team and contact), a freshness tier (`P0`, `P1`, or `P2`), and at least one ACL mapping onto `department`, `clearance`, `region`, or `group`. High sensitivity requires an ACL re-check at read time. Fields named `salary`, `compensation`, `ssn`, or `national_id` cannot be in scope.
 
-Contracts live in [infrastructure/config/sources](infrastructure/config/sources). The model is [shared/contracts/source_contract.py](shared/contracts/source_contract.py). To add a source, add a YAML file and run `make contracts-check`. Worker bootstrap will call `shared.contracts.validate.load_contracts` and refuse to start when that raises.
+Contracts live in [infrastructure/config/sources](infrastructure/config/sources). The model is [shared/src/shared/contracts/source_contract.py](shared/src/shared/contracts/source_contract.py). To add a source, add a YAML file and run `make contracts-check`. A process calls `shared.registry.load_registry` and refuses to start when that raises.
 
 ## Repository map
 
@@ -127,11 +131,15 @@ Contracts live in [infrastructure/config/sources](infrastructure/config/sources)
 | `_docs/01--spikes/`              | Decisions for ingestion, knowledge representation, access, and synchronization. |
 | `_docs/02--architecture/`        | Architecture document (Deliverable 1).                                          |
 | `_docs/03--adrs/`                | Storage, observability, and embedding and chunk versioning.                     |
-| `shared/contracts/`              | Source-contract model, schema, validator, and tests.                            |
 | `infrastructure/config/sources/` | The four YAML contracts.                                                        |
-| `backend/`                       | API, MCP, workers, and the change-event model. Stubs.                           |
+| `shared/`                        | Source contracts, registry gate, and JSON logging. The model is [shared/src/shared/contracts/source_contract.py](shared/src/shared/contracts/source_contract.py). |
+| `backend/apis/`                  | `knowledge-api`, `mcp-server`, and `webhook-receiver`, each with its own image. |
+| `backend/connectors/hr/`         | HR connector process `connector-hr`. |
+| `backend/workers/ingestion-worker/` | Queue consumer stub. |
+| `backend/libs/`                  | `connector-core` and `ingest-contract`. Libraries, not services. |
+| `backend/tests/`                 | Integration tests, plus `e2e/` for `make e2e`. |
 | `database/`                      | Postgres init (pgvector, roles, placeholder RLS) and Neo4j constraints.         |
-| `demo-harness/`                  | Four FastAPI services. HR is seeded (SQLAlchemy, Faker, admin API). The other three are empty stubs. |
+| `demo-harness/`                  | One image per source. HR is seeded. Sales, Product, and Engineering are empty stubs. |
 | `notebooks/`                     | Jupyter seed and inspect notebooks for HR.                                      |
 | `infrastructure/`                | Compose projects, Terraform for floci, source contracts.                        |
 | `observability/`                 | Alloy and Loki config, Prometheus scrape config, and the Grafana dashboard.    |
@@ -149,7 +157,7 @@ floci's own documentation lists many AWS APIs, including SQS, S3, Scheduler, IAM
 
 EventBridge Scheduler cannot run faster than once a minute, on AWS or on floci. It is the wrong driver for the 30-second tier. P0 polling stays inside the connector worker. Scheduler, when wired, covers P1/P2 polls and the reconciliation sweep.
 
-Docker networks show the intended trust boundaries. They are not a security boundary. Terraform in this repo talks only to floci. It creates no VPC, database, or compute.
+Docker networks show the intended trust boundaries. They are not a security boundary. Terraform in this repo talks only to floci. It creates no VPC, database, or compute. State stays in `infrastructure/provisioning/terraform/terraform.tfstate` on the machine that ran `make tf-apply`. That file is not committed. pgAdmin is a dev-only loopback bridge onto the internal data network. The Postgres port stays unpublished.
 
 The next useful slice is one HR document through chunk, embed, hybrid search, and a cited API answer. More platform work before that does not make the demo.
 

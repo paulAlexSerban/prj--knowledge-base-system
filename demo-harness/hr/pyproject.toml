@@ -1,0 +1,22 @@
+[project]
+name = "harness-hr"
+version = "0.1.0"
+description = "HR harness. People and policies in SQLite, seeded with Faker."
+requires-python = ">=3.12"
+dependencies = [
+  "faker>=40.43.0",
+  "fastapi>=0.143.0",
+  "prometheus-client>=0.26.0",
+  "sqlalchemy>=2.1.4",
+  "uvicorn[standard]>=0.54.0",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+harness_hr = ["policies/*.md"]

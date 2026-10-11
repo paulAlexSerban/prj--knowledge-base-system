@@ -1,62 +1,104 @@
-[build-system]
-requires = ["setuptools>=68"]
-build-backend = "setuptools.build_meta"
-
 [project]
 name = "knowledge-base-system"
 version = "0.1.0"
 description = "Unified knowledge gateway POC"
 requires-python = ">=3.12"
-dependencies = [
-  "pydantic>=2.6",
-  "email-validator>=2",
-  "pyyaml>=6",
-]
+dependencies = []
+
+[tool.uv]
+package = false
+default-groups = ["dev", "notebooks"]
 
 [dependency-groups]
-backend = [
-    "boto3>=1.43.111",
-    "fastapi>=0.143.0",
-    "httpx>=0.28.1",
-    "mcp>=2.3.0",
-    "neo4j>=6.4.0",
-    "prometheus-client>=0.26.0",
-    "psycopg[binary]>=3.3.6",
-    "sqlalchemy>=2.1.4",
-    "uvicorn[standard]>=0.54.0",
-]
 dev = [
-  "faker>=40.43.0",
-  "httpx>=0.28.1",
   "moto[s3]>=5.2.3",
   "pytest>=8",
   "ruff>=0.6",
-]
-harness = [
-    "faker>=40.43.0",
-    "fastapi>=0.143.0",
-    "prometheus-client>=0.26.0",
-    "sqlalchemy>=2.1.4",
-    "uvicorn[standard]>=0.54.0",
+  "shared",
+  "ingest-contract",
+  "connector-core",
+  "connector-hr",
+  "knowledge-api",
+  "mcp-server",
+  "webhook-receiver",
+  "ingestion-worker",
+  "harness-common",
+  "harness-hr",
+  "harness-sales",
+  "harness-product",
+  "harness-engineering",
 ]
 notebooks = [
-    "boto3>=1.43.111",
-    "httpx>=0.28.1",
-    "jupyter>=1.1",
+  "boto3>=1.43.111",
+  "httpx>=0.28.1",
+  "jupyter>=1.1",
 ]
 
-[tool.setuptools.packages.find]
-include = ["shared*", "backend*"]
+[tool.uv.workspace]
+members = [
+  "shared",
+  "backend/libs/ingest-contract",
+  "backend/libs/connector-core",
+  "backend/apis/knowledge-api",
+  "backend/apis/mcp-server",
+  "backend/apis/webhook-receiver",
+  "backend/workers/ingestion-worker",
+  "backend/connectors/hr",
+  "demo-harness/common",
+  "demo-harness/hr",
+  "demo-harness/sales",
+  "demo-harness/product",
+  "demo-harness/engineering",
+]
 
-[tool.pytest.ini_options]
-testpaths = ["shared/contracts/tests", "shared/tests", "backend/tests", "demo-harness/human-resources/tests", "notebooks/tests"]
-pythonpath = [".", "demo-harness/human-resources"]
-
-[tool.uv]
-default-groups = ["dev", "backend", "harness", "notebooks"]
+[tool.uv.sources]
+shared = { workspace = true }
+ingest-contract = { workspace = true }
+connector-core = { workspace = true }
+connector-hr = { workspace = true }
+knowledge-api = { workspace = true }
+mcp-server = { workspace = true }
+webhook-receiver = { workspace = true }
+ingestion-worker = { workspace = true }
+harness-common = { workspace = true }
+harness-hr = { workspace = true }
+harness-sales = { workspace = true }
+harness-product = { workspace = true }
+harness-engineering = { workspace = true }
 
 [tool.ruff]
 line-length = 100
 
 [tool.ruff.lint.isort]
-known-first-party = ["shared", "backend"]
+known-first-party = [
+  "shared",
+  "ingest_contract",
+  "connector_core",
+  "connector_hr",
+  "knowledge_api",
+  "mcp_server",
+  "webhook_receiver",
+  "ingestion_worker",
+  "harness_common",
+  "harness_hr",
+  "harness_sales",
+  "harness_product",
+  "harness_engineering",
+]
+
+[tool.pytest.ini_options]
+testpaths = [
+  "shared/tests",
+  "shared/src/shared/contracts/tests",
+  "backend/libs/ingest-contract/tests",
+  "backend/libs/connector-core/tests",
+  "backend/apis/knowledge-api/tests",
+  "backend/connectors/hr/tests",
+  "backend/tests/integration",
+  "demo-harness/hr/tests",
+  "notebooks/tests",
+]
+markers = [
+  "e2e: requires the live compose stack",
+]
+addopts = "-m 'not e2e'"

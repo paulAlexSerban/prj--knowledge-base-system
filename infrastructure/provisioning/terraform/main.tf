@@ -6,7 +6,7 @@
 
 variable "aws_endpoint" {
   type    = string
-  default = "http://floci:4566"
+  default = "http://127.0.0.1:4566"
 }
 
 provider "aws" {

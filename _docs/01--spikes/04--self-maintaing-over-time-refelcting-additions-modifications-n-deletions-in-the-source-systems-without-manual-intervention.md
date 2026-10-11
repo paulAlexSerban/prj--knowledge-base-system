@@ -86,6 +86,6 @@ Per source: last successful sync, lag (now minus the newest unprocessed `occurre
 
 ## Open TODOs
 
-- Event schema in `backend/messaging`, shared with the harness webhook payload.
+- Event schema in `backend/libs/ingest-contract`. The harness webhook will use the same model when it enqueues.
 - Dead-letter replay command in `tools/`, used by demo step 5.
 - Reconciliation query that diffs source ids against indexed ids and emits tombstones.

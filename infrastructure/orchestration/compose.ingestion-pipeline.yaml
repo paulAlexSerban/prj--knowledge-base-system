@@ -1,12 +1,9 @@
-x-backend: &backend
-  build:
-    context: ../..
-    dockerfile: backend/Dockerfile
-
 services:
-  connector-worker:
-    <<: *backend
-    command: ["python", "-m", "backend.workers.connector_worker"]
+  connector-hr:
+    build:
+      context: ../..
+      dockerfile: backend/connectors/hr/Dockerfile
+    command: ["python", "-m", "connector_hr"]
     environment:
       CONTRACTS_DIR: /contracts
       METRICS_PORT: "9100"
@@ -42,8 +39,10 @@ services:
       start_period: 20s
 
   ingestion-worker:
-    <<: *backend
-    command: ["python", "-m", "backend.workers.ingestion_worker"]
+    build:
+      context: ../..
+      dockerfile: backend/workers/ingestion-worker/Dockerfile
+    command: ["python", "-m", "ingestion_worker"]
     environment:
       AWS_ENDPOINT_URL: http://floci:4566
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
@@ -67,8 +66,10 @@ services:
       start_period: 20s
 
   webhook-receiver:
-    <<: *backend
-    command: ["python", "-m", "backend.workers.webhook_receiver"]
+    build:
+      context: ../..
+      dockerfile: backend/apis/webhook-receiver/Dockerfile
+    command: ["python", "-m", "webhook_receiver"]
     networks: [kbs-sources, kbs-obs]
     ports:
       - "127.0.0.1:8090:8090"

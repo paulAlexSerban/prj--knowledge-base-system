@@ -9,7 +9,20 @@ ENV UV_COMPILE_BYTECODE=1 \
     PYTHONUNBUFFERED=1
 
 COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-dev --only-group notebooks --no-install-project
+COPY shared/pyproject.toml shared/pyproject.toml
+COPY backend/libs/ingest-contract/pyproject.toml backend/libs/ingest-contract/pyproject.toml
+COPY backend/libs/connector-core/pyproject.toml backend/libs/connector-core/pyproject.toml
+COPY backend/apis/knowledge-api/pyproject.toml backend/apis/knowledge-api/pyproject.toml
+COPY backend/apis/mcp-server/pyproject.toml backend/apis/mcp-server/pyproject.toml
+COPY backend/apis/webhook-receiver/pyproject.toml backend/apis/webhook-receiver/pyproject.toml
+COPY backend/workers/ingestion-worker/pyproject.toml backend/workers/ingestion-worker/pyproject.toml
+COPY backend/connectors/hr/pyproject.toml backend/connectors/hr/pyproject.toml
+COPY demo-harness/common/pyproject.toml demo-harness/common/pyproject.toml
+COPY demo-harness/hr/pyproject.toml demo-harness/hr/pyproject.toml
+COPY demo-harness/sales/pyproject.toml demo-harness/sales/pyproject.toml
+COPY demo-harness/product/pyproject.toml demo-harness/product/pyproject.toml
+COPY demo-harness/engineering/pyproject.toml demo-harness/engineering/pyproject.toml
+RUN uv sync --frozen --no-dev --only-group notebooks --no-default-groups
 
 WORKDIR /notebooks
 EXPOSE 8888

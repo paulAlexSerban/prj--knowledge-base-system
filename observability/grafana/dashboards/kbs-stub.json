@@ -199,7 +199,7 @@
         {
           "datasource": {"type": "loki", "uid": "loki"},
           "editorMode": "code",
-          "expr": "{service=\"connector-worker\"}",
+          "expr": "{service=\"connector-hr\"}",
           "queryType": "range",
           "refId": "A"
         }

@@ -3,7 +3,7 @@ name: contracts
 on:
   push:
     paths:
-      - "shared/contracts/**"
+      - "shared/**"
       - "infrastructure/config/sources/**"
       - "pyproject.toml"
       - "uv.lock"
@@ -11,7 +11,7 @@ on:
       - ".github/workflows/contracts.yml"
   pull_request:
     paths:
-      - "shared/contracts/**"
+      - "shared/**"
       - "infrastructure/config/sources/**"
       - "pyproject.toml"
       - "uv.lock"

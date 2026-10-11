@@ -45,7 +45,7 @@ Source: [01-c4-l2--container-connectors.drawio](../00--project-brief/01-c4-l2--c
 
 ### Contract fields
 
-The Pydantic model in [shared/contracts/source_contract.py](../../shared/contracts/source_contract.py) is the source of truth. JSON Schema is generated next to it. `make contracts-check` validates the four YAML files, runs the registration tests, and fails if the committed schema drifted. GitHub Actions runs that target on changes under `shared/contracts` and `infrastructure/config/sources`. Worker bootstrap must call `shared.contracts.validate.load_contracts` and must refuse to start a connector that has no valid contract.
+The Pydantic model in [shared/src/shared/contracts/source_contract.py](../../shared/src/shared/contracts/source_contract.py) is the source of truth. JSON Schema is generated next to it. `make contracts-check` validates the four YAML files, runs the registration tests, and fails if the committed schema drifted. GitHub Actions runs that target on changes under `shared/` and `infrastructure/config/sources`. A process calls `shared.registry.load_registry` and refuses to start when the registry is invalid.
 
 | Field | Rule |
 | ----- | ---- |
@@ -94,4 +94,4 @@ Ingestion health is a first-class metric: sync recency per source, failed syncs,
 
 ## Open TODOs
 
-- HR connector is built. It calls `load_contracts` at startup and implements `discover`, `list_changes`, `fetch`, and `get_acl`. It writes raw snapshots to S3 and sync state to Postgres. `normalize`, the queue message, and the Sales, Product, and Engineering connectors are not built.
+- HR connector is built as its own process, `connector-hr`. It calls `load_registry` at startup and implements `discover`, `list_changes`, `fetch`, and `get_acl`. It writes raw snapshots to S3 and sync state to Postgres. `normalize`, the queue message, and the Sales, Product, and Engineering connectors are not built.

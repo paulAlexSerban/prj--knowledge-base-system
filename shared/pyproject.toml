@@ -1,0 +1,16 @@
+[project]
+name = "shared"
+version = "0.1.0"
+description = "Source contracts and JSON logging used by every process."
+requires-python = ">=3.12"
+dependencies = [
+  "pydantic[email]>=2.6",
+  "pyyaml>=6",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]

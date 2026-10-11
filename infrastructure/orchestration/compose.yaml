@@ -8,3 +8,4 @@ include:
   - path: compose.demo-harness.yaml
   - path: compose.notebooks.yaml
   - path: compose.observability.yaml
+  - path: compose.tools.yaml

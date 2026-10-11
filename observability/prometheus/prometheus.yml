@@ -3,7 +3,7 @@ global:
 
 # Application targets are scraped by Alloy and remote-written here.
 # Prometheus itself scrapes the collector and the log store.
-# Jupyter has no /metrics endpoint and is not a target. It is a local authoring tool.
+# Jupyter, pgAdmin, and the SQLite viewers have no /metrics endpoint and are not targets.
 scrape_configs:
   - job_name: alloy
     static_configs:

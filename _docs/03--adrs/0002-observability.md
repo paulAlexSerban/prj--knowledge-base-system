@@ -10,7 +10,7 @@ Demo step 2 is a denied query. The empty-result rate shows that denies are happe
 
 ## Decision
 
-Grafana Alloy is the collector. It scrapes `/metrics` on the API, the MCP server, the workers, and the harness, and remote-writes those series to Prometheus. Jupyter has no metrics endpoint and is not scraped. It also tails container logs from the Docker socket and pushes them to Loki.
+Grafana Alloy is the collector. It scrapes `/metrics` on the API, the MCP server, `connector-hr`, the ingestion worker, the webhook receiver, and the harness, and remote-writes those series to Prometheus. Jupyter, pgAdmin, and the SQLite viewers have no metrics endpoint and are not scraped. It also tails container logs from the Docker socket and pushes them to Loki.
 
 Prometheus stores metrics and runs with remote write enabled. It scrapes only Alloy and Loki, so the collector and the log store appear on the same dashboard as the services. Loki is one process with filesystem storage. That is the built tier. Object storage on the floci S3 bucket is the production path.
 
@@ -53,7 +53,7 @@ Freshness and authorization are distributions, so the demo needs metrics. The de
 
 - Every new connector must emit the sync metrics or the dashboard shows a gap. That is intentional.
 - Cardinality is bounded. The empty-result metric uses source id and permission group, not user id. Per-user detail belongs in the audit table (spike 03) and in the log line, not in Prometheus and not in Loki labels.
-- A new service needs a scrape entry in the Alloy config, a healthcheck, and JSON logs on stdout. Alloy and Loki are scraped by Prometheus.
+- A new service needs a scrape entry in the Alloy config, a healthcheck, and JSON logs on stdout. Alloy and Loki are scraped by Prometheus. Jupyter, pgAdmin, and the SQLite viewers are dev tools: they have a healthcheck and are not scraped.
 - The socket mount can read every container's stdout. Those lines must not contain store passwords or retrieved text. Compose does not put passwords in command arguments.
 
 ## Production path

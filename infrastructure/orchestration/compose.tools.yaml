@@ -1,0 +1,102 @@
+# Dev-only viewers. pgAdmin joins kbs-data so Postgres stays unpublished, and
+# kbs-tools so the UI can be published on loopback. That bridge is a
+# trust-boundary exception: kbs-data stays internal.
+# sqlite-web opens each harness file read-only. These processes have no
+# /metrics endpoint and are not Prometheus targets, same as Jupyter.
+
+x-sqlite: &sqlite
+  image: coleifer/sqlite-web:latest
+  entrypoint: ["/bin/sh", "-c"]
+  command:
+    - |
+      i=0
+      while [ ! -f /data/harness.db ] && [ "$$i" -lt 30 ]; do
+        i=$$((i + 1))
+        sleep 2
+      done
+      if command -v sqlite_wsgi >/dev/null 2>&1; then
+        exec sqlite_wsgi -H 0.0.0.0 -x -r /data/harness.db
+      fi
+      exec sqlite_web -H 0.0.0.0 -x -r /data/harness.db
+  networks: [kbs-tools]
+  healthcheck: &sqlite-health
+    test:
+      [
+        "CMD",
+        "python",
+        "-c",
+        "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/')",
+      ]
+    interval: 10s
+    timeout: 3s
+    retries: 12
+    start_period: 20s
+
+services:
+  pgadmin:
+    image: dpage/pgadmin4:9.18.0
+    environment:
+      PGADMIN_DEFAULT_EMAIL: dev@pgadmin.org
+      PGADMIN_DEFAULT_PASSWORD: dev-only-pgadmin
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
+      PGADMIN_DISABLE_POSTFIX: "true"
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        umask 077
+        printf 'postgres:5432:*:kbs:%s\n' "$$POSTGRES_PASSWORD" > /var/lib/pgadmin/.pgpass
+        chmod 600 /var/lib/pgadmin/.pgpass
+        exec /entrypoint.sh
+    volumes:
+      - ./pgadmin/servers.json:/pgadmin4/servers.json:ro
+    networks: [kbs-data, kbs-tools]
+    ports:
+      - "127.0.0.1:5050:80"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python3",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:80/misc/ping')",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+
+  sqlite-hr:
+    <<: *sqlite
+    volumes: [hrdata:/data:ro]
+    ports: ["127.0.0.1:8111:8080"]
+
+  sqlite-sales:
+    <<: *sqlite
+    volumes: [salesdata:/data:ro]
+    ports: ["127.0.0.1:8112:8080"]
+
+  sqlite-product:
+    <<: *sqlite
+    volumes: [productdata:/data:ro]
+    ports: ["127.0.0.1:8113:8080"]
+
+  sqlite-engineering:
+    <<: *sqlite
+    volumes: [engineeringdata:/data:ro]
+    ports: ["127.0.0.1:8114:8080"]
+
+networks:
+  kbs-data:
+    external: true
+    name: kbs-data
+  kbs-tools:
+    external: true
+    name: kbs-tools
+
+volumes:
+  hrdata:
+  salesdata:
+  productdata:
+  engineeringdata:

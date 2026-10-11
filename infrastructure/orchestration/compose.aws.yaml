@@ -1,6 +1,7 @@
-# AWS emulator and the one-shot that creates queues and the snapshot bucket.
-# SQS and S3 share one floci process, so this project is separate from
-# ingestion and the knowledge store.
+# AWS emulator. SQS and S3 share one floci process, so this project is
+# separate from ingestion and the knowledge store. Terraform runs on the
+# host (`make tf-apply`) against the published port and keeps local state.
+# floci-ready is the in-compose signal that floci answered.
 
 services:
   floci:
@@ -32,23 +33,6 @@ services:
           sleep 2
         done
         exit 1
-    restart: "no"
-
-  terraform-apply:
-    image: hashicorp/terraform:1.9
-    depends_on:
-      floci-ready:
-        condition: service_completed_successfully
-    networks: [kbs-aws]
-    volumes:
-      - ../provisioning/terraform:/src:ro
-    entrypoint: ["/bin/sh", "-c"]
-    command:
-      - |
-        cp -a /src/. /tmp/tf
-        cd /tmp/tf
-        terraform init -input=false
-        terraform apply -input=false -auto-approve
     restart: "no"
 
 networks:

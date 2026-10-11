@@ -2,7 +2,7 @@
 
 services:
   postgres:
-    image: pgvector/pgvector:pg16
+    image: pgvector/pgvector:pg18
     environment:
       POSTGRES_USER: kbs
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -10,7 +10,9 @@ services:
       INGESTION_DB_PASSWORD: ${INGESTION_DB_PASSWORD}
       GATEWAY_DB_PASSWORD: ${GATEWAY_DB_PASSWORD}
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      # PG18 keeps the cluster under /var/lib/postgresql/18/docker.
+      # A volume from Postgres 16 cannot be opened. Remove kbs_pgdata once.
+      - pgdata:/var/lib/postgresql
       - ../../database/postgres/init:/docker-entrypoint-initdb.d:ro
     networks: [kbs-data]
     healthcheck:
@@ -65,7 +67,7 @@ services:
     restart: "no"
 
   postgres-migrate:
-    image: postgres:16-alpine
+    image: postgres:18-alpine
     depends_on:
       postgres:
         condition: service_healthy
@@ -77,7 +79,19 @@ services:
       PGDATABASE: kbs
     volumes:
       - ../../database/postgres/migrations:/migrations:ro
-    entrypoint: ["psql", "-v", "ON_ERROR_STOP=1", "-f", "/migrations/001-sync-state.sql"]
+    # First boot restarts Postgres after initdb. pg_isready can pass in that
+    # window, so retry the idempotent script instead of failing once.
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        i=0
+        until psql -v ON_ERROR_STOP=1 -f /migrations/001-sync-state.sql; do
+          i=$$((i + 1))
+          if [ "$$i" -ge 30 ]; then
+            exit 1
+          fi
+          sleep 2
+        done
     restart: "no"
 
 networks:

@@ -1,12 +1,9 @@
-x-backend: &backend
-  build:
-    context: ../..
-    dockerfile: backend/Dockerfile
-
 services:
   gateway-api:
-    <<: *backend
-    command: ["python", "-m", "backend.apis.main"]
+    build:
+      context: ../..
+      dockerfile: backend/apis/knowledge-api/Dockerfile
+    command: ["python", "-m", "knowledge_api"]
     environment:
       CONTRACTS_DIR: /contracts
     volumes:
@@ -28,8 +25,10 @@ services:
       start_period: 20s
 
   gateway-mcp:
-    <<: *backend
-    command: ["python", "-m", "backend.apis.mcp_server"]
+    build:
+      context: ../..
+      dockerfile: backend/apis/mcp-server/Dockerfile
+    command: ["python", "-m", "mcp_server"]
     environment:
       CONTRACTS_DIR: /contracts
     volumes:

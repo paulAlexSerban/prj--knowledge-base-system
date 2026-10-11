@@ -219,3 +219,8 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 .cursor
+
+# Terraform local state and provider cache. The lock file is committed.
+.terraform/
+*.tfstate
+*.tfstate.*

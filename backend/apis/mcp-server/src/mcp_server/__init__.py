@@ -1,0 +1,1 @@
+"""Knowledge gateway MCP server."""

@@ -1,17 +1,14 @@
-x-harness: &harness
-  build:
-    context: ../..
-    dockerfile: demo-harness/Dockerfile
-
 services:
   harness-hr:
-    <<: *harness
+    build:
+      context: ../..
+      dockerfile: demo-harness/hr/Dockerfile
     environment:
       SERVICE: hr
       PORT: "8080"
       SQLITE_PATH: /data/harness.db
       FILES_DIR: /data/policies
-    command: ["python", "demo-harness/human-resources/main.py"]
+    command: ["python", "-m", "harness_hr"]
     volumes: [hrdata:/data]
     networks: [kbs-sources, kbs-obs]
     ports: ["127.0.0.1:8101:8080"]
@@ -29,7 +26,9 @@ services:
       start_period: 20s
 
   harness-sales:
-    <<: *harness
+    build:
+      context: ../..
+      dockerfile: demo-harness/sales/Dockerfile
     environment:
       SERVICE: sales
       PORT: "8080"
@@ -40,7 +39,9 @@ services:
     healthcheck: *health
 
   harness-product:
-    <<: *harness
+    build:
+      context: ../..
+      dockerfile: demo-harness/product/Dockerfile
     environment:
       SERVICE: product
       PORT: "8080"
@@ -51,7 +52,9 @@ services:
     healthcheck: *health
 
   harness-engineering:
-    <<: *harness
+    build:
+      context: ../..
+      dockerfile: demo-harness/engineering/Dockerfile
     environment:
       SERVICE: engineering
       PORT: "8080"

@@ -1,0 +1,17 @@
+[project]
+name = "harness-common"
+version = "0.1.0"
+description = "Shared FastAPI stub for harnesses that do not have their own store yet."
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi>=0.143.0",
+  "prometheus-client>=0.26.0",
+  "uvicorn[standard]>=0.54.0",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]

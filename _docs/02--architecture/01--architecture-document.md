@@ -43,7 +43,7 @@ Requirements I narrowed, and why:
 
 ![Container diagram](../00--project-brief/00-c4-l2--container-diagram--knowledge-base-system.png)
 
-Further views: [system context](../00--project-brief/00-c4-l1--system-context.png), [connector containers](../00--project-brief/01-c4-l2--container-connectors.png), and [components](../00--project-brief/00-c4-l3--component-diagram--kowledge-base-system.png). The harness (HR, Sales, Product, Engineering) is outside the gateway. Postgres, Neo4j, and S3 are on an internal network. The only ingress is the API and the MCP server.
+Further views: [system context](../00--project-brief/00-c4-l1--system-context.png), [connector containers](../00--project-brief/01-c4-l2--container-connectors.png), and [components](../00--project-brief/00-c4-l3--component-diagram--kowledge-base-system.png). The harness (HR, Sales, Product, Engineering) is outside the gateway. Postgres, Neo4j, and S3 are on an internal network. The only agent ingress is the API and the MCP server. pgAdmin is a dev-only loopback bridge onto that network; the stores stay unpublished.
 
 ### Components
 
@@ -214,8 +214,8 @@ Monitoring follows [ADR 0002](../03--adrs/0002-observability.md). Only process-u
 
 ## What is built
 
-Built: the design documents and diagrams, the source-contract gate with tests and CI, four YAML contracts, Compose, Terraform on floci (three FIFO queues, three dead-letter queues, one bucket), Postgres and Neo4j init, the observability stack, and a seeded HR harness. The gateway processes answer health checks and list sources. They do not retrieve or answer questions.
+Built: the design documents and diagrams, the source-contract gate with tests and CI, four YAML contracts, Compose, Terraform on floci (three FIFO queues, three dead-letter queues, one bucket), Postgres and Neo4j init, the observability stack, a seeded HR harness, and the HR connector (`connector-hr`) which writes raw snapshots and sync state. The gateway processes answer health checks and list sources. They do not retrieve or answer questions.
 
-Not built: connector and ingestion logic, chunking, embedding, hybrid search, the router, the mock identity provider, a restrictive RLS policy, the audit table, the Sales, Product, and Engineering harness data, the golden set and `make eval`, the dead-letter replay command, the reconciliation query, and the remaining dashboard panels. These statements come from the README and the spikes and were not re-verified by running the stack.
+Not built: chunking, embedding, hybrid search, the router, the mock identity provider, a restrictive RLS policy, the audit table, the Sales, Product, and Engineering harness data, the golden set and `make eval`, the dead-letter replay command, and the remaining dashboard panels. There is no Lambda. `backend/functions` stays absent until a function exists. The webhook receiver in Compose is the stub; its production path is API Gateway plus Lambda.
 
 Open gap: one diagram in the house drawio style showing every component, the data flow, and the transformation at each hop. The hop table above carries the transformations for now.
