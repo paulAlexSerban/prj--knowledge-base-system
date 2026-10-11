@@ -44,7 +44,7 @@ Events, idempotency, content-hash skip, tombstones, reconciliation, priority que
 
 ## Technology choices
 
-One row per component: choice, why, what was excluded and why. Cover FastAPI, Postgres with pgvector, Neo4j, SQS, S3, EventBridge Scheduler, floci, Terraform, OpenRouter with a local embedder, OpenTelemetry, Prometheus, and Grafana. Use the ADRs as the long form for storage, observability, and versioning.
+One row per component: choice, why, what was excluded and why. Cover FastAPI, Postgres with pgvector, Neo4j, SQS, S3, EventBridge Scheduler, floci, Terraform, OpenRouter with a local embedder, Alloy, Loki, Prometheus, and Grafana. Traces are deferred. Use the ADRs as the long form for storage, observability, and versioning.
 
 ## Trade-offs
 

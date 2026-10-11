@@ -95,4 +95,4 @@ The public HTTP API is `/v1`. Index metadata records `embedding_model` and `chun
 ## Open TODOs
 
 - JWT claim schema and the row-level security policies checked in under `database/`.
-- Audit table shape and the log line that the demo step 2 asserts on.
+- Audit table shape. The deny log line is specified in [ADR 0002](../03--adrs/0002-observability.md): one JSON object on stdout, `decision` of `deny`, and `request_id` in the line rather than in a Loki label.

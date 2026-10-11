@@ -19,7 +19,7 @@ This repository is a POC knowledge gateway: ingest four department sources, keep
 | `demo-harness/` | HR, Sales, Product, Engineering mocks. |
 | `infrastructure/orchestration/` | One Compose file per trust area, plus `compose.yaml` which includes them. |
 | `infrastructure/provisioning/terraform/` | Queues, dead-letter queues, and the snapshot bucket on floci. |
-| `observability/` | One dashboard and its metric definitions. |
+| `observability/` | Alloy, Loki, Prometheus, one dashboard, and metric definitions. |
 | `tools/` | Seed, mutation, and evaluation scripts. |
 
 ## Stack and commands

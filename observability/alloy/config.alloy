@@ -1,0 +1,132 @@
+// Collector for the POC. Metrics are remote-written to Prometheus.
+// Logs are pushed to Loki.
+//
+// Loki labels are only service, trust_area, level, and source_id.
+// request_id, principal, and chunk_id stay in the JSON line.
+
+logging {
+  level = "info"
+}
+
+discovery.docker "containers" {
+  host             = "unix:///var/run/docker.sock"
+  refresh_interval = "5s"
+}
+
+discovery.relabel "containers" {
+  targets = []
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_project"]
+    regex         = "kbs.*"
+    action        = "keep"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    target_label  = "service"
+  }
+}
+
+loki.source.docker "containers" {
+  host             = "unix:///var/run/docker.sock"
+  targets          = discovery.docker.containers.targets
+  relabel_rules    = discovery.relabel.containers.rules
+  forward_to       = [loki.process.kbs.receiver]
+  refresh_interval = "5s"
+}
+
+loki.process "kbs" {
+  forward_to = [loki.write.local.receiver]
+
+  stage.json {
+    expressions = {
+      level      = "level",
+      source_id  = "source_id",
+      trust_area = "trust_area",
+    }
+  }
+
+  stage.labels {
+    values = {
+      level      = "",
+      source_id  = "",
+      trust_area = "",
+    }
+  }
+}
+
+loki.write "local" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}
+
+prometheus.remote_write "local" {
+  endpoint {
+    url = "http://prometheus:9090/api/v1/write"
+  }
+}
+
+prometheus.scrape "gateway_api" {
+  targets         = [{__address__ = "gateway-api:8000"}]
+  job_name        = "gateway-api"
+  scrape_interval = "15s"
+  forward_to      = [prometheus.remote_write.local.receiver]
+}
+
+prometheus.scrape "gateway_mcp" {
+  targets         = [{__address__ = "gateway-mcp:8001"}]
+  job_name        = "gateway-mcp"
+  scrape_interval = "15s"
+  forward_to      = [prometheus.remote_write.local.receiver]
+}
+
+prometheus.scrape "connector_worker" {
+  targets         = [{__address__ = "connector-worker:9100"}]
+  job_name        = "connector-worker"
+  scrape_interval = "15s"
+  forward_to      = [prometheus.remote_write.local.receiver]
+}
+
+prometheus.scrape "ingestion_worker" {
+  targets         = [{__address__ = "ingestion-worker:9101"}]
+  job_name        = "ingestion-worker"
+  scrape_interval = "15s"
+  forward_to      = [prometheus.remote_write.local.receiver]
+}
+
+prometheus.scrape "webhook_receiver" {
+  targets         = [{__address__ = "webhook-receiver:8090"}]
+  job_name        = "webhook-receiver"
+  scrape_interval = "15s"
+  forward_to      = [prometheus.remote_write.local.receiver]
+}
+
+prometheus.scrape "harness_hr" {
+  targets         = [{__address__ = "harness-hr:8080"}]
+  job_name        = "harness-hr"
+  scrape_interval = "15s"
+  forward_to      = [prometheus.remote_write.local.receiver]
+}
+
+prometheus.scrape "harness_sales" {
+  targets         = [{__address__ = "harness-sales:8080"}]
+  job_name        = "harness-sales"
+  scrape_interval = "15s"
+  forward_to      = [prometheus.remote_write.local.receiver]
+}
+
+prometheus.scrape "harness_product" {
+  targets         = [{__address__ = "harness-product:8080"}]
+  job_name        = "harness-product"
+  scrape_interval = "15s"
+  forward_to      = [prometheus.remote_write.local.receiver]
+}
+
+prometheus.scrape "harness_engineering" {
+  targets         = [{__address__ = "harness-engineering:8080"}]
+  job_name        = "harness-engineering"
+  scrape_interval = "15s"
+  forward_to      = [prometheus.remote_write.local.receiver]
+}

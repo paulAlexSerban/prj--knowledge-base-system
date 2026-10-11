@@ -1,0 +1,15 @@
+apiVersion: 1
+
+datasources:
+  - name: Loki
+    uid: loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    jsonData:
+      derivedFields:
+        - name: request_id
+          matcherRegex: '"request_id":"([^"]+)"'
+          url: '{service=~".+"} | json | request_id="$${__value.raw}"'
+          urlDisplayLabel: Logs for this request
+          datasourceUid: loki

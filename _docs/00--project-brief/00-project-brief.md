@@ -102,7 +102,7 @@ These are places where the stated requirements need a narrower reading before im
 - User-delegated authorization: JWT claims, coarse pre-filter in SQL and Cypher, fine-grained post-check, Postgres row-level security, and an audit record of which attributes justified a result.
 - Delete propagation, content-hash skip, idempotent upserts, and a reconciliation sweep.
 - A demo harness: FastAPI services with SQLite and files for HR, Sales, Product, and Engineering, plus a mutation script.
-- Docker Compose, floci, and Terraform for the FIFO queues, dead-letter queues, and snapshot bucket. Grafana shows process health until the freshness panels exist. The API key stays in the environment.
+- Docker Compose, floci, and Terraform for the FIFO queues, dead-letter queues, and snapshot bucket. Alloy collects metrics and container logs. Prometheus stores metrics, Loki stores logs, and Grafana shows both. Traces are deferred. The API key stays in the environment.
 - A golden evaluation set of about 20 questions, including questions with no answer, conflicting sources, and access-boundary cases.
 
 ### Out of scope (production path, documented only)
@@ -123,7 +123,7 @@ Finance and other departments beyond the four. Real OAuth against Google, Notion
 | Models | OpenRouter for chat and, when configured, embeddings. Local fallback embedder (fastembed or sentence-transformers) and a deterministic stub extractor for offline runs. |
 | Identity | Mock IdP issuing signed JWTs with department, clearance, and region claims. |
 | Infra | Docker Compose. Terraform with floci endpoint overrides for queues and the snapshot bucket. |
-| Observability | Prometheus and Grafana. Traces are deferred. |
+| Observability | Prometheus, Alloy, Loki, and Grafana. Traces are deferred. |
 
 
 ![Container Diagram](00-c4-l2--container-diagram--knowledge-base-system.png)
@@ -135,7 +135,7 @@ Finance and other departments beyond the four. Real OAuth against Google, Notion
 The demo is the acceptance test. Each step is observable in the API response, the graph path, or the dashboard.
 
 1. Ask the Germany parental-leave question as an employee who is allowed to read HR policies. The answer cites the policy chunk, source version, and last sync time.
-2. Ask the same question as a user whose claims do not include that policy. The result set is empty. The audit log records the deny. The empty-result rate for that permission group moves.
+2. Ask the same question as a user whose claims do not include that policy. The result set is empty. The audit log records the deny as a JSON line (`decision` of `deny`, `request_id` in the line, not in a Loki label). Grafana opens that line from the dashboard. The empty-result rate for that permission group moves.
 3. Ask which high-ARR Q3 deals depend on unreleased engineering epics. The answer lists deals and epics and returns the path (deal, account or spec, epic, team).
 4. Edit a policy and delete a deal in the demo harness. Within the source's freshness tier, the edited chunk is re-embedded (content hash changed) and the deleted deal disappears from Postgres and Neo4j. Sync lag for that source is visible.
 5. Stop an ingestion worker mid-batch, then start it again. In-flight messages return to the queue or land in the dead-letter queue. Replaying them does not duplicate chunks or edges, because the upsert key is source id plus version or content hash.
@@ -167,7 +167,7 @@ The demo is the acceptance test. Each step is observable in the API response, th
 | `database` | Postgres and Neo4j schema. |
 | `demo-harness/` | HR, Sales, Product, and Engineering mock services. |
 | `infrastructure/` | Compose orchestration, Terraform provisioning, floci config, and `config/sources` YAML contracts. |
-| `observability` | One dashboard and metric definitions. |
+| `observability` | Alloy, Loki, Prometheus, one dashboard, and metric definitions. |
 | `shared` | Contracts shared by the harness and the gateway. Source contracts in `shared/contracts` are checked by `make contracts-check`. |
 | `tools` | Seed, mutation, and evaluation scripts. |
 

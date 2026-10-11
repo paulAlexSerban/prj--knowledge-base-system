@@ -2,7 +2,7 @@
 
 The Unified Knowledge Gateway is an event-driven hybrid knowledge base. It ingests department data, turns it into knowledge agents can use, and serves it through one API and one MCP server with the caller's permissions applied in the data layer.
 
-This repository is a proof of concept for that gateway. The design is written down. The source-contract gate is implemented and checked in CI. Compose starts the harness, workers, stores, API, MCP server, floci, and Grafana. Those processes are stubs: they answer health checks and list registered sources. They do not retrieve or answer questions yet.
+This repository is a proof of concept for that gateway. The design is written down. The source-contract gate is implemented and checked in CI. Compose starts the harness, workers, stores, API, MCP server, floci, and the observability stack (Alloy, Loki, Prometheus, and Grafana). Those processes are stubs: they answer health checks and list registered sources. They do not retrieve or answer questions yet.
 
 ## Status
 
@@ -12,7 +12,7 @@ This repository is a proof of concept for that gateway. The design is written do
 | Project brief, spikes, ADRs, and the architecture outline                                            | Retrieval, chunking, embeddings, and the two demo answers     |
 | C4 diagrams (context, containers, components, connector containers)                                  | Mock identity provider and access-boundary tests              |
 | Source-contract model, four YAML contracts, validator, tests, and CI                                 | Golden evaluation set                                         |
-| Compose projects for the harness, gateway, ingestion, store, floci, and Grafana, with stub processes | The eight freshness and authorization panels on the dashboard |
+| Compose projects for the harness, gateway, ingestion, store, floci, and observability (Alloy, Loki, Prometheus, Grafana), with stub processes | The eight freshness and authorization panels on the dashboard |
 | Terraform on floci: three FIFO queues, three dead-letter queues, one snapshot bucket                 | Seed data and `make demo`                                     |
 
 
@@ -55,7 +55,7 @@ Components
 | Knowledge graph                                   | Neo4j, small typed ontology.                                                                                                                                                |
 | Messaging and objects                             | SQS FIFO per object, with a dead-letter queue, and S3, both on floci. Scheduler, when added, drives P1/P2 polls and reconciliation. P0 polling is in the connector process. |
 | Models                                            | OpenRouter when `OPENROUTER_API_KEY` is set. A local embedder and a deterministic extractor for offline runs.                                                               |
-| Observability                                     | Prometheus scrapes `/metrics`. One Grafana dashboard. Traces are deferred.                                                                                                  |
+| Observability                                     | Alloy collects metrics and container logs. Prometheus stores metrics, Loki stores logs, Grafana shows both. Traces are deferred.                                             |
 
 
 Decisions, and what was rejected:
@@ -89,7 +89,7 @@ make up
 | 8090      | Product webhook receiver                          |
 | 8101–8104 | HR, Sales, Product, Engineering harness           |
 | 9090      | Prometheus                                        |
-| 3000      | Grafana, anonymous admin, dev only                |
+| 3000      | Grafana, anonymous admin, dev only. Logs are read here. Loki and Alloy are not published. |
 | 4566      | floci, bound to 127.0.0.1                         |
 
 
@@ -104,7 +104,7 @@ make down
 These five steps are the acceptance test. The processes start today. None of these questions can be answered until retrieval exists.
 
 1. Ask the Germany parental-leave question as a user who may read HR policies. The answer cites the chunk, source version, and last sync time.
-2. Ask the same question as a user whose claims do not include that policy. The result set is empty, and the audit log records the deny.
+2. Ask the same question as a user whose claims do not include that policy. The result set is empty. The audit log records the deny, and Grafana opens that line by `request_id`.
 3. Ask which high-ARR Q3 deals depend on unreleased engineering epics. The answer lists deals, epics, and the path.
 4. Edit a policy and delete a deal in the harness. The edited chunk is re-embedded and the deal disappears from Postgres and Neo4j. Sync lag for that source is on the dashboard.
 5. Stop an ingestion worker mid-batch and start it again. Messages retry or land in the dead-letter queue. Replaying them does not duplicate chunks or edges.
@@ -132,7 +132,7 @@ Contracts live in [infrastructure/config/sources](infrastructure/config/sources)
 | `database/`                      | Postgres init (pgvector, roles, placeholder RLS) and Neo4j constraints.         |
 | `demo-harness/`                  | Four FastAPI services. Empty SQLite. No documents yet.                          |
 | `infrastructure/`                | Compose projects, Terraform for floci, source contracts.                        |
-| `observability/`                 | Prometheus scrape config and a two-panel Grafana dashboard.                     |
+| `observability/`                 | Alloy and Loki config, Prometheus scrape config, and the Grafana dashboard.    |
 | `tools/`                         | Seed, mutation, and evaluation scripts. Empty.                                  |
 | `.github/workflows/`             | Contract gate and Compose config CI.                                            |
 
