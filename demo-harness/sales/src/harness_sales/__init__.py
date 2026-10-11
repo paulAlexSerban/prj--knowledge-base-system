@@ -1,1 +1,1 @@
-"""Sales harness process. The feed is the shared stub."""
+"""Sales harness. CRM deals with a cursor change feed."""

@@ -1,7 +1,7 @@
 [project]
 name = "harness-sales"
 version = "0.1.0"
-description = "Sales harness stub. Cursor feed, empty until the source is built."
+description = "Sales harness. CRM deals with a cursor change feed."
 requires-python = ">=3.12"
 dependencies = ["harness-common"]
 
