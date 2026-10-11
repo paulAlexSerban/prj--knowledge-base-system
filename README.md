@@ -94,7 +94,7 @@ Postgres 18 cannot open a data directory written by 16. If `kbs_pgdata` already 
 | 8888      | Jupyter (`make notebooks`). Token is `JUPYTER_TOKEN`. |
 | 5050      | pgAdmin, desktop mode, no login. Dev only.        |
 | 9090      | Prometheus                                        |
-| 3000      | Grafana, anonymous viewer, dev only. Logs are read here. Loki and Alloy are not published. |
+| 3000      | Grafana. Log in as `admin` / `admin`, or set `GRAFANA_ADMIN_PASSWORD`. Logs are read here. Loki and Alloy are not published. |
 | 4566      | floci, bound to 127.0.0.1                         |
 
 

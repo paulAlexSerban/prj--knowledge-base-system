@@ -16,6 +16,8 @@ Prometheus stores metrics and runs with remote write enabled. It scrapes only Al
 
 Loki labels are `service`, `trust_area`, `level`, and `source_id`. Services write one JSON object per line on stdout. `request_id`, `principal`, `chunk_id`, and `decision` stay in the line and are not labels. The line never contains `salary`, `compensation`, `ssn`, `national_id`, an API key, or retrieved text. A deny is a line whose `decision` is `deny`. Grafana opens the matching lines from a derived field on `request_id`.
 
+Grafana requires a sign-in. The local account is `admin`, and the password is `GRAFANA_ADMIN_PASSWORD`, which defaults to `admin`. The UI stays on `127.0.0.1`. Changes made in the UI are stored in Grafana's database. To keep one, export the JSON and commit it under `observability/grafana/dashboards/`.
+
 The dashboard has `up`, `kbs_worker_up`, a logs panel for errors and audit denies, and an HR connector row. Definitions are in [metrics.md](../../observability/metrics.md). Sync lag, last successful sync, snapshots skipped by hash, and reconciliation drift are built for the HR connector. The panels below that are not built yet stay on the list:
 
 | Panel | Why it exists |

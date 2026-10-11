@@ -4,5 +4,9 @@ providers:
   - name: kbs
     folder: KBS
     type: file
+    # UI saves go to Grafana's database. Export the JSON and commit it under
+    # observability/grafana/dashboards/ to keep a change in git.
+    allowUiUpdates: true
+    disableDeletion: false
     options:
       path: /var/lib/grafana/dashboards
