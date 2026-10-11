@@ -20,7 +20,7 @@ External networks must exist first (`make networks`).
 | `orchestration/compose.ingestion-pipeline.yaml` | `connector-hr`, ingestion worker, webhook receiver. Includes the AWS file so both wait for `floci-ready`. | `kbs-data`, `kbs-sources`, `kbs-aws`, `kbs-obs` |
 | `orchestration/compose.knowledge-gateway.yaml` | API on 8000, MCP on 8001 | `kbs-data`, `kbs-obs`, `kbs-sources` |
 | `orchestration/compose.demo-harness.yaml` | HR 8101, Sales 8102, Product 8103, Engineering 8104 | `kbs-sources`, `kbs-obs` |
-| `orchestration/compose.notebooks.yaml` | Jupyter 8888 | `kbs-sources`, `kbs-obs` |
+| `orchestration/compose.notebooks.yaml` | Jupyter 8888 | `kbs-sources`, `kbs-obs`, `kbs-aws` |
 | `orchestration/compose.observability.yaml` | Alloy, Loki, Prometheus 9090, Grafana 3000 | `kbs-obs` |
 | `orchestration/compose.tools.yaml` | pgAdmin 5050, SQLite viewers 8111–8114 | `kbs-data` (pgAdmin only), `kbs-tools` |
 

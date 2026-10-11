@@ -32,8 +32,13 @@ The dashboard is [kbs-overview.json](../../observability/grafana/dashboards/kbs-
 | Store write latency and errors | `kbs_store_write_seconds`, `kbs_store_errors_total` |
 | Delete verification failures | `kbs_delete_verification_failures_total`. Red on any failure. |
 | Ingestion logs | Loki `{service="ingestion-worker"}`. `event_type` and `decision` are in the line. `request_id` stays in the line. |
+| Retrieval latency | `kbs_retrieval_seconds` p95 by tool. The 0.25 bucket is the 250 ms target. Search includes the HR ACL re-check. |
+| ACL re-check | `kbs_acl_recheck_seconds` and `kbs_acl_recheck_failures_total`. |
+| Empty-result rate | `kbs_retrieval_empty_total` divided by `kbs_retrieval_total`, by permission group. |
+| Auth failures | `kbs_auth_failures_total` by reason. |
+| Audit denies | Loki `{service=~".+"} \| json \| decision="deny"`. `request_id` is a derived field, not a label. |
 
-Not built, and not charted: retrieval latency (search versus the ACL re-check) and empty-result rate by permission group. A text panel says so. Store-level search writes `kbs.audit_log`. The dashboard does not query that table.
+Not built, and not charted: traces. The dashboard does not query `kbs.audit_log`. The deny panel reads the log line.
 
 Alerts for the POC are dashboard colors, not a paging system and not Alertmanager: P0 lag over 30 seconds, any dead-letter message, any delete verification failure.
 

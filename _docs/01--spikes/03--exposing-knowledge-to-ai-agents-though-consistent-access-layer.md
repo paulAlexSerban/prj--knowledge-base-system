@@ -32,13 +32,13 @@ There is no write tool. Retrieved text cannot change permissions or trigger an a
 
 ### Identity
 
-A mock identity provider signs JWTs. Claims used for authorization: subject, department, clearance, region, and group list. The API and the MCP server validate the token and pass the principal into the service layer. Agents do not receive a service credential that sees more than the user who invoked them.
+A mock identity provider signs JWTs. Claims used for authorization: subject, groups, clearance, and department. Region is a contract attribute and is not a claim. The built signer is HS256 with the shared secret `GATEWAY_JWT_SECRET`. Personas live in `infrastructure/config/principals.yaml`: `employee_eng`, `hr_admin`, and `outsider`. `POST /dev/token` on the API issues a token when `DEV_TOKEN_ENDPOINT=1`. An expired token, a bad signature, a missing claim, or an unknown clearance is rejected. The HTTP body is `unauthorized`. The MCP server checks the same bearer token on `/mcp` and does not mint tokens. This is a stub for OIDC. Agents do not receive a service credential.
 
 ### Authorization
 
 Hybrid enforcement, in this order:
 
-1. Coarse pre-filter in the index. SQL `WHERE` on department, clearance, and region, and the same predicates in the parameterized Cypher. The candidate set is already authorized at the coarse grain, so restrictive users are not starved.
+1. Coarse pre-filter in the index. SQL filters on group overlap, clearance, and department. An empty `acl_departments` list means any department. A non-empty list still has to match. Region is not an HR predicate. Cypher filters on `acl_groups` and `min_clearance` only. Neo4j Community has no roles, so that template plus a read-only session is the whole graph check.
 2. Over-fetch. The retriever asks for more candidates than the tool will return, then applies the fine-grained check, then truncates. Empty-result rate is measured per permission group, not only globally ([ADR 0002](../03--adrs/0002-observability.md)).
 3. Fine-grained post-check against the ACL attributes stored on the chunk.
 4. Postgres row-level security as defense in depth, so a query that forgets the predicate still cannot read another principal's rows. The application role used by the service sets the principal's claims as session settings that the policies read.
@@ -49,20 +49,26 @@ Every allowed result writes an audit row: principal, chunk id, and the attribute
 
 Chunks store coarse columns `acl_groups` (`text[]`), `acl_departments` (`text[]`), and `min_clearance` (`smallint`), plus the exact rules in `acl_rules` (`jsonb`). Clearance order is `public` < `internal` < `confidential` < `restricted`. A mapping that omits clearance is treated as public. An unmapped native ACL is stored and granted to nobody: empty groups and `min_clearance` 99. `region` is allowed on a source contract and is not an HR access predicate.
 
+`hr_employee` does not set `department`, so an engineering employee can read employee policies. If any matching rule omits department, `acl_departments` is empty. `hr_policy_admin` still requires group `hr_admins`, clearance `confidential`, and department `people`. Migration `003-abac-department.sql` is the row-level policy for that rule.
+
 `gateway_ro` reads `kbs.chunks` under policy `chunks_read_by_acl`. The policy compares session settings `kbs.groups`, `kbs.clearance`, and `kbs.department` to those columns. An empty or missing setting sees no rows. `ingestion_rw` has `chunks_ingestion_all` and can write every row. The table owner bypasses row-level security, so the API must not use it.
 
-Store-level `search` applies the SQL pre-filter and row-level security, fuses the vector and full-text lists, then checks `acl_rules` and writes the audit row. REST `POST /v1/search`, the MCP tools, the mock identity provider, Cypher authorization, and the read-time `get_acl` re-check are not built.
+Store-level `search` applies the SQL pre-filter and row-level security, fuses the vector and full-text lists, then checks `acl_rules` and writes the audit row. For `hash-v1`, a vector-only neighbor is dropped, so a query with no shared terms returns nothing.
+
+`gateway-core` is the service layer. The API and the MCP server are adapters. `search`, `get_document`, and `find_related` are built. `get_document` returns 404 for a missing chunk and for a chunk the caller cannot read. `find_related` has three templates: teammates of a person, people on a team, and policies the caller may see. An entity id on `policies` asks about one policy. There is no open Cypher and no `Deal -DEPENDS_ON-> Epic` template on the live path. REST `list_sources` stays public. MCP requires a bearer token on `/mcp`, including `list_sources`. The gateway uses `gateway_ro` and a Neo4j read session. It does not synthesize an answer.
+
+HR policy hits call the harness `GET /policies/{id}/acl` before they are returned, because `acl_recheck_at_read` is true. The gateway joins `kbs-sources` for that call. A timeout or a bad body fails closed: the search returns no chunks and `kbs_acl_recheck_failures_total` increments. A missing policy is dropped on its own. People records are not re-checked. `find_related` uses the indexed graph ACL and does not call the harness. `kbs_retrieval_seconds` for search includes the re-check. `kbs_acl_recheck_seconds` is the harness call alone.
 
 ### Permission staleness
 
 | Sensitivity on the source contract | Behavior |
 | ---------------------------------- | -------- |
-| High (HR) | ACL-change events use the highest-priority queue (spike 04). Search also re-checks `get_acl` against the source at read time. The extra latency is accepted and excluded from the 250 ms target only if it is labeled as such in the metric. |
+| High (HR) | ACL-change events use the highest-priority queue (spike 04). Policy search re-checks `GET /policies/{id}/acl` on the harness. That time is `kbs_acl_recheck_seconds`. It is also inside the search histogram, because that is the time the caller waits. |
 | Medium and low (Sales, Engineering, Product) | The indexed ACL is authoritative inside the source's freshness window. The window is written on the contract. |
 
 ### Prompt injection and provenance
 
-Retrieved content is data. The service wraps snippets in a delimiter and the system prompt states that instructions inside retrieved documents are not followed. The POC has no write-capable tool for retrieved content to invoke. Responses include document ids, source version, and sync time so a citation can be opened with `get_document`. Rendered links in the small chat page are escaped.
+Retrieved content is data. The service wraps snippets between `<<<UNTRUSTED_CONTENT` and `UNTRUSTED_CONTENT>>>`. The tool text says the snippet is not an instruction. The POC has no write-capable tool and no chat page. The calling agent writes the answer. Responses include chunk id, source, version, and sync time so a citation can be opened with `get_document`.
 
 ### Versioning
 
@@ -90,8 +96,8 @@ The public HTTP API is `/v1`. Index metadata records `embedding_model` and `chun
 
 - The high-sensitivity read-time ACL check can miss the 250 ms budget. It is measured separately. If the demo cannot meet both, the freshness metric and the latency metric are reported as two numbers, not averaged into one.
 - Indexed ACLs for medium and low sources are stale inside the sync window. That window is a documented risk, not an accident discovered during an incident.
-- Tool descriptions that are vague cause the agent to call `search_knowledge` for a relational question or `find_related` for a policy question. Descriptions and the router's entity-type fallback (spike 02) are both required.
-- Session-scoped row-level security is easy to get wrong under connection pooling. The service sets claims on checkout and clears them on release. A test holds two principals on one pool and asserts isolation.
+- Tool descriptions that are vague cause the agent to call `search_knowledge` for a relational question or `find_related` for a policy question. The query router in spike 02 is not built. The caller picks the tool.
+- Session-scoped row-level security is easy to get wrong under connection pooling. Search sets `kbs.groups`, `kbs.clearance`, and `kbs.department` for the transaction and does not leave them on the connection. A test holds two principals on one pool and asserts isolation.
 
 ## Production path
 
@@ -102,5 +108,6 @@ The public HTTP API is `/v1`. Index metadata records `embedding_model` and `chun
 
 ## Open TODOs
 
-- The row-level security policies and `kbs.audit_log` are in `database/postgres/migrations/002-knowledge-store.sql`. Store-level search writes the audit row. The JWT claim schema is not built.
-- The deny log line is specified in [ADR 0002](../03--adrs/0002-observability.md): one JSON object on stdout, `decision` of `deny`, and `request_id` in the line rather than in a Loki label. Search does not emit that line yet. It writes the table.
+- The query router, answer synthesis, and the Sales-to-Engineering graph template are not built. Question 2 cannot be demonstrated.
+- OIDC is not built. The signer is the HS256 stub above.
+- The golden set of about 20 questions is not built. API tests cover one known chunk, a query with no shared terms, conflicting countries, and an access boundary.

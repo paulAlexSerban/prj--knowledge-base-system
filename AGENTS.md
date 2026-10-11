@@ -22,11 +22,12 @@ This repository is a POC knowledge gateway: ingest four department sources, keep
 | `backend/libs/connector-core/` | Connector interface, snapshot sync, S3 store, Postgres sync state, and the SQS publisher. Library, no image. |
 | `backend/libs/ingest-contract/` | Change-event model, queue names, and the snapshot hash. Library, no image. |
 | `backend/libs/knowledge-store/` | Chunkers, the hash embedder, Postgres chunks, ACL, and the Neo4j writer. Library, no image. |
+| `backend/libs/gateway-core/` | Retrieval service, principal and HS256 validation, Neo4j read templates, and the tool text shared by the API and the MCP server. Library, no image. |
 | `backend/tests/integration/` | Tests that cross a deployable boundary. |
 | `backend/tests/e2e/` | Opt-in live-stack test. `make e2e`. |
 | `database/` | Postgres migrations (sync state, chunks, full-text, vectors, ACL, row-level security) and Neo4j constraints. |
 | `demo-harness/` | One image per source. HR is built. Sales, Product, and Engineering are stubs on `harness-common`. |
-| `notebooks/` | Jupyter notebooks that seed, inspect, and edit the HR harness. |
+| `notebooks/` | Jupyter notebooks that seed, inspect, and edit the HR harness (`00`–`30`) and call the gateway (`40`–`43`). |
 | `infrastructure/orchestration/` | One Compose file per trust area, plus `compose.yaml` which includes them. |
 | `infrastructure/provisioning/terraform/` | Queues, dead-letter queues, and the snapshot bucket on floci. |
 | `observability/` | Alloy, Loki, Prometheus, one dashboard, and metric definitions. |

@@ -109,7 +109,7 @@ Similarity search answers semantic questions and fails relational ones. A graph 
 - Edges from structured sources are extracted in code and are deterministic. The roadmap answer trusts only those. The writer builds `Person -BELONGS_TO-> Team` and a `Policy` node from HR. `Deal -DEPENDS_ON-> Epic` is built and tested with fixtures. Sales and Engineering are not ingested. Edges extracted from specs carry a confidence and a source span and are supporting evidence only. That extractor is not built.
 - Entities join on a shared source key or email. The demo data uses one product key across three sources on purpose. Fuzzy entity resolution is not built.
 
-The router makes authority a code decision: semantic questions use chunk text, relational questions use the graph, and hybrid questions use the graph to find entities and chunks for wording.
+The router in spike 02 is not built. The caller chooses search or `find_related`. Semantic questions would use chunk text, relational questions the graph, and hybrid questions both.
 
 ## Agent access
 
@@ -126,14 +126,16 @@ MCP gives every client the same tools. It does not authenticate the user or enfo
 
 There is no write tool and no open SQL or Cypher. The token's claims become the principal. Authorization runs in this order:
 
-1. A coarse pre-filter in SQL and Cypher on department, clearance, and region. Restricted users are not starved.
+1. A coarse pre-filter in SQL on group, clearance, and department. An empty department list means any department. Cypher filters on group and clearance only.
 2. Over-fetch, then a fine-grained post-check against the ACL attributes on the chunk.
 3. Postgres row-level security reads the principal from session settings, so a query that forgets the predicate still cannot read another principal's rows.
 4. An audit row names the attributes that justified each allow. Denies are audited too.
 
-Permission staleness is explicit. HR (high sensitivity) puts ACL changes on the P0 queue and re-checks the source at read time, and that latency is reported separately from search. Sales, Engineering, and Product trust the indexed ACL inside a documented sync window.
+Permission staleness is explicit. HR policy search calls the harness ACL endpoint before returning a chunk. A timeout returns nothing. `find_related` does not make that call. Sales, Engineering, and Product are not ingested. Their contracts still say the indexed ACL is authoritative inside the freshness window.
 
-Retrieved text is data. Snippets are delimited and the prompt says embedded instructions are not followed. No tool can write, so retrieved text has nothing to trigger.
+Retrieved text is data. Snippets are wrapped as untrusted content. No tool can write, and the gateway does not write an answer. The calling agent does.
+
+What runs today is narrower than the table above. Search is hybrid full-text plus the hash embedder. It is not a query router, and `hash-v1` is not semantic: a chunk is returned only when the words also match. `find_related` is the three HR templates. Question 2, which needs Sales deals and Engineering epics, is not demonstrable. Identity is HS256 with `GATEWAY_JWT_SECRET`, not OIDC. Neo4j Community has no roles. Graph authorization is the template and a read-only session.
 
 ## Self-maintenance
 
@@ -173,7 +175,7 @@ Detail: [spike 04](../01--spikes/04--self-maintaing-over-time-refelcting-additio
 | SQS versus a log | No cross-object order and no independent replay. | Dead-letter depth. |
 | Indexed ACL versus read-time check | HR pays a live call. Other sources are stale inside the window. | Latency split, window on the contract. |
 | Deterministic versus extracted edges | Extracted edges never decide the headline answer, so recall on spec links is lower. | Path versus supporting edges. |
-| 250 ms versus the HR re-check | The re-check can miss 250 ms. The two numbers are reported separately. | Latency histograms. |
+| 250 ms versus the HR re-check | The re-check can miss 250 ms. Search latency includes it. The harness call has its own histogram. | `kbs_retrieval_seconds` and `kbs_acl_recheck_seconds`. |
 
 ## Quality evaluation
 
@@ -188,7 +190,7 @@ A golden set of about 20 questions runs on every change to chunking, the embeddi
 
 Faithfulness is a citation check: every claim maps to a returned chunk id. A model-graded judge is a production addition.
 
-Monitoring follows [ADR 0002](../03--adrs/0002-observability.md). The HR connector emits snapshot lag, last success, and reconciliation drift. The ingestion worker emits event lag, queue depth, dead-letter depth, embed calls, embeds skipped by hash, index drift, store write time, and dependency gauges. The Grafana dashboard charts the connector row and the ingestion series (event lag, queue depth, dead-letter depth, embed calls, index drift, store writes, and worker dependencies). Search latency and empty-result rate are not emitted: there is no retrieval endpoint. A text panel says so. POC alerts are dashboard thresholds: P0 lag over 30 seconds, any dead-letter message, any delete verification failure. There is no Alertmanager.
+Monitoring follows [ADR 0002](../03--adrs/0002-observability.md). The HR connector emits snapshot lag, last success, and reconciliation drift. The ingestion worker emits event lag, queue depth, dead-letter depth, embed calls, embeds skipped by hash, index drift, store write time, and dependency gauges. The gateway emits retrieval latency, empty-result rate by permission group, auth failures, and the HR ACL re-check. The Grafana dashboard charts those rows. A deny is a log line with `decision: deny`, opened from `request_id`. The dashboard does not query `kbs.audit_log`. POC alerts are dashboard thresholds: P0 lag over 30 seconds, any dead-letter message, any delete verification failure. There is no Alertmanager. The golden set of about 20 questions is not built. API tests cover one known chunk, a query with no shared terms, two countries, and an access boundary.
 
 | Symptom | Action |
 | ------- | ------ |
@@ -197,7 +199,7 @@ Monitoring follows [ADR 0002](../03--adrs/0002-observability.md). The HR connect
 | Indexed ids exceed source ids | Run reconciliation. |
 | Recall drops after a chunker or model change | Roll back `chunker_version` or `embedding_model`. |
 | Empty-result rate rises for one group | Treat as an authorization defect first. Check the ACL mapping, the pre-filter, and the RLS settings. |
-| HR re-check errors | Proposed: fail closed. Not yet written in spike 03. |
+| HR re-check errors | Fail closed. The search returns no chunks and the failure counter increments. |
 
 ## Risks
 
@@ -214,8 +216,8 @@ Monitoring follows [ADR 0002](../03--adrs/0002-observability.md). The HR connect
 
 ## What is built
 
-Built: the design documents and diagrams, the source-contract gate with tests and CI, four YAML contracts, Compose, Terraform on floci (three FIFO queues, three dead-letter queues, one bucket), Postgres and Neo4j schema, the observability stack, a seeded HR harness, and the HR connector (`connector-hr`) which writes raw snapshots, enqueues change events, and records sync state. The ingestion worker consumes those events, chunks and embeds them, and writes Postgres and Neo4j. Store-level search applies row-level security, full-text and vector search, the fine ACL check, and an audit row. `make dlq-replay` exists. The running embedder is `hash-v1`, which is deterministic and not semantic. The gateway processes answer health checks and list sources. They do not retrieve or answer questions.
+Built: the design documents and diagrams, the source-contract gate with tests and CI, four YAML contracts, Compose, Terraform on floci (three FIFO queues, three dead-letter queues, one bucket), Postgres and Neo4j schema, the observability stack, a seeded HR harness, and the HR connector (`connector-hr`) which writes raw snapshots, enqueues change events, and records sync state. The ingestion worker consumes those events, chunks and embeds them, and writes Postgres and Neo4j. Store-level search applies row-level security, full-text and vector search, the fine ACL check, and an audit row. The API and the MCP server search, fetch one chunk, and run the three HR graph templates under the caller's JWT. HR policy search re-checks the harness ACL. Retrieval latency, empty-result rate, and auth failures are on the dashboard. `make dlq-replay` exists. The running embedder is `hash-v1`, which is deterministic and not semantic. The gateway returns cited chunks and does not write an answer.
 
-Not built: REST and MCP search, the query router, the mock identity provider, Cypher authorization, the read-time ACL re-check, the Sales, Product, and Engineering connectors and harness data, the golden set and `make eval`, and the embedding rebuild command. Search latency and empty-result rate are not measured. The dashboard says so in a text panel. There is no Lambda. `backend/functions` stays absent until a function exists. The webhook receiver in Compose is the stub; its production path is API Gateway plus Lambda.
+Not built: the query router, answer synthesis, demo question 2, OIDC, the Sales, Product, and Engineering connectors and harness data, the golden set and `make eval`, traces, and the embedding rebuild command. There is no Lambda. `backend/functions` stays absent until a function exists. The webhook receiver in Compose is the stub; its production path is API Gateway plus Lambda.
 
 Open gap: one diagram in the house drawio style showing every component, the data flow, and the transformation at each hop. The hop table above carries the transformations for now.

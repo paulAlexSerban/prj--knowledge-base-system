@@ -40,7 +40,7 @@ Population rules:
 - Unstructured product specs may emit `REFERENCES` edges from a constrained extractor (OpenRouter, or the offline stub). Each extracted edge stores confidence and the source span it came from. Extracted edges are returned as supporting evidence. They do not decide the headline answer.
 - Entity identity is the shared source key or email. Fuzzy entity resolution is out of scope, and the demo data uses one product key across Sales, Product, and Engineering so the join is real.
 
-The graph writer is built and is not HR-specific. HR records write `Person -BELONGS_TO-> Team` and a `Policy` node. `Deal -DEPENDS_ON-> Epic` is merged from either side and is proven with fixtures only. Sales and Engineering are not ingested, so that edge is not on the live path. `OWNS`, `REFERENCES`, the spec extractor, and the query router are not built. Cypher templates for the roadmap question are still an open TODO.
+The graph writer is built and is not HR-specific. HR records write `Person -BELONGS_TO-> Team` and a `Policy` node. `Deal -DEPENDS_ON-> Epic` is merged from either side and is proven with fixtures only. Sales and Engineering are not ingested, so that edge is not on the live path. `OWNS`, `REFERENCES`, the spec extractor, and the query router are not built. The gateway reads three HR templates: teammates of a person, people on a team, and policies the caller may see. There is no Cypher template for the deals-and-epics question.
 
 ### Query router
 
