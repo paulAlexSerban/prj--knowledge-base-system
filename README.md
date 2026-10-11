@@ -102,7 +102,7 @@ Postgres 18 cannot open a data directory written by 16. If `kbs_pgdata` already 
 make down
 ```
 
-`make notebooks` starts Jupyter on port 8888. The seed notebook loads up to 10,000 HR people or policies through the harness. `make tools` starts pgAdmin and the four SQLite viewers, plus Postgres and the harness so those databases exist. `make tf-apply` creates the queues and the snapshot bucket again. `make seed`, `make demo`, and `make eval` do not exist yet. Details of networks and how to start one project alone are in [infrastructure/README.md](infrastructure/README.md).
+`make notebooks` starts Jupyter on port 8888. The seed notebook resets the HR harness and loads 200 people by default (`SEED_COUNT=10000` is the scale load). The other notebooks create, update, and delete HR rows and check the S3 snapshots. `make tools` starts pgAdmin and the four SQLite viewers, plus Postgres and the harness so those databases exist. `make tf-apply` creates the queues and the snapshot bucket again. `make seed`, `make demo`, and `make eval` do not exist yet. Details of networks and how to start one project alone are in [infrastructure/README.md](infrastructure/README.md).
 
 ## Demo script
 
@@ -140,7 +140,7 @@ Contracts live in [infrastructure/config/sources](infrastructure/config/sources)
 | `backend/tests/`                 | Integration tests, plus `e2e/` for `make e2e`. |
 | `database/`                      | Postgres init (pgvector, roles, placeholder RLS) and Neo4j constraints.         |
 | `demo-harness/`                  | One image per source. HR is seeded. Sales, Product, and Engineering are empty stubs. |
-| `notebooks/`                     | Jupyter seed and inspect notebooks for HR.                                      |
+| `notebooks/`                     | Jupyter notebooks that seed, inspect, and edit the HR harness.                  |
 | `infrastructure/`                | Compose projects, Terraform for floci, source contracts.                        |
 | `observability/`                 | Alloy and Loki config, Prometheus scrape config, and the Grafana dashboard.    |
 | `tools/`                         | Seed, mutation, and evaluation scripts. Empty.                                  |

@@ -25,7 +25,7 @@ This repository is a POC knowledge gateway: ingest four department sources, keep
 | `backend/tests/e2e/` | Opt-in live-stack test. `make e2e`. |
 | `database/` | Postgres and Neo4j schema. |
 | `demo-harness/` | One image per source. HR is built. Sales, Product, and Engineering are stubs on `harness-common`. |
-| `notebooks/` | Jupyter seed and inspect notebooks for the HR harness. |
+| `notebooks/` | Jupyter notebooks that seed, inspect, and edit the HR harness. |
 | `infrastructure/orchestration/` | One Compose file per trust area, plus `compose.yaml` which includes them. |
 | `infrastructure/provisioning/terraform/` | Queues, dead-letter queues, and the snapshot bucket on floci. |
 | `observability/` | Alloy, Loki, Prometheus, one dashboard, and metric definitions. |

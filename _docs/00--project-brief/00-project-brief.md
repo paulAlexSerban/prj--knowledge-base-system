@@ -168,7 +168,7 @@ The demo is the acceptance test. Each step is observable in the API response, th
 | `backend/libs/ingest-contract` | Change events, queue names, and the snapshot hash. A library, not a service. |
 | `database` | Postgres and Neo4j schema. |
 | `demo-harness/` | HR, Sales, Product, and Engineering mock services. |
-| `notebooks/` | Jupyter notebooks that seed and inspect the HR harness. |
+| `notebooks/` | Jupyter notebooks that seed, inspect, and edit the HR harness. |
 | `infrastructure/` | Compose orchestration, Terraform provisioning, floci config, and `config/sources` YAML contracts. |
 | `observability` | Alloy, Loki, Prometheus, one dashboard, and metric definitions. |
 | `shared` | Contracts, the registry gate, and logging. Source contracts in `shared/src/shared/contracts` are checked by `make contracts-check`. |

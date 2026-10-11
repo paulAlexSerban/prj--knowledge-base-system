@@ -1,38 +1,126 @@
-"""The seed notebook is the way an engineer loads a large source. CI checks the file, not a run."""
+"""CI checks the notebook files, not a live run. `make e2e` covers the live cycle."""
 
+import importlib.util
 import json
 from pathlib import Path
 
+from connector_hr.client import canonical_record
+
 NOTEBOOKS = Path(__file__).parents[1]
+FORBIDDEN = ("salary", "compensation", "ssn", "national_id")
+EXPECTED = [
+    "00-seed-hr.ipynb",
+    "01-inspect-hr.ipynb",
+    "10-policy-create-read.ipynb",
+    "11-policy-update.ipynb",
+    "12-policy-acl-change.ipynb",
+    "13-policy-delete.ipynb",
+    "20-person-create-read.ipynb",
+    "21-person-update.ipynb",
+    "22-person-acl-and-delete.ipynb",
+    "30-end-to-end-cycle.ipynb",
+]
+CRUD = {
+    "10-policy-create-read.ipynb": ("/admin/policies", "409", "422"),
+    "11-policy-update.ipynb": ("/admin/policies/", "404"),
+    "12-policy-acl-change.ipynb": ("/admin/policies/", "/acl"),
+    "13-policy-delete.ipynb": ("/admin/policies/", "kbs_snapshots_deleted_total"),
+    "20-person-create-read.ipynb": ("/admin/people", "409", "422"),
+    "21-person-update.ipynb": ("/admin/people/", "manager_id", "404"),
+    "22-person-acl-and-delete.ipynb": ("/admin/people/", "native_acl"),
+    "30-end-to-end-cycle.ipynb": ("/admin/policies", "drift"),
+}
 
 
-def sources(name: str) -> str:
-    notebook = json.loads((NOTEBOOKS / name).read_text(encoding="utf-8"))
+def load_notebook(name: str) -> dict:
+    return json.loads((NOTEBOOKS / name).read_text(encoding="utf-8"))
+
+
+def cell_text(notebook: dict, code_only: bool = False) -> str:
     chunks = []
     for cell in notebook["cells"]:
-        if cell["cell_type"] == "code":
-            chunks.append("".join(cell["source"]))
+        if code_only and cell["cell_type"] != "code":
+            continue
+        source = cell["source"]
+        chunks.append("".join(source) if isinstance(source, list) else source)
     return "\n".join(chunks)
 
 
-def test_seed_notebook_has_the_parameter_cell():
-    text = sources("00-seed-source.ipynb")
+def load_helpers():
+    spec = importlib.util.spec_from_file_location("hr_demo", NOTEBOOKS / "hr_demo.py")
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_notebook_set_parses_without_saved_output():
+    found = sorted(path.name for path in NOTEBOOKS.glob("*.ipynb"))
+    assert found == EXPECTED
+    for name in EXPECTED:
+        notebook = load_notebook(name)
+        assert notebook["nbformat"] >= 4
+        for cell in notebook["cells"]:
+            if cell["cell_type"] != "code":
+                continue
+            assert cell["outputs"] == []
+            assert cell["execution_count"] is None
+            source = cell["source"]
+            text = "".join(source) if isinstance(source, list) else source
+            compile(text, name, "exec")
+
+
+def test_seed_notebook_is_a_small_demo_load():
+    text = cell_text(load_notebook("00-seed-hr.ipynb"), code_only=True)
     assert 'os.environ.get("SEED_SOURCE", "hr")' in text
     assert 'os.environ.get("SEED_KIND", "person")' in text
-    assert 'os.environ.get("SEED_COUNT", "10000")' in text
+    assert 'os.environ.get("SEED_COUNT", "200")' in text
     assert "SEED_VALUE" in text and "SEED_RESET" in text
-    assert "/admin/seed" in text
-    assert "next_page_token" in text
+    assert "/admin/seed" in text and "/admin/reset" in text
+    assert "/ids" in text
+    assert "next_page_token" not in text
 
 
-def test_snapshot_notebook_compares_counts():
-    text = sources("02-inspect-snapshots.ipynb")
+def test_inspect_notebook_checks_the_policy_and_the_bucket():
+    text = cell_text(load_notebook("01-inspect-hr.ipynb"))
+    assert "FORBIDDEN" in text
+    assert "pol-parental-leave-de" in text
     assert "kbs-raw-snapshots" in text
-    assert "pol-parental-leave-de" in text
     assert "drift" in text
+    assert "Elternzeit" in text
 
 
-def test_inspect_notebook_checks_forbidden_fields():
-    text = sources("01-inspect-source.ipynb")
-    assert "salary" in text and "national_id" in text
-    assert "pol-parental-leave-de" in text
+def test_crud_notebooks_call_admin_and_read_snapshots():
+    for name, needles in CRUD.items():
+        text = cell_text(load_notebook(name))
+        assert "raw/hr/" in text
+        for needle in needles:
+            assert needle in text, name
+
+
+def test_forbidden_names_stay_out_of_the_notebooks():
+    for name in EXPECTED:
+        text = cell_text(load_notebook(name))
+        for line in text.splitlines():
+            if "FORBIDDEN" in line:
+                continue
+            for name_ in FORBIDDEN:
+                assert name_ not in line, f"{name}: {line}"
+
+
+def test_helpers_are_importable_and_match_the_connector():
+    helpers = load_helpers()
+    assert helpers.FORBIDDEN == frozenset(FORBIDDEN)
+    for name in ("admin", "s3_client", "snapshot", "versions", "wait_until", "metric"):
+        assert callable(getattr(helpers, name))
+    record = {
+        "person_id": "emp-900001",
+        "native_acl": ["hr_policy_admin", "hr_employee"],
+        "manager_id": None,
+        "version": 2,
+    }
+    assert helpers.canonical(record) == canonical_record(record)
+    sample = '\nkbs_snapshots_deleted_total{source_id="hr"} 4\n'
+    assert helpers.parse_metric(sample, "kbs_snapshots_deleted_total", {"source_id": "hr"}) == 4.0
+    created = 'kbs_snapshots_deleted_total_created{source_id="hr"} 1\n'
+    assert helpers.parse_metric(created, "kbs_snapshots_deleted_total", {"source_id": "hr"}) is None

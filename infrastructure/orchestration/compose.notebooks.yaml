@@ -20,6 +20,7 @@ services:
     environment:
       JUPYTER_TOKEN: ${JUPYTER_TOKEN:-dev-only-notebook}
       HARNESS_HR_URL: http://harness-hr:8080
+      CONNECTOR_METRICS_URL: http://connector-hr:9100/metrics
       AWS_ENDPOINT_URL: http://floci:4566
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}

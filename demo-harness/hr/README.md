@@ -43,7 +43,7 @@ These endpoints stand in for HR staff editing the source. Nothing in the gateway
 
 ## Load 10,000 rows
 
-The seed notebook is the supported way. See [notebooks/README.md](../../notebooks/README.md). The same call from the host:
+The seed notebook is the supported way. By default it resets the harness and adds 200 people; set `SEED_COUNT=10000` for this load. See [notebooks/README.md](../../notebooks/README.md). The same call from the host:
 
 ```bash
 curl -s -X POST http://127.0.0.1:8101/admin/seed \

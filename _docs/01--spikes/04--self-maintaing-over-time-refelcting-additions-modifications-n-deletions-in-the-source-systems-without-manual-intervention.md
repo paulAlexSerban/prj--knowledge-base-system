@@ -44,7 +44,7 @@ Three queues, matching the freshness tiers in the brief:
 | ---- | -------- | ----- |
 | P0 | HR policy body changes, any ACL change | Highest priority. Target under 30 seconds where the source can push or is polled that fast. |
 | P1 | Sales deals, engineering epics, product specs | Target under 5 minutes. |
-| P2 | Bulk backfill and the reconciliation sweep | Daily, or on demand. HR bulk load is `POST /admin/seed` from [notebooks/00-seed-source.ipynb](../../notebooks/00-seed-source.ipynb). `make seed` is not a target yet. |
+| P2 | Bulk backfill and the reconciliation sweep | Daily, or on demand. HR bulk load is `POST /admin/seed` from [notebooks/00-seed-hr.ipynb](../../notebooks/00-seed-hr.ipynb). `make seed` is not a target yet. |
 
 Workers drain P0 before P1 before P2. The POC runs one worker process with that order, which is enough at demo volume.
 
