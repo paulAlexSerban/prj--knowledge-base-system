@@ -1,82 +1,102 @@
-# Transforming Data into Knowledge that AI Agents Can Easily Interpret and Use
+# Spike 02: Turning source data into knowledge agents can use
 
-## Context
+Status: decision for the POC. Production scale is called out and is not built.
 
-- data is sourced from a variety of sources, in a variety of formats and with a varaiety of structures and connections
-- RAG is the most widely adopted pattern
-- Knowledge graphs are widely discussed to complement RAG
-- failure modes:
-  - lack the info entierly because the document was never ingested or was ingested too kate
-  - can have the information but fail to retrieve it, because the query and passage use different vocabulary or because the relvant fact is buried in a long document
-  - can retrieve the right passage but misinterpret it, because the passage refers to "the new policy" without saying which policy or when it took effect
-  - it can answer from information the requesting user is not authorized to use - security problem, not a quality problem
-- where decisions are needed to tackle the listed failure modes:
-  - missing data is an ingestion problem
-  - retrival failures are an indexing and query-understanding problem
-  - misinteprepretation is a problem of context: metadata, versioningm and relathionship between entities
-  - authorization failures are an access control problem that needs to be enforced at retrival time, not hoped for the prompt
-- what kind of questions user migt ask:
-    - semantic and open ended - well suited to similarity search over text: "what have we said about data residency in enterprise contracts?"
-    - relational and precise - poorly serverd by similarity search, because the anser depends on joining facts across entities and applying filters: "which customers on the enterprise plan are using the deprecated export API and have renewal dates in Q4?"
+## Problem
 
-## Technical explanations
-### RAG (Retrieval-Augmented Generation)
-- documents are split into chunks, each chunk is converted into an embeding vector, vectors are stored in an index, and at query time the query is embeded and the nearest chunks are retrieved and placed in the model's context window
-- knwoledge lives outside the model, so it can be updated without retraining, it can be attributed to sources, and access control can be applied to the retrieved step
-- decisions that determine quality
-  - chunking strategy: how to split the document into chunks? @TODO: adr on chunking strategies, approaches and patterns
-    - chunks that are too small lose context needed to interpret them
-    - chunks that are too large dilute the embeding and waste context budget
-    - splitting on fixed token counts often cuts across text (sentences, tables, code blocks, etc.)
-    - structure aware chunking, which respects headings and document hierarchy, usually performs better, and eahc chunk should cary metaata such as source, section path, version, timestamp, and access labels
-  - embeding model: how to capture semantic similarity? useful for paraphrased queries but can also retrieve passafes that are topically clise and facually irrelevant
-    - dense retrival is weak on exat identifiers such as error codes, product SKUs, and names, where lexical mathcing is more reliable
-      - this is the main reason hybrid retrival, which combines dense vectors with saparse keyword scoring such as BM25 has became a default in serious systems @TODO: adr on keyword scoring systems
-      - reciprocal rank fusion is a simple and robust wa to merge the two ranked lists without needing to calibrate scores agains each other
-  - retival quality approaches: how to ensure the retrived passages are relevant to the query?
-    - reranker - cross-encoder model that scores each query-passage pair more accurately than bi-encoder used for initial retrival at high cost
-    - a tipical pipeline retrieves cheaply, reranks them, and passes the top handful to the generator
-    - query transformation such as rewriting a conversational follow-up into a standalone query or generating multiple paraphrases, can also recover recall that a single embeding misses
+Agents fail in four different ways, and each one is a different subsystem:
 
-### Knowledge Graphs
-- represents information as entities and typed relationships, typically expressed as SUBJECT-PREDICATE-OBJECT triples
-- key property - relationships are first-class and can be traversed, filtered, and aggregated with precision
-- the strength of a knowledge graph is exactness and explainability
-- graphs aslo supports multi-hop reasoning naturally - the path from a support ticket to a product component to an owning team is a sequence of edges, and the system can show that path as justification
-- entity resolution, is central to its value, and it is often the hardest part of building the graph in the first place
-- graphs require schema design and extraction - someone must decide which entity types and relationships types mattern, and an extraction pipeline must populate them from unstructured text, typically using a combination of rules, classical NLP, and langiage models
-- LLM-based extraction has made this much mode practical, but it introduces it's own error profile:
-  - extracted triples can be plasible and wrong, and errors compound when graph is used for reasoning
-- graphs also strugglw with the open-ended, prose heavy knwoledge that makes up the most of an organization's documenttaion - representing the nuance of a design rationale as tripples loses much of what made it useful
+| Failure | Where it is fixed |
+| ------- | ----------------- |
+| The fact was never ingested, or was ingested too late | Ingestion and sync (spikes 01 and 04) |
+| The fact is indexed, and retrieval misses it because the query and the passage use different words, or the fact is buried in a long document | Indexing and query understanding (this spike) |
+| The right passage is retrieved and misread, because it says "the new policy" without naming which policy or when it took effect | Context: metadata, version, and relationships (this spike) |
+| The answer uses information the requester may not see | Authorization at retrieval time (spike 03). This is a security failure, not a quality failure. |
 
-### Hybrid Knowledge Representation
-- productive systems do not choose - knwoledge is stored in multiple representations and route queries to the representation best suited to them - or combine evidence from several
-- common:
-  - keep raw documents in object storage with rich metadata in a relational or document store
-  - maintain a vector index over chunks for semantic retrival
-  - extracts a knowledge graph fo ke entities and relationship that links chunks to the entities they mention
-- retival can start from  vector search, expand though the graph to related entities, and pull linked pasages
-- the pattern is sometimes called GraphRAG
-- the cost is operational complexity - you have multiple indexes that must be kept consistent with the source of truth, and a bug in one can produce answers that look authoritative but are assembled from stale or mismatched pieces
-- TIP: to reason about the design - ask for eahc category of question: "which representation should be the autority"
-  - factual lookups on structured attributes - the relational graph store should be  authorative and the model should be told to trust it
-  - explanatory questions about reasoning or history - the document text should be authorative and the graph should only help locate it
-  - making these authority rules explicit in code, rather than leaving them to the model's discretion, is one of the more important habits to develop
+Questions also split in two. Semantic questions ("What have we said about data residency in enterprise contracts?") fit similarity search. Relational questions ("Which high-ARR Q3 deals depend on unreleased engineering epics?") need joins and filters. Similarity search answers the second kind badly, and a graph answers the first kind badly, because most organizational prose does not survive being reduced to triples.
 
-### Alternatives
-- for small, relatively static corpus, such as product manual or a set of policy documents ythat fit comfortably within a mode's context window, the simplest effective design may be to place the docuemnts directly in the prmpt, possibly with prompt caching to control cost
-- fine-tunning is recommended for chaning behavior, style, or output format
-- a well-designed relational schema with full-text search, queried through tool calling agents, anc answer a surprising share of organizational questions, especially when the data is already structured - in many organizations the best first version is an agent with a set of well-described tools over existing systems of record, with retrival added when those tools fall short
-- the principle is to use the least complex representation that answers your actual questions
+## Decision (MVP)
 
-## Industry practices
-- start with the question, not the technology - collect the questions the system must answer, classify them by type, and decide which representation is authoritive for each class - this helps prevent architectural mistakes - keep the classificaiton in code or configuration so that routing decisions are explicit and testable
-- treat the document as the unit of truth and everythin else as a derived index
-- make provenence a first-class feature - every claim in a generated answer should be traceable to a source passage with a verion and timestamp
-- evaluate continously - manitain a regression suite of labled questions, run it on every change to chunking, embedding models, prompts, or retrival parameters, and track rerival and answer metrics separately
-  - include adversial cases - questions whise answers are not in the corpus, questions with conflicting sources, questions that probe access boundries
-- enforce quthorization in the data layer and test it directly - write tests that create users with different group memeberships and assets that retrival, explanantion, and tool calls return only permitted content - treat these tests as security tests, with the same review rigor as any other access control code
-- prefer the simplest representation that meets the requirement
-  - add a knowledge graph when you have demonstrated that multi-hop relational questions matter and that vector retrival fails on them
-  - add a reranker when recall is good but precision is poor
-  - each addition should be justified by a measured gap, not by expectation that a more sophisticated architecture will perform better
+Keep the source document as the unit of truth. Everything else is a derived index. Use two derived indexes, and route each question to the representation that is authoritative for it.
+
+### Hybrid RAG, in Postgres
+
+- Structure-aware chunks. Markdown splits on headings, PDFs on sections, records render as one chunk per row. Each chunk stores source id, section path, a short contextual header (document title plus heading path), version, timestamp, ACL attributes, `embedding_model`, and `chunker_version`. See [ADR 0003](../03--adrs/0003-embedding-and-chunk-versioning.md).
+- Dense retrieval with pgvector, plus lexical retrieval with Postgres full-text search. Dense retrieval misses exact identifiers (deal ids, epic keys, policy names). Lexical retrieval catches them.
+- Reciprocal rank fusion merges the two ranked lists in application code. Fusion does not require calibrating the two score scales against each other.
+- Raw blobs live in S3. Postgres holds the chunk text, metadata, and both indexes. See [ADR 0001](../03--adrs/0001-storage.md).
+
+### Graph, in Neo4j, small on purpose
+
+Ontology for the demo question and the policy question only:
+
+| Nodes | Edges |
+| ----- | ----- |
+| Person, Team, Account, Deal, Epic, Spec, Policy | `OWNS`, `DEPENDS_ON`, `REFERENCES`, `BELONGS_TO` |
+
+Population rules:
+
+- Structured sources (Sales CRM, Engineering epics, HR directory) emit edges in connector code. These edges are deterministic and are the ones the roadmap answer trusts.
+- Unstructured product specs may emit `REFERENCES` edges from a constrained extractor (OpenRouter, or the offline stub). Each extracted edge stores confidence and the source span it came from. Extracted edges are returned as supporting evidence. They do not decide the headline answer.
+- Entity identity is the shared source key or email. Fuzzy entity resolution is out of scope, and the demo data uses one product key across Sales, Product, and Engineering so the join is real.
+
+### Query router
+
+The service layer classifies the request:
+
+| Class | Authority | What runs |
+| ----- | --------- | --------- |
+| Semantic | Chunk text | Hybrid search, fused, then authorized |
+| Relational | Graph | Parameterized Cypher over the typed ontology, then the linked chunks for wording |
+| Hybrid | Graph for the path, chunks for the prose | Graph traversal to find the entities, hybrid search restricted to those entities' chunks |
+
+Authority is code, not a prompt. Factual lookups on structured attributes trust the graph and the relational rows. Explanatory questions trust the document text, and the graph only locates it.
+
+### Evaluation, before tuning
+
+A golden set of about 20 questions, checked in under `tools/`, run by `make eval` on every change to chunking, the embedding model, prompts, or retrieval parameters:
+
+- Questions with a known supporting chunk (recall@k, MRR on the retrieved set).
+- Questions whose answer is not in the corpus (the system must abstain).
+- Questions with two conflicting sources (the answer must surface both versions).
+- Access-boundary questions (a user without the claim must receive an empty authorized set). These are security tests.
+
+Retrieval metrics and answer faithfulness are tracked separately. Faithfulness for the POC is a citation check: every claim in the answer maps to a returned chunk id. A model-graded judge is a production-path addition.
+
+## Why
+
+- The two demo questions need different representations. Hybrid search answers the policy question. The graph answers the dependency question and can show the path, which is the explanation.
+- Putting both indexes in one design, and writing down which one is authoritative per question class, avoids a chatbot that improvises joins from retrieved prose.
+- Reciprocal rank fusion is enough. A reranker is justified only after the golden set shows recall is fine and precision is not. That evidence does not exist yet, so the reranker stays out.
+- Deterministic edges from SQL and JSON avoid the failure mode where plausible extracted triples compound across hops.
+
+## Alternatives rejected
+
+| Alternative | Why it was rejected for the POC |
+| ----------- | ------------------------------- |
+| Vector search only | Fails the roadmap question. "Depends on" is an edge, not a paraphrase. |
+| Graph only, including LLM extraction over all prose | Policy nuance does not survive as triples, and extracted triples that are plausible and wrong get worse when traversed. |
+| Stuff the corpus into the prompt | Reasonable for a handful of static policies that fit a context window. It does not meet authorization, citation, or the 10-million-object assumption, and it hides freshness. |
+| Fine-tuning | Changes style and format. It does not keep knowledge current, and it cannot enforce per-user authorization. |
+| Cross-encoder reranker in the POC | Extra latency against the 250 ms budget, and no measured precision gap yet. Added later if `eval` shows one. |
+| Community summaries and global GraphRAG | Useful for corpus-level themes. The demo questions are entity lookups and one multi-hop path. Summaries would add a batch job without serving the script. |
+| Fuzzy entity resolution | The hardest part of a real graph, and dishonest to fake with a demo that already shares keys. Called out as a production-path risk in the brief. |
+
+## Trade-offs and risks
+
+- Two indexes must stay consistent with the document. A bug in one produces an answer that looks authoritative and is assembled from mismatched pieces. Ingestion writes chunk and graph updates as one retried unit of work (spike 04).
+- Chunks that are too small lose the context needed to interpret them. Chunks that are too large dilute the embedding and waste the context budget. The contextual header (title plus section path) is the mitigation that stays inside the chunk, so a retrieved passage still names the policy and the version.
+- Dense retrieval returns topically close and factually irrelevant passages. Lexical search and fusion reduce that. They do not remove it. The golden set is how regressions are caught.
+- Routing mistakes send a relational question to vector search. The router is a small classifier with an explicit fallback: when the question names a known entity type (deal, epic, policy), prefer the graph.
+
+## Production path
+
+- Add a reranker only when recall@k is healthy and precision is not.
+- Add entity resolution when a real source pair does not share keys, with a human-review queue for low-confidence merges.
+- Dual-write during embedding-model migrations, and retire the old index on a published date ([ADR 0003](../03--adrs/0003-embedding-and-chunk-versioning.md)).
+- Query rewriting for conversational follow-ups, once a chat client exists. The POC questions are standalone.
+
+## Open TODOs
+
+- Golden-set file format and the `make eval` report (recall@k, MRR, abstention, access-boundary pass/fail).
+- Cypher templates for the roadmap question, parameterized, with the same ACL pre-filter as SQL (spike 03).
