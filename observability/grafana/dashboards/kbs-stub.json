@@ -53,6 +53,159 @@
       ],
       "title": "Errors and audit denies",
       "type": "logs"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 18},
+      "id": 10,
+      "panels": [],
+      "title": "Ingestion: HR connector",
+      "type": "row"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "red", "value": 30}
+            ]
+          },
+          "unit": "s"
+        }
+      },
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 19},
+      "id": 11,
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(kbs_snapshot_object_lag_seconds_bucket[5m])))",
+          "refId": "A"
+        }
+      ],
+      "title": "Snapshot lag p95",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "red", "value": 30}
+            ]
+          },
+          "unit": "s"
+        }
+      },
+      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 19},
+      "id": 12,
+      "targets": [
+        {
+          "expr": "time() - kbs_connector_last_success_timestamp_seconds",
+          "refId": "A"
+        }
+      ],
+      "title": "Last successful sync age",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 19},
+      "id": 13,
+      "targets": [
+        {"expr": "sum(rate(kbs_snapshots_written_total[5m]))", "legendFormat": "written", "refId": "A"},
+        {"expr": "sum(rate(kbs_snapshots_skipped_unchanged_total[5m]))", "legendFormat": "skipped", "refId": "B"}
+      ],
+      "title": "Snapshot write and skip rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "red", "value": 0.001}
+            ]
+          }
+        }
+      },
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 27},
+      "id": 14,
+      "targets": [
+        {"expr": "sum by (stage) (rate(kbs_snapshot_errors_total[5m]))", "refId": "A"}
+      ],
+      "title": "Snapshot errors by stage",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "red", "value": 0.001},
+              {"color": "red", "value": 1}
+            ]
+          }
+        }
+      },
+      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 27},
+      "id": 15,
+      "targets": [{"expr": "kbs_reconcile_drift", "refId": "A"}],
+      "title": "Reconciliation drift",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "red", "value": 1}
+            ]
+          }
+        }
+      },
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 27},
+      "id": 16,
+      "targets": [{"expr": "kbs_delete_verification_failures_total", "refId": "A"}],
+      "title": "Delete verification failures",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "loki", "uid": "loki"},
+      "gridPos": {"h": 10, "w": 24, "x": 0, "y": 35},
+      "id": 17,
+      "options": {
+        "dedupStrategy": "none",
+        "enableLogDetails": true,
+        "showLabels": true,
+        "showTime": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": true
+      },
+      "targets": [
+        {
+          "datasource": {"type": "loki", "uid": "loki"},
+          "editorMode": "code",
+          "expr": "{service=\"connector-worker\"}",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "title": "Connector logs",
+      "type": "logs"
     }
   ],
   "schemaVersion": 39,
@@ -60,7 +213,7 @@
   "templating": {"list": []},
   "time": {"from": "now-15m", "to": "now"},
   "timezone": "browser",
-  "title": "KBS stub",
+  "title": "KBS",
   "uid": "kbs-stub",
-  "version": 2
+  "version": 3
 }

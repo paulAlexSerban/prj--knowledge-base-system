@@ -20,7 +20,9 @@ Change signal: `updated_since` plus `snapshot_diff`. There is no webhook and no 
 
 Native ACL names are `hr_employee` and `hr_policy_admin`, mapped to platform attributes by [hr.yaml](../../infrastructure/config/sources/hr.yaml). Two policies are admin-only: `pol-disciplinary-procedure` and `pol-compensation-review`. Each policy has a `region` (`DE`, `US`, `UK`, or `GLOBAL`).
 
-An ACL change moves `updated_at` but not `version` or `content_hash`. The connector must treat `native_acl` as part of what it hashes, or an ACL change will be skipped as unchanged.
+An ACL change moves `updated_at` but not `version` or `content_hash`. The HR connector hashes the raw bytes together with the sorted native ACL, so that change still rewrites the S3 object.
+
+The connector reads `/changes`, `/policies/{id}/content`, `/people/{id}`, and `/ids`. It does not call `/admin`. People snapshots are the public JSON record. Policy snapshots are the file bytes. Keys are `raw/hr/<type>/<id>.<ext>` in `kbs-raw-snapshots`.
 
 ## Data minimization
 

@@ -23,6 +23,8 @@ Environment variables override the cell when you run it headless: `SEED_SOURCE`,
 
 [01-inspect-source.ipynb](01-inspect-source.ipynb) samples the change feed and checks that `salary`, `compensation`, `ssn`, and `national_id` are absent.
 
+[02-inspect-snapshots.ipynb](02-inspect-snapshots.ipynb) lists the raw snapshots in `kbs-raw-snapshots` and checks the count against `/ids`. Jupyter is on the `kbs-aws` network so it can reach floci. It is not on `kbs-data`.
+
 ## Headless
 
 ```bash

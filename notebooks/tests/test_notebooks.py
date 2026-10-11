@@ -25,6 +25,13 @@ def test_seed_notebook_has_the_parameter_cell():
     assert "next_page_token" in text
 
 
+def test_snapshot_notebook_compares_counts():
+    text = sources("02-inspect-snapshots.ipynb")
+    assert "kbs-raw-snapshots" in text
+    assert "pol-parental-leave-de" in text
+    assert "drift" in text
+
+
 def test_inspect_notebook_checks_forbidden_fields():
     text = sources("01-inspect-source.ipynb")
     assert "salary" in text and "national_id" in text

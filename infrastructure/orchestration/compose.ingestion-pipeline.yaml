@@ -10,7 +10,19 @@ services:
     environment:
       CONTRACTS_DIR: /contracts
       METRICS_PORT: "9100"
-      P0_POLL_SECONDS: "30"
+      # P0 target is 30s. Scheduler cannot fire inside a minute, so the loop is 10s.
+      P0_POLL_SECONDS: "10"
+      RECONCILE_SECONDS: "60"
+      SYNC_WORKERS: "8"
+      AWS_ENDPOINT_URL: http://floci:4566
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION}
+      RAW_BUCKET: kbs-raw-snapshots
+      HARNESS_HR_URL: http://harness-hr:8080
+      POSTGRES_HOST: postgres
+      POSTGRES_DB: kbs
+      INGESTION_DB_PASSWORD: ${INGESTION_DB_PASSWORD}
     volumes:
       - ../config/sources:/contracts:ro
     networks: [kbs-data, kbs-sources, kbs-aws, kbs-obs]

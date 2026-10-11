@@ -20,9 +20,14 @@ services:
     environment:
       JUPYTER_TOKEN: ${JUPYTER_TOKEN:-dev-only-notebook}
       HARNESS_HR_URL: http://harness-hr:8080
+      AWS_ENDPOINT_URL: http://floci:4566
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION}
+      RAW_BUCKET: kbs-raw-snapshots
     volumes:
       - ../../notebooks:/notebooks
-    networks: [kbs-sources, kbs-obs]
+    networks: [kbs-sources, kbs-obs, kbs-aws]
     ports: ["127.0.0.1:8888:8888"]
     healthcheck:
       test:
@@ -42,3 +47,6 @@ networks:
   kbs-obs:
     external: true
     name: kbs-obs
+  kbs-aws:
+    external: true
+    name: kbs-aws

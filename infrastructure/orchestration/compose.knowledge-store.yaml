@@ -64,6 +64,22 @@ services:
       ]
     restart: "no"
 
+  postgres-migrate:
+    image: postgres:16-alpine
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [kbs-data]
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGHOST: postgres
+      PGUSER: kbs
+      PGDATABASE: kbs
+    volumes:
+      - ../../database/postgres/migrations:/migrations:ro
+    entrypoint: ["psql", "-v", "ON_ERROR_STOP=1", "-f", "/migrations/001-sync-state.sql"]
+    restart: "no"
+
 networks:
   kbs-data:
     external: true

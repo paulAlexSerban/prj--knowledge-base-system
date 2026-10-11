@@ -17,15 +17,18 @@ dependencies = [
 backend = [
     "boto3>=1.43.111",
     "fastapi>=0.143.0",
+    "httpx>=0.28.1",
     "mcp>=2.3.0",
     "neo4j>=6.4.0",
     "prometheus-client>=0.26.0",
     "psycopg[binary]>=3.3.6",
+    "sqlalchemy>=2.1.4",
     "uvicorn[standard]>=0.54.0",
 ]
 dev = [
   "faker>=40.43.0",
   "httpx>=0.28.1",
+  "moto[s3]>=5.2.3",
   "pytest>=8",
   "ruff>=0.6",
 ]
@@ -37,6 +40,7 @@ harness = [
     "uvicorn[standard]>=0.54.0",
 ]
 notebooks = [
+    "boto3>=1.43.111",
     "httpx>=0.28.1",
     "jupyter>=1.1",
 ]

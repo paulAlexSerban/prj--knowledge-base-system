@@ -14,7 +14,7 @@ This repository is a POC knowledge gateway: ingest four department sources, keep
 | `_docs/03--adrs/` | Storage, observability, embedding and chunk versioning. |
 | `shared/contracts/` | Source-contract model, generated JSON Schema, validator, tests. |
 | `infrastructure/config/sources/` | One YAML contract per source. |
-| `backend/` | API, MCP, service layer, workers, messaging. |
+| `backend/` | API, MCP, service layer, connectors, workers, messaging. |
 | `database/` | Postgres and Neo4j schema. |
 | `demo-harness/` | HR, Sales, Product, Engineering mocks. |
 | `notebooks/` | Jupyter seed and inspect notebooks for the HR harness. |

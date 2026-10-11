@@ -82,6 +82,7 @@ prometheus.scrape "gateway_mcp" {
   forward_to      = [prometheus.remote_write.local.receiver]
 }
 
+// Connector metrics are defined in observability/metrics.md.
 prometheus.scrape "connector_worker" {
   targets         = [{__address__ = "connector-worker:9100"}]
   job_name        = "connector-worker"
