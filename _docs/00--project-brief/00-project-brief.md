@@ -130,48 +130,6 @@ Finance and other departments beyond the four. Real OAuth against Google, Notion
 
 ![Component Diagram](00-c4-l3--component-diagram--kowledge-base-system.png)
 
-
-```mermaid
-flowchart LR
-  subgraph harness [DemoHarness]
-    HR[HR service]
-    Sales[Sales service]
-    Product[Product service]
-    Eng[Engineering service]
-  end
-  subgraph ingest [Ingestion]
-    Conn[Connector workers]
-    SQS[SQS queues and DLQ]
-    Proc[Ingestion workers]
-  end
-  subgraph store [Knowledge store]
-    PG[(Postgres pgvector FTS ACL)]
-    N4J[(Neo4j graph)]
-    S3[(S3 raw snapshots)]
-  end
-  subgraph access [Access layer]
-    API[Knowledge API]
-    MCP[MCP server]
-    Authz[ABAC policy]
-  end
-  Agent[Agent or chatbot]
-  HR --> Conn
-  Sales --> Conn
-  Product --> Conn
-  Eng --> Conn
-  Conn --> S3
-  Conn --> SQS
-  SQS --> Proc
-  Proc --> PG
-  Proc --> N4J
-  Agent --> MCP
-  Agent --> API
-  MCP --> Authz
-  API --> Authz
-  Authz --> PG
-  Authz --> N4J
-```
-
 ## Demo script
 
 The demo is the acceptance test. Each step is observable in the API response, the graph path, or the dashboard.
