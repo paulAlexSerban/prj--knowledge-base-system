@@ -1,1 +1,1 @@
-"""Engineering harness process. The feed is the shared stub."""
+"""Engineering harness. Jira-like epics with an updated_since feed."""

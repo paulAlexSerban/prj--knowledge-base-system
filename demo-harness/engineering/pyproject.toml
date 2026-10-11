@@ -1,7 +1,7 @@
 [project]
 name = "harness-engineering"
 version = "0.1.0"
-description = "Engineering harness stub. updated_since feed, empty until the source is built."
+description = "Engineering harness. Jira-like epics with an updated_since feed."
 requires-python = ">=3.12"
 dependencies = ["harness-common"]
 
