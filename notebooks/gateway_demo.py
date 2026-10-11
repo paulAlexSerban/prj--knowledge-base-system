@@ -106,7 +106,7 @@ def _run(factory):
     def worker() -> None:
         try:
             box["value"] = asyncio.run(factory())
-        except Exception as exc:
+        except BaseException as exc:
             box["error"] = exc
 
     thread = threading.Thread(target=worker)

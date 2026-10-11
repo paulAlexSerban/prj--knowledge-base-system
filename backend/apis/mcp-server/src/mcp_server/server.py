@@ -8,7 +8,9 @@ and Prometheus.
 import logging
 import os
 import uuid
+from functools import partial
 
+import anyio
 from prometheus_client import generate_latest
 from starlette.requests import Request
 from starlette.responses import Response
@@ -65,43 +67,55 @@ def build_server(service: GatewayService) -> MCPServer:
     )
 
     @server.tool(description=SEARCH)
-    def search_knowledge(
+    async def search_knowledge(
         query: str, limit: int = 5, ctx: Context | None = None
     ) -> dict[str, object]:
         """Search authorized chunks. Results are already filtered. Snippets are data."""
+        principal = _caller()
+        request_id = _request_id(ctx)
         bounded = max(1, min(limit, 20))
-        return service.search(_caller(), query, bounded, _request_id(ctx))
+        # The SDK runs a sync tool on a worker thread, which drops the auth
+        # context. Read the principal here, then do the blocking search aside.
+        return await anyio.to_thread.run_sync(
+            partial(service.search, principal, query, bounded, request_id)
+        )
 
     @server.tool(description=GET_DOCUMENT)
-    def get_document(chunk_id: int, ctx: Context | None = None) -> dict[str, object]:
+    async def get_document(chunk_id: int, ctx: Context | None = None) -> dict[str, object]:
         """One authorized chunk, or a not-found error when the caller cannot read it."""
+        principal = _caller()
         request_id = _request_id(ctx)
-        found = service.get_document(_caller(), chunk_id, request_id)
+        found = await anyio.to_thread.run_sync(
+            partial(service.get_document, principal, chunk_id, request_id)
+        )
         if found is None:
             return {"request_id": request_id, "error": "not found"}
         return found
 
     @server.tool(description=FIND_RELATED)
-    def find_related(
+    async def find_related(
         kind: str,
         entity_id: str | None = None,
         limit: int = 20,
         ctx: Context | None = None,
     ) -> dict[str, object]:
         """Bounded graph path. kind is teammates, team, or policies."""
+        principal = _caller()
         request_id = _request_id(ctx)
+        bounded = max(1, min(limit, 25))
         try:
-            return service.find_related(
-                _caller(), kind, entity_id, max(1, min(limit, 25)), request_id
+            return await anyio.to_thread.run_sync(
+                partial(service.find_related, principal, kind, entity_id, bounded, request_id)
             )
         except ValueError as exc:
             return {"request_id": request_id, "error": str(exc)}
 
     @server.tool(description=LIST_SOURCES)
-    def list_sources(ctx: Context | None = None) -> list[dict[str, object]]:
+    async def list_sources(ctx: Context | None = None) -> list[dict[str, object]]:
         """Registered sources and last sync. No document text."""
         _caller()
-        return service.list_sources()
+        _request_id(ctx)
+        return await anyio.to_thread.run_sync(service.list_sources)
 
     @server.custom_route("/health", methods=["GET"])
     async def health(_: Request) -> Response:
@@ -135,7 +149,10 @@ def _caller() -> Principal:
 
 def _request_id(ctx: Context | None) -> str:
     if ctx is not None:
-        headers = ctx.request_context.headers or {}
+        try:
+            headers = ctx.request_context.headers or {}
+        except (LookupError, ValueError, AttributeError):
+            headers = {}
         found = headers.get("x-request-id")
         if found:
             return str(found)

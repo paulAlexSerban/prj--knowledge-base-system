@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Knowledge gateway MCP server."
 requires-python = ">=3.12"
 dependencies = [
+  "anyio>=4.15.1",
   "gateway-core",
   "mcp>=2.3.0",
   "prometheus-client>=0.26.0",

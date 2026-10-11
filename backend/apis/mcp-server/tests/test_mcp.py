@@ -123,13 +123,19 @@ def test_tools_match_the_shared_descriptions(mcp) -> None:
     }
 
 
+def _call(tool, **kwargs):
+    import asyncio
+
+    return asyncio.run(tool.fn(**kwargs))
+
+
 def test_two_personas_match_the_service(mcp) -> None:
     server, service = mcp
     search = server._tool_manager.get_tool("search_knowledge")
     assert search is not None
     engineer = _use("employee_eng")
     try:
-        via_mcp = search.fn(query="Germany", limit=5)
+        via_mcp = _call(search, query="Germany", limit=5)
     finally:
         auth_context_var.reset(engineer)
     via_rest = service.search(
@@ -143,17 +149,17 @@ def test_two_personas_match_the_service(mcp) -> None:
 
     outsider = _use("outsider")
     try:
-        hidden = search.fn(query="Germany", limit=5)
+        hidden = _call(search, query="Germany", limit=5)
         document = server._tool_manager.get_tool("get_document")
         assert document is not None
-        missing = document.fn(chunk_id=via_mcp["results"][0]["chunk_id"])
+        missing = _call(document, chunk_id=via_mcp["results"][0]["chunk_id"])
     finally:
         auth_context_var.reset(outsider)
     assert hidden["results"] == []
     assert missing["error"] == "not found"
 
     try:
-        search.fn(query="Germany")
+        _call(search, query="Germany")
     except PermissionError:
         pass
     else:
