@@ -1,38 +1,69 @@
-"""Knowledge API stub.
+"""Knowledge API.
 
-Serves health, metrics, and the list of registered sources. Retrieval is not
-implemented. The process exits when the contract registry does not validate.
+Serves health, metrics, the source list, and authorized retrieval. The process
+exits when the contract registry does not validate. Store connections open
+only when GATEWAY_CONNECT=1, so tests can pass a service in.
 """
 
 import logging
+import os
+import uuid
+from contextlib import asynccontextmanager
+from typing import Literal
 
 import uvicorn
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from prometheus_client import make_asgi_app
+from pydantic import BaseModel, Field
 
+from gateway_core.auth import AuthError, issue_token, principal_from_token
+from gateway_core.runtime import open_gateway
+from gateway_core.service import GatewayService
+from gateway_core.tools import FIND_RELATED, GET_DOCUMENT, LIST_SOURCES, SEARCH
+from knowledge_store.acl import Principal
 from shared.logging import configure, log_event
 from shared.registry import load_registry, source_payloads
 
 LOG = logging.getLogger("gateway-api")
 
 
-def create_app() -> FastAPI:
+class SearchBody(BaseModel):
+    query: str = Field(min_length=1, max_length=500)
+    limit: int = Field(default=5, ge=1, le=20)
+
+
+class RelatedBody(BaseModel):
+    kind: Literal["teammates", "team", "policies"]
+    entity_id: str | None = Field(default=None, max_length=200)
+    limit: int = Field(default=20, ge=1, le=25)
+
+
+class TokenBody(BaseModel):
+    persona: str = Field(min_length=1, max_length=64)
+
+
+def create_app(service: GatewayService | None = None) -> FastAPI:
     contracts = load_registry()
-    app = FastAPI(title="Knowledge Gateway", version="0.1.0")
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        if app.state.service is None and os.environ.get("GATEWAY_CONNECT") == "1":
+            app.state.service = open_gateway()
+        yield
+
+    app = FastAPI(title="Knowledge Gateway", version="0.1.0", lifespan=lifespan)
     app.state.contracts = contracts
+    app.state.service = service
 
     @app.middleware("http")
     async def access_log(request: Request, call_next):
+        request_id = request.headers.get("x-request-id") or uuid.uuid4().hex
+        request.state.request_id = request_id
         response = await call_next(request)
+        response.headers["x-request-id"] = request_id
         path = request.url.path
         if path != "/health" and not path.startswith("/metrics"):
-            fields: dict[str, object] = {
-                "path": request.url.path,
-                "status": response.status_code,
-            }
-            request_id = request.headers.get("x-request-id")
-            if request_id:
-                fields["request_id"] = request_id
+            fields: dict[str, object] = {"path": path, "status": response.status_code, "request_id": request_id}
             log_event(LOG, "request", **fields)
         return response
 
@@ -40,12 +71,90 @@ def create_app() -> FastAPI:
     def health() -> dict[str, object]:
         return {"status": "ok", "sources": len(contracts)}
 
-    @app.get("/v1/sources")
+    @app.get("/v1/sources", description=LIST_SOURCES)
     def list_sources() -> list[dict[str, object]]:
-        return source_payloads(contracts)
+        if app.state.service is not None:
+            return app.state.service.list_sources()
+        payloads = source_payloads(contracts)
+        for item in payloads:
+            item["last_success_at"] = None
+        return payloads
+
+    @app.post("/v1/search", description=SEARCH)
+    def search(
+        body: SearchBody, request: Request, principal: Principal = require_principal
+    ) -> dict[str, object]:
+        _require_service(request)
+        return request.app.state.service.search(
+            principal, body.query, body.limit, request.state.request_id
+        )
+
+    @app.get("/v1/documents/{chunk_id}", description=GET_DOCUMENT)
+    def get_document(
+        chunk_id: int, request: Request, principal: Principal = require_principal
+    ) -> dict[str, object]:
+        _require_service(request)
+        found = request.app.state.service.get_document(principal, chunk_id, request.state.request_id)
+        if found is None:
+            raise HTTPException(status_code=404, detail="not found")
+        return found
+
+    @app.post("/v1/graph/related", description=FIND_RELATED)
+    def find_related(
+        body: RelatedBody, request: Request, principal: Principal = require_principal
+    ) -> dict[str, object]:
+        _require_service(request)
+        try:
+            return request.app.state.service.find_related(
+                principal, body.kind, body.entity_id, body.limit, request.state.request_id
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post("/dev/token")
+    def dev_token(body: TokenBody) -> dict[str, object]:
+        if os.environ.get("DEV_TOKEN_ENDPOINT") != "1":
+            raise HTTPException(status_code=404, detail="not found")
+        secret = os.environ.get("GATEWAY_JWT_SECRET", "")
+        try:
+            token = issue_token(body.persona, secret)
+        except AuthError as exc:
+            status = 404 if exc.reason == "persona" else 503
+            raise HTTPException(status_code=status, detail="unauthorized") from exc
+        principal = principal_from_token(token, secret)
+        return {
+            "token": token,
+            "principal": {
+                "subject": principal.subject,
+                "groups": list(principal.groups),
+                "clearance": principal.clearance,
+                "department": principal.department,
+            },
+        }
 
     app.mount("/metrics", make_asgi_app())
     return app
+
+
+_AUTHORIZATION = Header(default=None)
+
+
+def _principal(authorization: str | None = _AUTHORIZATION) -> Principal:
+    if not authorization or not authorization.lower().startswith("bearer "):
+        raise HTTPException(status_code=401, detail="unauthorized")
+    secret = os.environ.get("GATEWAY_JWT_SECRET", "")
+    try:
+        return principal_from_token(authorization.split(" ", 1)[1].strip(), secret)
+    except AuthError as exc:
+        raise HTTPException(status_code=401, detail="unauthorized") from exc
+
+
+require_principal = Depends(_principal)
+
+
+def _require_service(request: Request) -> None:
+    if request.app.state.service is None:
+        raise HTTPException(status_code=503, detail="store unavailable")
 
 
 app = create_app()

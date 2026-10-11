@@ -5,12 +5,14 @@ description = "Knowledge gateway REST API."
 requires-python = ">=3.12"
 dependencies = [
   "fastapi>=0.143.0",
+  "gateway-core",
   "prometheus-client>=0.26.0",
   "shared",
   "uvicorn[standard]>=0.54.0",
 ]
 
 [tool.uv.sources]
+gateway-core = { workspace = true }
 shared = { workspace = true }
 
 [build-system]

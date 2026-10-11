@@ -6,8 +6,19 @@ services:
     command: ["python", "-m", "knowledge_api"]
     environment:
       CONTRACTS_DIR: /contracts
+      PRINCIPALS_FILE: /principals.yaml
+      GATEWAY_CONNECT: "1"
+      GATEWAY_DB_PASSWORD: ${GATEWAY_DB_PASSWORD}
+      POSTGRES_HOST: postgres
+      POSTGRES_DB: kbs
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD}
+      EMBEDDER: hash
+      GATEWAY_JWT_SECRET: ${GATEWAY_JWT_SECRET}
+      DEV_TOKEN_ENDPOINT: ${DEV_TOKEN_ENDPOINT:-1}
     volumes:
       - ../config/sources:/contracts:ro
+      - ../config/principals.yaml:/principals.yaml:ro
     networks: [kbs-data, kbs-obs]
     ports:
       - "127.0.0.1:8000:8000"

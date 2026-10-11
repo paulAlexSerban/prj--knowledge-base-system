@@ -1398,6 +1398,7 @@ version = "0.1.0"
 source = { editable = "backend/apis/knowledge-api" }
 dependencies = [
     { name = "fastapi" },
+    { name = "gateway-core" },
     { name = "prometheus-client" },
     { name = "shared" },
     { name = "uvicorn", extra = ["standard"] },
@@ -1406,6 +1407,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "fastapi", specifier = ">=0.143.0" },
+    { name = "gateway-core", editable = "backend/libs/gateway-core" },
     { name = "prometheus-client", specifier = ">=0.26.0" },
     { name = "shared", editable = "shared" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.54.0" },
