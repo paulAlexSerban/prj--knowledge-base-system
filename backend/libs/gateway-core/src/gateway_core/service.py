@@ -4,6 +4,7 @@ import logging
 
 from gateway_core.graph_read import GraphReader
 from gateway_core.metrics import EMPTY, REQUESTS, RETRIEVAL_SECONDS, TOTAL, permission_group
+from gateway_core.recheck import AclSource, apply_recheck
 from gateway_core.tools import SNIPPET_END, SNIPPET_START
 from knowledge_store.acl import Principal
 from knowledge_store.postgres import Hit
@@ -15,9 +16,16 @@ LOG = logging.getLogger("gateway")
 
 
 class GatewayService:
-    def __init__(self, store: KnowledgeStore, graph: GraphReader, surface: str = "rest") -> None:
+    def __init__(
+        self,
+        store: KnowledgeStore,
+        graph: GraphReader,
+        recheck: AclSource | None = None,
+        surface: str = "rest",
+    ) -> None:
         self.store = store
         self.graph = graph
+        self.recheck = recheck
         self.surface = surface
 
     def search(
@@ -25,6 +33,7 @@ class GatewayService:
     ) -> dict[str, object]:
         with RETRIEVAL_SECONDS.labels(tool="search", surface=self.surface).time():
             hits = self.store.search(query, principal, limit=limit, request_id=request_id)
+            hits = apply_recheck(hits, principal, self.store.contracts, self.recheck)
         source = hits[0].source_id if hits else "none"
         self._record("search", principal, request_id, len(hits), source, empty_rate=True)
         return {"request_id": request_id, "results": [_public_hit(hit) for hit in hits]}
@@ -34,6 +43,9 @@ class GatewayService:
     ) -> dict[str, object] | None:
         with RETRIEVAL_SECONDS.labels(tool="get_document", surface=self.surface).time():
             hit = self.store.chunks.get_chunk(chunk_id, principal, request_id)
+            if hit is not None:
+                kept = apply_recheck([hit], principal, self.store.contracts, self.recheck)
+                hit = kept[0] if kept else None
         source = "none" if hit is None else hit.source_id
         self._record(
             "get_document",

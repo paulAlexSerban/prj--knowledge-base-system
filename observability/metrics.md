@@ -61,6 +61,8 @@ The API exposes these on `gateway-api:8000/metrics`. The MCP server exposes the 
 | `kbs_retrieval_empty_total` | `source_id`, `permission_group` | Searches that returned no chunk. `source_id` is `none` when nothing matched. |
 | `kbs_retrieval_total` | `source_id`, `permission_group` | Searches, including ones that returned chunks. The empty-result rate is the empty counter divided by this one. |
 | `kbs_auth_failures_total` | `reason` (`missing`, `expired`, `invalid`, `missing_claim`, `clearance`, `secret`) | Rejected bearer tokens. |
+| `kbs_acl_recheck_seconds` | `source_id` | Time spent asking HR for the current policy ACL. |
+| `kbs_acl_recheck_failures_total` | `source_id` | A re-check that timed out or returned nothing usable. The search then returns no chunks. |
 
 A retrieval log line has `request_id`, `principal`, `decision` (`allow` or `deny`), `tool`, and `count`. It has no snippet. Grafana's Loki datasource links `request_id` to the other lines for that request. The deny panel is `{service=~".+"} | json | decision="deny"`.
 

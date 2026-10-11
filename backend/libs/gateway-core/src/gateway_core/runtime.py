@@ -6,6 +6,7 @@ from neo4j import GraphDatabase
 from sqlalchemy import create_engine
 
 from gateway_core.graph_read import GraphReader
+from gateway_core.recheck import HttpAclRecheck
 from gateway_core.service import GatewayService
 from ingest_contract.events import RAW_BUCKET
 from knowledge_store.embedder import build_embedder
@@ -29,7 +30,11 @@ def open_gateway() -> GatewayService:
         build_embedder(os.environ.get("EMBEDDER", "hash")),
         {contract.source_id: contract for contract in load_registry()},
     )
-    return GatewayService(store, GraphReader(driver))
+    recheck = None
+    hr = store.contracts.get("hr")
+    if hr is not None and hr.acl_recheck_at_read:
+        recheck = HttpAclRecheck(os.environ.get("HARNESS_HR_URL", ""))
+    return GatewayService(store, GraphReader(driver), recheck)
 
 
 def _engine(user: str, password: str):

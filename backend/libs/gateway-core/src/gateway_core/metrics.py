@@ -38,6 +38,17 @@ AUTH_FAILURES = Counter(
     "Rejected bearer tokens",
     ["reason"],
 )
+RECHECK_SECONDS = Histogram(
+    "kbs_acl_recheck_seconds",
+    "Time spent asking a source for the current ACL",
+    ["source_id"],
+    buckets=BUCKETS,
+)
+RECHECK_FAILURES = Counter(
+    "kbs_acl_recheck_failures_total",
+    "Read-time ACL checks that timed out or returned nothing usable",
+    ["source_id"],
+)
 
 
 def permission_group(principal: Principal) -> str:

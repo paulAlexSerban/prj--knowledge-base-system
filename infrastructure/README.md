@@ -17,14 +17,16 @@ External networks must exist first (`make networks`).
 | ---- | -------- | -------- |
 | `orchestration/compose.aws.yaml` | floci, a curl wait | `kbs-aws` |
 | `orchestration/compose.knowledge-store.yaml` | Postgres 18, Neo4j, constraint init | `kbs-data` (internal) |
-| `orchestration/compose.ingestion-pipeline.yaml` | `connector-hr`, ingestion worker, webhook receiver | `kbs-data`, `kbs-sources`, `kbs-aws`, `kbs-obs` |
-| `orchestration/compose.knowledge-gateway.yaml` | API on 8000, MCP on 8001 | `kbs-data`, `kbs-obs` |
+| `orchestration/compose.ingestion-pipeline.yaml` | `connector-hr`, ingestion worker, webhook receiver. Includes the AWS file so both wait for `floci-ready`. | `kbs-data`, `kbs-sources`, `kbs-aws`, `kbs-obs` |
+| `orchestration/compose.knowledge-gateway.yaml` | API on 8000, MCP on 8001 | `kbs-data`, `kbs-obs`, `kbs-sources` |
 | `orchestration/compose.demo-harness.yaml` | HR 8101, Sales 8102, Product 8103, Engineering 8104 | `kbs-sources`, `kbs-obs` |
 | `orchestration/compose.notebooks.yaml` | Jupyter 8888 | `kbs-sources`, `kbs-obs` |
 | `orchestration/compose.observability.yaml` | Alloy, Loki, Prometheus 9090, Grafana 3000 | `kbs-obs` |
 | `orchestration/compose.tools.yaml` | pgAdmin 5050, SQLite viewers 8111–8114 | `kbs-data` (pgAdmin only), `kbs-tools` |
 
 `kbs-data` is `--internal`. Postgres and Neo4j have no published ports. pgAdmin is on `kbs-data` and on `kbs-tools`, and its UI is bound to `127.0.0.1:5050`. That is a dev-only bridge so the database port stays closed. The SQLite viewers mount the harness volumes read-only and are not on `kbs-data`.
+
+The gateway joins `kbs-sources` so it can call the HR harness `GET /policies/{id}/acl` before returning a policy chunk. That is a trust-boundary exception: the gateway can reach the harness, and it still has no path to floci. Jupyter stays off `kbs-data` and reaches the gateway on `kbs-sources`.
 
 ## Startup
 

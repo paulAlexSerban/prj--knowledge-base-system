@@ -13,7 +13,8 @@ from sqlalchemy import text
 
 from gateway_core.auth import issue_token
 from gateway_core.graph_read import GraphReader
-from gateway_core.metrics import AUTH_FAILURES, EMPTY, REQUESTS
+from gateway_core.metrics import AUTH_FAILURES, EMPTY, RECHECK_FAILURES, REQUESTS
+from gateway_core.recheck import RecheckFailed
 from gateway_core.service import GatewayService
 from ingest_contract.events import RAW_BUCKET, ChangeEvent
 from knowledge_api.app import create_app
@@ -278,6 +279,59 @@ def test_empty_search_is_a_deny_line_and_a_metric(api) -> None:
     assert EMPTY.labels(source_id="none", permission_group="none")._value.get() == empty_before + 1
     assert REQUESTS.labels(tool="search", surface="rest", result="empty")._value.get() == requests_before + 1
     assert AUTH_FAILURES.labels(reason="missing")._value.get() == missing_before + 1
+
+
+class _Acl:
+    def __init__(self, native: list[str] | None) -> None:
+        self.native = native
+
+    def current_acl(self, source_id: str, object_type: str, object_id: str) -> list[str] | None:
+        return self.native
+
+
+class _Down:
+    def current_acl(self, source_id: str, object_type: str, object_id: str) -> list[str] | None:
+        raise RecheckFailed("timeout")
+
+
+def test_read_time_acl_drops_a_closed_policy_and_keeps_people(api) -> None:
+    http, _admin = api
+    http.app.state.service.recheck = _Acl(["hr_policy_admin"])
+    employee = http.post(
+        "/v1/search",
+        json={"query": "Germany", "limit": 5},
+        headers=_auth("employee_eng"),
+    )
+    assert employee.json()["results"] == []
+    admin = http.post(
+        "/v1/search",
+        json={"query": "Germany", "limit": 5},
+        headers=_auth("hr_admin"),
+    )
+    assert {item["object_id"] for item in admin.json()["results"]} == {"pol-de"}
+    people = http.post(
+        "/v1/search",
+        json={"query": "Ada", "limit": 5},
+        headers=_auth("employee_eng"),
+    )
+    assert {item["object_type"] for item in people.json()["results"]} == {"person"}
+    found = http.post("/v1/search", json={"query": "Germany"}, headers=_auth("hr_admin"))
+    chunk_id = found.json()["results"][0]["chunk_id"]
+    hidden = http.get(f"/v1/documents/{chunk_id}", headers=_auth("employee_eng"))
+    assert hidden.status_code == 404
+
+
+def test_read_time_acl_failure_returns_nothing(api) -> None:
+    http, _admin = api
+    http.app.state.service.recheck = _Down()
+    before = RECHECK_FAILURES.labels(source_id="hr")._value.get()
+    found = http.post(
+        "/v1/search",
+        json={"query": "Germany"},
+        headers=_auth("employee_eng"),
+    )
+    assert found.json()["results"] == []
+    assert RECHECK_FAILURES.labels(source_id="hr")._value.get() == before + 1
 
 
 def test_dev_token_issues_a_persona_and_stays_hidden(api, monkeypatch) -> None:
