@@ -1,0 +1,29 @@
+source_id: engineering
+display_name: Engineering epics
+owner:
+  team: Engineering
+  contact: engineering-platform@example.com
+freshness_tier: P1
+freshness_target_seconds: 300
+sensitivity: medium
+capabilities:
+  - updated_since
+acl_recheck_at_read: false
+in_scope_fields:
+  - epic_id
+  - title
+  - status
+  - product_key
+  - team
+  - updated_at
+excluded_fields: []
+acl_mapping:
+  - native: project_member
+    attributes:
+      department: engineering
+      group: eng_project
+  - native: eng_leadership
+    attributes:
+      department: engineering
+      clearance: confidential
+      group: eng_leads

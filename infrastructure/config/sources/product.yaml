@@ -1,0 +1,24 @@
+source_id: product
+display_name: Product specs
+owner:
+  team: Product
+  contact: product-platform@example.com
+freshness_tier: P1
+freshness_target_seconds: 300
+sensitivity: low
+capabilities:
+  - webhook
+acl_recheck_at_read: false
+in_scope_fields:
+  - spec_id
+  - title
+  - body
+  - product_key
+  - version
+excluded_fields: []
+acl_mapping:
+  - native: product_org
+    attributes:
+      department: product
+      clearance: internal
+      group: product

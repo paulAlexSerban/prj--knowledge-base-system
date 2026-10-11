@@ -1,0 +1,41 @@
+# People directory and HR policies. P0 is allowed because updated_since
+# can be polled inside 30 seconds. snapshot_diff is the delete backstop.
+# Compensation and national identifiers stay in excluded_fields.
+source_id: hr
+display_name: People and policies
+owner:
+  team: People
+  contact: people-platform@example.com
+freshness_tier: P0
+freshness_target_seconds: 30
+sensitivity: high
+capabilities:
+  - updated_since
+  - snapshot_diff
+acl_recheck_at_read: true
+in_scope_fields:
+  - policy_id
+  - title
+  - body
+  - region
+  - version
+  - person_id
+  - email
+  - team
+  - role
+excluded_fields:
+  - salary
+  - compensation
+  - ssn
+  - national_id
+acl_mapping:
+  - native: hr_employee
+    attributes:
+      department: people
+      clearance: internal
+      group: employees
+  - native: hr_policy_admin
+    attributes:
+      department: people
+      clearance: confidential
+      group: hr_admins

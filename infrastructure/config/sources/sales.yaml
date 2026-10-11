@@ -1,0 +1,31 @@
+source_id: sales
+display_name: Sales CRM
+owner:
+  team: Sales
+  contact: sales-platform@example.com
+freshness_tier: P1
+freshness_target_seconds: 300
+sensitivity: medium
+capabilities:
+  - cursor_feed
+acl_recheck_at_read: false
+in_scope_fields:
+  - deal_id
+  - account_id
+  - account_name
+  - arr
+  - quarter
+  - stage
+  - owner_email
+  - product_key
+excluded_fields: []
+acl_mapping:
+  - native: account_team
+    attributes:
+      department: sales
+      group: sales_team
+  - native: sales_leadership
+    attributes:
+      department: sales
+      clearance: confidential
+      group: sales_leadership
