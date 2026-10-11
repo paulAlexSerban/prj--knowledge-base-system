@@ -23,16 +23,15 @@ This repository is a POC knowledge gateway: ingest four department sources, keep
 
 ## Stack and commands
 
-Python 3.12, FastAPI, Pydantic v2, pytest, Ruff (line length 100, first-party package `shared`). Run commands from the repository root. `make` exports `PYTHONPATH=.`
+Python 3.12, FastAPI, Pydantic v2, pytest, Ruff (line length 100, first-party package `shared`). [uv](https://docs.astral.sh/uv/) is the package manager and the way to run Python. Run commands from the repository root.
 
 ```bash
-python3 -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"
+uv sync
 make contracts-check
-ruff check shared
+uv run ruff check shared
 ```
 
-Use `.venv`. Do not add dependencies outside `pyproject.toml`.
+Add a runtime dependency with `uv add` and a dev dependency with `uv add --dev`. Commit `uv.lock` with the change. Do not use `pip` or `python -m venv`. Do not add dependencies outside `pyproject.toml`.
 
 `make up`, `make seed`, `make demo`, `make test`, and `make eval` are planned and do not exist yet. Add a target only when the command it wraps exists, and update the README quickstart in that same change.
 
@@ -52,7 +51,7 @@ Every connector needs a valid YAML file in `infrastructure/config/sources/`. Req
 After changing `SourceContract`, regenerate and commit the schema:
 
 ```bash
-python -m shared.contracts.export_schema
+uv run python -m shared.contracts.export_schema
 ```
 
 `make contracts-check` fails if the committed schema differs.

@@ -61,12 +61,10 @@ Decisions, and what was rejected:
 
 ## Quickstart
 
-Works today. From the repository root, with Python 3.12:
+Works today. From the repository root. [uv](https://docs.astral.sh/uv/) installs Python 3.12 and the dependencies:
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e ".[dev]"
+uv sync
 make contracts-check
 ```
 
