@@ -1,0 +1,167 @@
+{
+  "$defs": {
+    "AclRule": {
+      "additionalProperties": false,
+      "description": "One native permission selector mapped onto platform attributes.",
+      "properties": {
+        "attributes": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "minProperties": 1,
+          "propertyNames": {
+            "$ref": "#/$defs/PlatformAttribute"
+          },
+          "title": "Attributes",
+          "type": "object"
+        },
+        "native": {
+          "minLength": 1,
+          "title": "Native",
+          "type": "string"
+        }
+      },
+      "required": [
+        "native",
+        "attributes"
+      ],
+      "title": "AclRule",
+      "type": "object"
+    },
+    "Capability": {
+      "enum": [
+        "webhook",
+        "cursor_feed",
+        "updated_since",
+        "snapshot_diff"
+      ],
+      "title": "Capability",
+      "type": "string"
+    },
+    "FreshnessTier": {
+      "enum": [
+        "P0",
+        "P1",
+        "P2"
+      ],
+      "title": "FreshnessTier",
+      "type": "string"
+    },
+    "Owner": {
+      "additionalProperties": false,
+      "properties": {
+        "contact": {
+          "format": "email",
+          "title": "Contact",
+          "type": "string"
+        },
+        "team": {
+          "minLength": 1,
+          "title": "Team",
+          "type": "string"
+        }
+      },
+      "required": [
+        "team",
+        "contact"
+      ],
+      "title": "Owner",
+      "type": "object"
+    },
+    "PlatformAttribute": {
+      "enum": [
+        "department",
+        "clearance",
+        "region",
+        "group"
+      ],
+      "title": "PlatformAttribute",
+      "type": "string"
+    },
+    "Sensitivity": {
+      "enum": [
+        "high",
+        "medium",
+        "low"
+      ],
+      "title": "Sensitivity",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "acl_mapping": {
+      "items": {
+        "$ref": "#/$defs/AclRule"
+      },
+      "minItems": 1,
+      "title": "Acl Mapping",
+      "type": "array"
+    },
+    "acl_recheck_at_read": {
+      "title": "Acl Recheck At Read",
+      "type": "boolean"
+    },
+    "capabilities": {
+      "items": {
+        "$ref": "#/$defs/Capability"
+      },
+      "minItems": 1,
+      "title": "Capabilities",
+      "type": "array"
+    },
+    "display_name": {
+      "minLength": 1,
+      "title": "Display Name",
+      "type": "string"
+    },
+    "excluded_fields": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Excluded Fields",
+      "type": "array"
+    },
+    "freshness_target_seconds": {
+      "exclusiveMinimum": 0,
+      "title": "Freshness Target Seconds",
+      "type": "integer"
+    },
+    "freshness_tier": {
+      "$ref": "#/$defs/FreshnessTier"
+    },
+    "in_scope_fields": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "In Scope Fields",
+      "type": "array"
+    },
+    "owner": {
+      "$ref": "#/$defs/Owner"
+    },
+    "sensitivity": {
+      "$ref": "#/$defs/Sensitivity"
+    },
+    "source_id": {
+      "pattern": "^[a-z][a-z0-9_]{1,63}$",
+      "title": "Source Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "source_id",
+    "display_name",
+    "owner",
+    "freshness_tier",
+    "freshness_target_seconds",
+    "sensitivity",
+    "capabilities",
+    "acl_mapping",
+    "in_scope_fields",
+    "acl_recheck_at_read"
+  ],
+  "title": "SourceContract",
+  "type": "object"
+}

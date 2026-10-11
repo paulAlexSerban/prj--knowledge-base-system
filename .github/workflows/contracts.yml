@@ -1,0 +1,30 @@
+name: contracts
+
+on:
+  push:
+    paths:
+      - "shared/contracts/**"
+      - "infrastructure/config/sources/**"
+      - "pyproject.toml"
+      - "makefile"
+      - ".github/workflows/contracts.yml"
+  pull_request:
+    paths:
+      - "shared/contracts/**"
+      - "infrastructure/config/sources/**"
+      - "pyproject.toml"
+      - "makefile"
+      - ".github/workflows/contracts.yml"
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: pip install -e ".[dev]"
+      - name: Validate contracts and schema
+        run: make contracts-check

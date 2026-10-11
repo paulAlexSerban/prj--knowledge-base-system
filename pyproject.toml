@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "knowledge-base-system"
+version = "0.1.0"
+description = "Unified knowledge gateway POC"
+requires-python = ">=3.12"
+dependencies = [
+  "pydantic>=2.6",
+  "email-validator>=2",
+  "pyyaml>=6",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8",
+  "ruff>=0.6",
+]
+
+[tool.setuptools.packages.find]
+include = ["shared*"]
+
+[tool.pytest.ini_options]
+testpaths = ["shared/contracts/tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint.isort]
+known-first-party = ["shared"]
