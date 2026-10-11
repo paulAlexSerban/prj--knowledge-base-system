@@ -31,5 +31,5 @@ COPY demo-harness/product demo-harness/product
 
 RUN uv sync --frozen --no-dev --no-default-groups --package harness-product
 
-# Stay root so the empty SQLite volume at /data is writable. This is a local stub.
+# Stay root so the SQLite volume at /data is writable. This is a local harness.
 CMD ["python", "-m", "harness_product"]

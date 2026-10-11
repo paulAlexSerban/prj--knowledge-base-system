@@ -46,6 +46,8 @@ services:
       SERVICE: product
       PORT: "8080"
       SQLITE_PATH: /data/harness.db
+      FILES_DIR: /data/specs
+      WEBHOOK_URL: http://webhook-receiver:8090/webhooks/product
     volumes: [productdata:/data]
     networks: [kbs-sources, kbs-obs]
     ports: ["127.0.0.1:8103:8080"]
