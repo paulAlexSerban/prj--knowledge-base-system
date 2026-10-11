@@ -1,3 +1,6 @@
-from harness_common.app import main
+def main() -> None:
+    raise SystemExit("product harness store is not built yet")
 
-main()
+
+if __name__ == "__main__":
+    main()

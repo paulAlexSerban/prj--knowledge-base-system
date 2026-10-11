@@ -1,1 +1,1 @@
-"""FastAPI stub shared by harnesses that do not have their own store yet."""
+"""SQLite and change-feed helpers for the Sales, Product, and Engineering harnesses."""

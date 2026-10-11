@@ -16,7 +16,7 @@ from collections.abc import Callable
 from typing import Literal
 
 from fastapi import FastAPI, HTTPException, Query, Response
-from prometheus_client import Gauge, make_asgi_app
+from prometheus_client import REGISTRY, Gauge, make_asgi_app
 from pydantic import BaseModel, Field
 
 from harness_hr.catalog import seed
@@ -28,8 +28,16 @@ CAPABILITIES = ["updated_since", "snapshot_diff"]
 MAX_PAGE = 500
 MAX_SEED = 50_000
 
-UP = Gauge("kbs_harness_up", "1 when a harness service is serving", ["service"])
-OBJECTS = Gauge("kbs_harness_objects", "Live objects in the source", ["service", "object_type"])
+def _gauge(name: str, documentation: str, labels: list[str]) -> Gauge:
+    """Reuse the series when another harness registered it first."""
+    existing = REGISTRY._names_to_collectors.get(name)
+    if isinstance(existing, Gauge):
+        return existing
+    return Gauge(name, documentation, labels)
+
+
+UP = _gauge("kbs_harness_up", "1 when a harness service is serving", ["service"])
+OBJECTS = _gauge("kbs_harness_objects", "Live objects in the source", ["service", "object_type"])
 
 
 class PolicyCreate(BaseModel):

@@ -113,6 +113,7 @@ testpaths = [
   "backend/workers/ingestion-worker/tests",
   "backend/tests/integration",
   "demo-harness/hr/tests",
+  "demo-harness/common/tests",
   "notebooks/tests",
   "frontend/tests",
 ]
