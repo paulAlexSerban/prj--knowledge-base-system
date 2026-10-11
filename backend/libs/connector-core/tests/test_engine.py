@@ -93,9 +93,7 @@ def s3():
     with mock_aws():
         client = boto3.client("s3", region_name="us-east-1")
         client.create_bucket(Bucket=BUCKET)
-        client.put_bucket_versioning(
-            Bucket=BUCKET, VersioningConfiguration={"Status": "Enabled"}
-        )
+        client.put_bucket_versioning(Bucket=BUCKET, VersioningConfiguration={"Status": "Enabled"})
         yield client
 
 
@@ -134,9 +132,7 @@ def test_s3_error_leaves_the_watermark(contract, state, s3) -> None:
         def put(self, key, body, content_type, metadata):
             raise ClientError({"Error": {"Code": "500", "Message": "down"}}, "PutObject")
 
-    report = Syncer(
-        FakeConnector([_item()]), contract, state, Down(s3, BUCKET), workers=1
-    ).run()
+    report = Syncer(FakeConnector([_item()]), contract, state, Down(s3, BUCKET), workers=1).run()
     assert not report.ok
     assert state.get_watermark("hr") is None
 
@@ -244,6 +240,77 @@ def test_delete_enqueue_failure_keeps_the_row(contract, state, s3) -> None:
     syncer.publisher = BoomPublisher()
     syncer.reconcile()
     assert state.get_object("hr", "emp-1") is not None
+
+
+def test_feed_delete_removes_the_snapshot_before_the_event(contract, state, s3) -> None:
+    publisher = RecordingPublisher()
+    connector = FakeConnector([_item()])
+    snapshots = SnapshotStore(s3, BUCKET)
+    syncer = Syncer(connector, contract, state, snapshots, workers=1, publisher=publisher)
+    syncer.run()
+    key = object_key("hr", "person", "emp-1", "json")
+
+    def list_changes(updated_since: str | None, page_token: str | None) -> dict:
+        return {
+            "items": [{"op": "delete", "object_type": "person", "id": "emp-1"}],
+            "server_time": "2026-10-11T13:00:00Z",
+            "next_page_token": None,
+        }
+
+    def publish(event) -> None:
+        assert event.event_type.value == "delete"
+        assert not snapshots.exists(key)
+        publisher.events.append(event)
+
+    connector.list_changes = list_changes  # type: ignore[method-assign]
+    publisher.publish = publish
+    report = syncer.run()
+    assert report.ok
+    assert state.get_object("hr", "emp-1") is None
+    assert any(event.event_type.value == "delete" for event in publisher.events)
+
+
+def test_feed_delete_of_an_unknown_id_is_skipped(contract, state, s3) -> None:
+    connector = FakeConnector([{"op": "delete", "object_type": "person", "id": "missing"}])
+    report = Syncer(connector, contract, state, SnapshotStore(s3, BUCKET), workers=1).run()
+    assert report.ok
+    assert report.errors == 0
+    assert report.skipped == 1
+
+
+def test_feed_delete_enqueue_failure_keeps_the_row(contract, state, s3) -> None:
+    connector = FakeConnector([_item()])
+    snapshots = SnapshotStore(s3, BUCKET)
+    syncer = Syncer(
+        connector, contract, state, snapshots, workers=1, publisher=RecordingPublisher()
+    )
+    syncer.run()
+    syncer.publisher = BoomPublisher()
+    connector.list_changes = lambda updated_since, page_token: {  # type: ignore[method-assign]
+        "items": [{"op": "delete", "object_type": "person", "id": "emp-1"}],
+        "server_time": "2026-10-11T13:00:00Z",
+        "next_page_token": None,
+    }
+    before = metrics.ERRORS.labels(source_id="hr", stage="enqueue")._value.get()
+    report = syncer.run()
+    assert not report.ok
+    assert state.get_object("hr", "emp-1") is not None
+    assert metrics.ERRORS.labels(source_id="hr", stage="enqueue")._value.get() == before + 1
+
+
+def test_cursor_watermark_is_not_treated_as_a_timestamp(contract, state, s3) -> None:
+    connector = FakeConnector([])
+
+    def list_changes(updated_since: str | None, page_token: str | None) -> dict:
+        return {"items": [], "server_time": "15", "next_page_token": None}
+
+    connector.list_changes = list_changes  # type: ignore[method-assign]
+    before = metrics.WATERMARK_LAG.labels(source_id="hr")._value.get()
+    report = Syncer(connector, contract, state, SnapshotStore(s3, BUCKET), workers=1).run()
+    assert report.ok
+    assert report.watermark == "15"
+    assert state.get_watermark("hr") == "15"
+    assert metrics.WATERMARK_LAG.labels(source_id="hr")._value.get() == before
 
 
 def test_unreachable_bucket_is_an_error_and_deletes_nothing(contract, state, s3) -> None:

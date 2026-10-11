@@ -1,8 +1,12 @@
-"""One HR sync cycle and the reconciliation sweep.
+"""One sync cycle and the reconciliation sweep.
 
 S3 is written before Postgres. A crash retries the object; an unchanged hash
 does not create another S3 version. The watermark moves only when every object
 in the cycle succeeded, so a failure is retried and a success is skipped.
+
+An item with `op: delete` uses the same verified delete as the sweep. The
+watermark may be a cursor rather than a timestamp. Lag is recorded only when
+the watermark is an ISO timestamp.
 """
 
 import logging
@@ -146,7 +150,11 @@ class Syncer:
             metrics.DEPENDENCY.labels(dependency="s3").set(0)
             metrics.ERRORS.labels(source_id, "s3_put").inc()
             log_event(
-                LOG, "snapshot list failed", level=logging.ERROR, source_id=source_id, error=str(exc)
+                LOG,
+                "snapshot list failed",
+                level=logging.ERROR,
+                source_id=source_id,
+                error=str(exc),
             )
             return
         metrics.DEPENDENCY.labels(dependency="s3").set(1)
@@ -201,6 +209,8 @@ class Syncer:
             return list(pool.map(self._one, items))
 
     def _one(self, item: dict, force: bool = False) -> ItemOutcome:
+        if item.get("op") == "delete":
+            return self._feed_delete(item)
         source_id = self.contract.source_id
         record = item["record"]
         object_type = item["object_type"]
@@ -308,6 +318,27 @@ class Syncer:
 
     def _body(self, item: dict) -> tuple[bytes, str, str]:
         return self.connector.snapshot_body(item)
+
+    def _feed_delete(self, item: dict) -> ItemOutcome:
+        """A delete delivered on the change feed. The sweep remains the backstop."""
+        source_id = self.contract.source_id
+        object_id = str(item["id"])
+        object_type = str(item.get("object_type", ""))
+        row = self.state.get_object(source_id, object_id)
+        if row is None:
+            log_event(
+                LOG,
+                "delete skipped",
+                source_id=source_id,
+                object_type=object_type,
+                object_id=object_id,
+            )
+            return ItemOutcome("skipped", object_type=object_type)
+        self._delete(row.object_id, row.s3_key)
+        if self.state.get_object(source_id, object_id) is not None:
+            # _delete already counted the failure. Do not count it again.
+            return ItemOutcome("error", object_type=object_type)
+        return ItemOutcome("deleted", object_type=object_type)
 
     def _delete(self, object_id: str, key: str) -> None:
         source_id = self.contract.source_id
@@ -442,7 +473,11 @@ class Syncer:
     def _observe_lag(self, watermark: str | None) -> None:
         if not watermark:
             return
-        metrics.WATERMARK_LAG.labels(self.contract.source_id).set(_seconds_since(watermark))
+        try:
+            lag = _seconds_since(watermark)
+        except ValueError:
+            return
+        metrics.WATERMARK_LAG.labels(self.contract.source_id).set(lag)
 
 
 def _event_type(existing: ObjectRow | None, version: str, acl_text: str) -> EventType:
