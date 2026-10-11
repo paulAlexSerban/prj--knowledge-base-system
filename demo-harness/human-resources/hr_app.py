@@ -11,9 +11,12 @@ Capability is `updated_since` plus `snapshot_diff`. There is no webhook and no d
 A delete is visible only as an id missing from /ids.
 """
 
+import time
 from collections.abc import Callable
+from typing import Literal
 
 from fastapi import FastAPI, HTTPException, Query, Response
+from hr_generate import generate_people, generate_policies
 from hr_seed import seed
 from hr_store import Conflict, Invalid, NotFound, Store, utc_now
 from prometheus_client import Gauge, make_asgi_app
@@ -22,6 +25,7 @@ from pydantic import BaseModel, Field
 SERVICE = "hr"
 CAPABILITIES = ["updated_since", "snapshot_diff"]
 MAX_PAGE = 500
+MAX_SEED = 50_000
 
 UP = Gauge("kbs_harness_up", "1 when a harness service is serving", ["service"])
 OBJECTS = Gauge("kbs_harness_objects", "Live objects in the source", ["service", "object_type"])
@@ -55,6 +59,13 @@ class PersonCreate(BaseModel):
     region: str
     manager_id: str | None = None
     native_acl: list[str] = ["hr_employee"]
+
+
+class SeedLoad(BaseModel):
+    kind: Literal["person", "policy"]
+    count: int = Field(ge=1, le=MAX_SEED)
+    seed: int = 1
+    replace: bool = False
 
 
 class PersonEdit(BaseModel):
@@ -213,6 +224,30 @@ def create_app(store: Store, seed_if_empty: bool = True) -> FastAPI:
     def admin_delete_person(person_id: str) -> Response:
         guard(lambda: store.delete_person(person_id))
         return Response(status_code=204)
+
+    @app.post("/admin/seed")
+    def admin_seed(payload: SeedLoad) -> dict[str, object]:
+        """Generate `count` people or policies with Faker and insert them.
+
+        The notebook calls this. Generation stays in the service so a 10,000 row load
+        does not ship bodies over HTTP. `replace` drops existing rows of that kind first.
+        """
+        started = time.perf_counter()
+        if payload.replace:
+            store.clear_kind(payload.kind)
+        start = store.next_number(payload.kind)
+        if payload.kind == "person":
+            rows = generate_people(payload.count, payload.seed, start)
+        else:
+            rows = generate_policies(payload.count, payload.seed, start)
+        inserted = guard(lambda: store.bulk_insert(payload.kind, rows))
+        return {
+            "kind": payload.kind,
+            "inserted": inserted,
+            "seed": payload.seed,
+            "counts": store.counts(),
+            "elapsed_seconds": round(time.perf_counter() - started, 3),
+        }
 
     @app.post("/admin/reset")
     def admin_reset() -> dict[str, object]:

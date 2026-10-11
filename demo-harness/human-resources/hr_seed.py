@@ -1,12 +1,14 @@
-"""Deterministic seed data: a small people directory and eleven policies.
+"""Default seed: 48 Faker people and the eleven curated policies.
 
 Teams are the shared keys the other harness services refer to (Engineering owns epics per
 team, Sales owns accounts per sales team). Seed rows carry a fixed timestamp so a fresh
-database always looks the same; mutations stamp the current time.
+database always looks the same; mutations stamp the current time. Larger loads go through
+`hr_generate` and `POST /admin/seed`.
 """
 
 from pathlib import Path
 
+from hr_generate import generate_people
 from hr_store import Store
 
 SEED_AT = "2026-01-15T09:00:00.000000Z"
@@ -90,105 +92,31 @@ POLICIES = [
     ),
 ]
 
-FIRST = [
-    "Anna",
-    "Ben",
-    "Clara",
-    "David",
-    "Elena",
-    "Felix",
-    "Greta",
-    "Hugo",
-    "Iris",
-    "Jonas",
-    "Katja",
-    "Lukas",
-    "Mara",
-    "Nils",
-    "Olivia",
-    "Paul",
-    "Quinn",
-    "Rosa",
-    "Sven",
-    "Tara",
-    "Uwe",
-    "Vera",
-    "Wim",
-    "Xenia",
-    "Yusuf",
-    "Zoe",
-]
-LAST = [
-    "Becker",
-    "Chen",
-    "Dubois",
-    "Evans",
-    "Fischer",
-    "Garcia",
-    "Hoffmann",
-    "Ivanov",
-    "Jensen",
-    "Keller",
-    "Lopez",
-    "Meyer",
-    "Novak",
-    "Olsen",
-    "Patel",
-    "Richter",
-    "Schmidt",
-    "Taylor",
-    "Vogel",
-    "Weber",
-]
-
-# team, head role, member role, count, regions cycled through
-TEAMS = [
-    ("people", "Head of People", "People Partner", 4, ["DE", "US"]),
-    ("platform", "Engineering Manager", "Software Engineer", 7, ["DE", "UK"]),
-    ("payments", "Engineering Manager", "Software Engineer", 6, ["DE", "FR"]),
-    ("identity", "Engineering Manager", "Software Engineer", 5, ["US", "UK"]),
-    ("data", "Engineering Manager", "Data Engineer", 5, ["DE", "US"]),
-    ("product", "Head of Product", "Product Manager", 5, ["DE", "US", "UK"]),
-    ("sales-emea", "Regional Sales Director", "Account Executive", 8, ["DE", "UK", "FR"]),
-    ("sales-amer", "Regional Sales Director", "Account Executive", 8, ["US"]),
-]
-
-
-def people() -> list[dict[str, object]]:
-    rows: list[dict[str, object]] = []
-    index = 0
-    for team, head_role, member_role, count, regions in TEAMS:
-        head_id = f"emp-{index + 1:03d}"
-        for seat in range(count):
-            index += 1
-            first, last = FIRST[index % len(FIRST)], LAST[(index * 7) % len(LAST)]
-            rows.append(
-                {
-                    "person_id": f"emp-{index:03d}",
-                    "email": f"{first}.{last}.{index:03d}@example.com".lower(),
-                    "full_name": f"{first} {last}",
-                    "team": team,
-                    "role": head_role if seat == 0 else member_role,
-                    "region": regions[seat % len(regions)],
-                    "manager_id": None if seat == 0 else head_id,
-                    "native_acl": ["hr_employee"],
-                    # Held by the source, never returned by the API.
-                    "salary": 60000 + index * 750,
-                    "national_id": f"NID-{index:06d}",
-                }
-            )
-    return rows
+DEFAULT_PEOPLE = 48
+DEFAULT_SEED = 1
 
 
 def policy_body(policy_id: str) -> str:
     return (POLICY_DIR / f"{policy_id}.md").read_text(encoding="utf-8")
 
 
+def curated_policies() -> list[dict[str, object]]:
+    return [
+        {
+            "policy_id": policy_id,
+            "title": title,
+            "category": category,
+            "region": region,
+            "format": fmt,
+            "native_acl": acl,
+            "body": policy_body(policy_id),
+        }
+        for policy_id, title, category, region, fmt, acl in POLICIES
+    ]
+
+
 def seed(store: Store) -> dict[str, int]:
-    for person in people():
-        store.put_person(person, at=SEED_AT)
-    for policy_id, title, category, region, fmt, acl in POLICIES:
-        store.create_policy(
-            policy_id, title, category, region, fmt, acl, policy_body(policy_id), at=SEED_AT
-        )
+    people = generate_people(DEFAULT_PEOPLE, seed=DEFAULT_SEED, start=store.next_number("person"))
+    store.bulk_insert("person", people, at=SEED_AT)
+    store.bulk_insert("policy", curated_policies(), at=SEED_AT)
     return store.counts()

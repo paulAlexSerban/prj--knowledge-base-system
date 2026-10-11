@@ -2,7 +2,7 @@
 
 The Unified Knowledge Gateway is an event-driven hybrid knowledge base. It ingests department data, turns it into knowledge agents can use, and serves it through one API and one MCP server with the caller's permissions applied in the data layer.
 
-This repository is a proof of concept for that gateway. The design is written down. The source-contract gate is implemented and checked in CI. Compose starts the harness, workers, stores, API, MCP server, floci, and the observability stack (Alloy, Loki, Prometheus, and Grafana). Those processes are stubs: they answer health checks and list registered sources. They do not retrieve or answer questions yet.
+This repository is a proof of concept for that gateway. The design is written down. The source-contract gate is implemented and checked in CI. Compose starts the harness, workers, stores, API, MCP server, floci, Jupyter, and the observability stack (Alloy, Loki, Prometheus, and Grafana). The gateway processes are stubs: they answer health checks and list registered sources. They do not retrieve or answer questions yet. The HR harness serves a seeded directory and policies.
 
 ## Status
 
@@ -12,8 +12,8 @@ This repository is a proof of concept for that gateway. The design is written do
 | Project brief, spikes, ADRs, and the architecture outline                                            | Retrieval, chunking, embeddings, and the two demo answers     |
 | C4 diagrams (context, containers, components, connector containers)                                  | Mock identity provider and access-boundary tests              |
 | Source-contract model, four YAML contracts, validator, tests, and CI                                 | Golden evaluation set                                         |
-| Compose projects for the harness, gateway, ingestion, store, floci, and observability (Alloy, Loki, Prometheus, Grafana), with stub processes | The eight freshness and authorization panels on the dashboard |
-| Terraform on floci: three FIFO queues, three dead-letter queues, one snapshot bucket                 | Seed data and `make demo`                                     |
+| Compose projects for the harness, gateway, ingestion, store, floci, Jupyter, and observability (Alloy, Loki, Prometheus, Grafana). Gateway processes are stubs. The HR harness is seeded. | The eight freshness and authorization panels on the dashboard |
+| Terraform on floci: three FIFO queues, three dead-letter queues, one snapshot bucket                 | Seed data for Sales, Product, and Engineering, and `make demo` |
 
 
 
@@ -88,6 +88,7 @@ make up
 | 8001      | MCP server (`/health`, streamable HTTP at `/mcp`) |
 | 8090      | Product webhook receiver                          |
 | 8101–8104 | HR, Sales, Product, Engineering harness           |
+| 8888      | Jupyter (`make notebooks`). Token is `JUPYTER_TOKEN`. |
 | 9090      | Prometheus                                        |
 | 3000      | Grafana, anonymous admin, dev only. Logs are read here. Loki and Alloy are not published. |
 | 4566      | floci, bound to 127.0.0.1                         |
@@ -97,7 +98,7 @@ make up
 make down
 ```
 
-`make seed`, `make demo`, and `make eval` do not exist yet. Details of networks and how to start one project alone are in [infrastructure/README.md](infrastructure/README.md).
+`make notebooks` starts Jupyter on port 8888. The seed notebook loads up to 10,000 HR people or policies through the harness. `make seed`, `make demo`, and `make eval` do not exist yet. Details of networks and how to start one project alone are in [infrastructure/README.md](infrastructure/README.md).
 
 ## Demo script
 
@@ -130,7 +131,8 @@ Contracts live in [infrastructure/config/sources](infrastructure/config/sources)
 | `infrastructure/config/sources/` | The four YAML contracts.                                                        |
 | `backend/`                       | API, MCP, workers, and the change-event model. Stubs.                           |
 | `database/`                      | Postgres init (pgvector, roles, placeholder RLS) and Neo4j constraints.         |
-| `demo-harness/`                  | Four FastAPI services. HR is seeded (people, policies, admin API). The other three are empty stubs. |
+| `demo-harness/`                  | Four FastAPI services. HR is seeded (SQLAlchemy, Faker, admin API). The other three are empty stubs. |
+| `notebooks/`                     | Jupyter seed and inspect notebooks for HR.                                      |
 | `infrastructure/`                | Compose projects, Terraform for floci, source contracts.                        |
 | `observability/`                 | Alloy and Loki config, Prometheus scrape config, and the Grafana dashboard.    |
 | `tools/`                         | Seed, mutation, and evaluation scripts. Empty.                                  |

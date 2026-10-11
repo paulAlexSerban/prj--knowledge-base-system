@@ -17,6 +17,7 @@ This repository is a POC knowledge gateway: ingest four department sources, keep
 | `backend/` | API, MCP, service layer, workers, messaging. |
 | `database/` | Postgres and Neo4j schema. |
 | `demo-harness/` | HR, Sales, Product, Engineering mocks. |
+| `notebooks/` | Jupyter seed and inspect notebooks for the HR harness. |
 | `infrastructure/orchestration/` | One Compose file per trust area, plus `compose.yaml` which includes them. |
 | `infrastructure/provisioning/terraform/` | Queues, dead-letter queues, and the snapshot bucket on floci. |
 | `observability/` | Alloy, Loki, Prometheus, one dashboard, and metric definitions. |
@@ -33,11 +34,11 @@ make compose-check
 uv run ruff check shared backend
 ```
 
-Add a runtime dependency with `uv add` and a dev dependency with `uv add --dev`. Image-only libraries go in the `backend` or `harness` dependency group (`uv add --group backend ...`). Commit `uv.lock`. Do not use `pip` or `python -m venv`. Do not add dependencies outside `pyproject.toml`.
+Add a runtime dependency with `uv add` and a dev dependency with `uv add --dev`. Image-only libraries go in the `backend`, `harness`, or `notebooks` dependency group (`uv add --group backend ...`). Commit `uv.lock`. Do not use `pip` or `python -m venv`. Do not add dependencies outside `pyproject.toml`.
 
-`make up` starts the stub stack. `make seed`, `make demo`, and `make eval` are not written yet. Add a target only when the command it wraps exists, and update the README quickstart in that same change.
+`make up` starts the stub stack. `make notebooks` starts Jupyter. `make seed`, `make demo`, and `make eval` are not written yet. Add a target only when the command it wraps exists, and update the README quickstart in that same change. HR bulk load is the notebook, which calls `POST /admin/seed`.
 
-Dockerfiles install with `uv sync --frozen`. Do not publish Postgres or Neo4j ports. One Compose network per trust boundary (`kbs-data` is internal). Service names are globally unique. New services need a healthcheck and a Prometheus target.
+Dockerfiles install with `uv sync --frozen`. Do not publish Postgres or Neo4j ports. One Compose network per trust boundary (`kbs-data` is internal). Service names are globally unique. New services need a healthcheck and a Prometheus target. Jupyter is the exception: it has a healthcheck and no `/metrics` endpoint, and Alloy does not scrape it.
 
 ## Design rules
 

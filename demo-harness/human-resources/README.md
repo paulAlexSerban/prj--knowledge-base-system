@@ -1,8 +1,8 @@
 # HR harness
 
-Service `harness-hr`, host port 8101, container port 8080. FastAPI, SQLite, and policy files on disk. Status: built.
+Service `harness-hr`, host port 8101, container port 8080. FastAPI, SQLAlchemy on SQLite, and policy files on disk. Status: built.
 
-The source stands in for an HR system. It holds a people directory (48 rows) and eleven policies (nine Markdown, two PDF). An empty database is seeded on start. Seed rows carry the fixed timestamp `2026-01-15T09:00:00Z`.
+The source stands in for an HR system. An empty database is seeded on start with 48 Faker people and eleven curated policies (nine Markdown, two PDF, including Germany parental leave). Those rows carry the fixed timestamp `2026-01-15T09:00:00Z`. Larger loads use `POST /admin/seed`.
 
 Change signal: `updated_since` plus `snapshot_diff`. There is no webhook and no delete feed. The connector polls `/changes` in-process because the source is tier P0, and the reconciliation sweep reads `/ids`.
 
@@ -36,7 +36,20 @@ These endpoints stand in for HR staff editing the source. Nothing in the gateway
 | `PUT /admin/policies/{id}/acl` with `{native_acl}` | Change who can read it. |
 | `POST /admin/policies`, `DELETE /admin/policies/{id}` | Create or hard-delete a policy and its file. |
 | `PATCH /admin/people/{id}`, `POST /admin/people`, `DELETE /admin/people/{id}` | Edit, create, or delete a person. |
-| `POST /admin/reset` | Return to seed state so the demo can be repeated. |
+| `POST /admin/seed` with `{kind, count, seed, replace}` | Generate `person` or `policy` rows with Faker and insert them. `count` is 1 to 50,000. Ids continue after the highest existing suffix (`emp-NNNNNN`, `pol-gen-NNNNNN`). `replace: true` deletes that kind first. Returns counts and `elapsed_seconds`. |
+| `POST /admin/reset` | Return to the curated seed so the demo can be repeated. |
+
+## Load 10,000 rows
+
+The seed notebook is the supported way. See [notebooks/README.md](../../notebooks/README.md). The same call from the host:
+
+```bash
+curl -s -X POST http://127.0.0.1:8101/admin/seed \
+  -H 'content-type: application/json' \
+  -d '{"kind":"person","count":10000,"seed":1}'
+```
+
+Use `"kind":"policy"` for policies. About 20 percent are PDF and about 5 percent are `hr_policy_admin`. The same `seed` value produces the same names and bodies. A second call does not collide: numbering starts after the current maximum.
 
 ## Shared keys
 
@@ -53,4 +66,4 @@ Compose sets `SQLITE_PATH=/data/harness.db` and `FILES_DIR=/data/policies` on th
 
 ## Layout
 
-`hr_store.py` is the SQLite and file layer. `hr_app.py` is the API. `hr_seed.py` builds the data from `seed/policies/*.md`. `hr_pdf.py` writes dependency-free PDFs. Policies of format `pdf` are stored as PDFs rendered from the Markdown source.
+`hr_store.py` is the SQLAlchemy layer (models, keyset queries, batched inserts). `hr_app.py` is the API. `hr_generate.py` builds Faker people and policies. `hr_seed.py` loads the default 48 people plus the curated files in `seed/policies/*.md`. `hr_pdf.py` writes dependency-free PDFs. Policies of format `pdf` are stored as PDFs rendered from the Markdown source.

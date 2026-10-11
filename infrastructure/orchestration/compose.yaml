@@ -6,4 +6,5 @@ include:
   - path: compose.ingestion-pipeline.yaml
   - path: compose.knowledge-gateway.yaml
   - path: compose.demo-harness.yaml
+  - path: compose.notebooks.yaml
   - path: compose.observability.yaml

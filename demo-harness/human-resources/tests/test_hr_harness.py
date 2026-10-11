@@ -79,7 +79,13 @@ def test_no_endpoint_returns_forbidden_fields(client):
             return {k for value in node for k in keys(value)}
         return set()
 
-    for path in ("/people", "/people/emp-001", "/changes", "/people/emp-001/acl", "/policies"):
+    for path in (
+        "/people",
+        "/people/emp-000001",
+        "/changes",
+        "/people/emp-000001/acl",
+        "/policies",
+    ):
         assert not keys(client.get(path).json()) & set(FORBIDDEN), path
 
 
@@ -131,10 +137,10 @@ def test_delete_is_visible_only_in_ids(client):
 
 
 def test_person_edit_and_delete(client):
-    changed = client.patch("/admin/people/emp-010", json={"team": "payments"}).json()
+    changed = client.patch("/admin/people/emp-000010", json={"team": "payments"}).json()
     assert changed["team"] == "payments" and changed["version"] == 2
-    assert client.delete("/admin/people/emp-010").status_code == 204
-    assert client.get("/people/emp-010").status_code == 404
+    assert client.delete("/admin/people/emp-000010").status_code == 204
+    assert client.get("/people/emp-000010").status_code == 404
 
 
 def test_reset_restores_seed(client):
@@ -179,13 +185,13 @@ def test_duplicate_policy_and_person_conflict(client):
         "body": "x",
     }
     assert client.post("/admin/policies", json=body).status_code == 409
-    person = client.get("/people/emp-001").json()
+    person = client.get("/people/emp-000001").json()
     person = {k: person[k] for k in ("person_id", "email", "full_name", "team", "role", "region")}
     assert client.post("/admin/people", json=person).status_code == 409
 
 
 def test_duplicate_email_conflicts(client):
-    person = client.get("/people/emp-001").json()
+    person = client.get("/people/emp-000001").json()
     person = {k: person[k] for k in ("email", "full_name", "team", "role", "region")}
     assert client.post("/admin/people", json={**person, "person_id": "emp-900"}).status_code == 409
 
@@ -197,3 +203,54 @@ def test_invalid_policy_id_and_format_rejected(client):
         "/admin/policies", json={**base, "policy_id": "pol-new-one", "format": "docx"}
     )
     assert response.status_code == 422
+
+
+def test_generator_is_deterministic_and_unique():
+    from hr_generate import generate_people, generate_policies
+
+    assert generate_people(20, seed=7) == generate_people(20, seed=7)
+    assert generate_policies(20, seed=7) == generate_policies(20, seed=7)
+    people = generate_people(10_000, seed=3)
+    assert len({row["person_id"] for row in people}) == 10_000
+    assert len({row["email"] for row in people}) == 10_000
+    policies = generate_policies(10_000, seed=3)
+    assert len({row["policy_id"] for row in policies}) == 10_000
+    assert sum(row["format"] == "pdf" for row in policies) == 2_000
+    assert sum(row["native_acl"] == ["hr_policy_admin"] for row in policies) == 500
+
+
+def test_admin_seed_pages_ten_thousand_people(client):
+    response = client.post("/admin/seed", json={"kind": "person", "count": 10_000, "seed": 11})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["inserted"] == 10_000
+    assert body["counts"]["person"] == 10_048
+    people = [item for item in all_changes(client, limit=500) if item["object_type"] == "person"]
+    assert len(people) == len({item["id"] for item in people}) == 10_048
+    sample = client.get("/changes", params={"limit": 1}).json()["items"][0]["record"]
+    assert not set(sample) & set(FORBIDDEN)
+
+
+def test_second_seed_continues_ids(client):
+    first = client.post("/admin/seed", json={"kind": "person", "count": 3, "seed": 2})
+    second = client.post("/admin/seed", json={"kind": "person", "count": 2, "seed": 2})
+    assert first.status_code == second.status_code == 200
+    ids = {row["id"] for row in client.get("/ids").json()["ids"]["person"]}
+    assert "emp-000049" in ids and "emp-000053" in ids
+    assert len(ids) == 53
+
+
+def test_seed_count_and_kind_are_rejected(client):
+    assert client.post("/admin/seed", json={"kind": "person", "count": 50_001}).status_code == 422
+    assert client.post("/admin/seed", json={"kind": "deal", "count": 1}).status_code == 422
+    assert client.post("/admin/seed", json={"kind": "policy", "count": 0}).status_code == 422
+
+
+def test_seed_replace_drops_previous_people(client):
+    client.post("/admin/seed", json={"kind": "person", "count": 2, "seed": 1})
+    replaced = client.post(
+        "/admin/seed", json={"kind": "person", "count": 4, "seed": 9, "replace": True}
+    )
+    assert replaced.json()["counts"]["person"] == 4
+    assert client.get("/people/emp-000001").status_code == 200
+    assert client.get("/people/emp-000048").status_code == 404

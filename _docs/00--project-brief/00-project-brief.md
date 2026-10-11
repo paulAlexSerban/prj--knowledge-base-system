@@ -101,7 +101,7 @@ These are places where the stated requirements need a narrower reading before im
 - One service layer exposed twice: a REST API and an MCP server (`search_knowledge`, `get_document`, `find_related`, `list_sources`).
 - User-delegated authorization: JWT claims, coarse pre-filter in SQL and Cypher, fine-grained post-check, Postgres row-level security, and an audit record of which attributes justified a result.
 - Delete propagation, content-hash skip, idempotent upserts, and a reconciliation sweep.
-- A demo harness: FastAPI services with SQLite and files for HR, Sales, Product, and Engineering, plus a mutation script.
+- A demo harness: FastAPI services with SQLite and files for HR, Sales, Product, and Engineering, plus a mutation script. HR stores rows with SQLAlchemy and can bulk-load Faker people or policies through `POST /admin/seed`. A Jupyter notebook drives that load. The other three sources are still empty stubs.
 - Docker Compose, floci, and Terraform for the FIFO queues, dead-letter queues, and snapshot bucket. Alloy collects metrics and container logs. Prometheus stores metrics, Loki stores logs, and Grafana shows both. Traces are deferred. The API key stays in the environment.
 - A golden evaluation set of about 20 questions, including questions with no answer, conflicting sources, and access-boundary cases.
 
@@ -166,6 +166,7 @@ The demo is the acceptance test. Each step is observable in the API response, th
 | `backend/functions` | Small pure functions (chunking, fusion, hashing). |
 | `database` | Postgres and Neo4j schema. |
 | `demo-harness/` | HR, Sales, Product, and Engineering mock services. |
+| `notebooks/` | Jupyter notebooks that seed and inspect the HR harness. |
 | `infrastructure/` | Compose orchestration, Terraform provisioning, floci config, and `config/sources` YAML contracts. |
 | `observability` | Alloy, Loki, Prometheus, one dashboard, and metric definitions. |
 | `shared` | Contracts shared by the harness and the gateway. Source contracts in `shared/contracts` are checked by `make contracts-check`. |

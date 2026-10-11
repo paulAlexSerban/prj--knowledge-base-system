@@ -24,25 +24,32 @@ backend = [
     "uvicorn[standard]>=0.54.0",
 ]
 dev = [
+  "faker>=40.43.0",
   "httpx>=0.28.1",
   "pytest>=8",
   "ruff>=0.6",
 ]
 harness = [
+    "faker>=40.43.0",
     "fastapi>=0.143.0",
     "prometheus-client>=0.26.0",
+    "sqlalchemy>=2.1.4",
     "uvicorn[standard]>=0.54.0",
+]
+notebooks = [
+    "httpx>=0.28.1",
+    "jupyter>=1.1",
 ]
 
 [tool.setuptools.packages.find]
 include = ["shared*", "backend*"]
 
 [tool.pytest.ini_options]
-testpaths = ["shared/contracts/tests", "shared/tests", "backend/tests", "demo-harness/human-resources/tests"]
+testpaths = ["shared/contracts/tests", "shared/tests", "backend/tests", "demo-harness/human-resources/tests", "notebooks/tests"]
 pythonpath = [".", "demo-harness/human-resources"]
 
 [tool.uv]
-default-groups = ["dev", "backend", "harness"]
+default-groups = ["dev", "backend", "harness", "notebooks"]
 
 [tool.ruff]
 line-length = 100

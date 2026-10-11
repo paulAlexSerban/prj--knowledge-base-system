@@ -1,4 +1,4 @@
-.PHONY: sync contracts-schema contracts-check test networks up down ps logs compose-check
+.PHONY: sync contracts-schema contracts-check test networks up down ps logs notebooks compose-check
 
 COMPOSE_DIR := infrastructure/orchestration
 ENV_FILE := .env
@@ -40,6 +40,9 @@ ps:
 logs:
 	$(COMPOSE) logs --tail=200
 
+notebooks: networks $(ENV_FILE)
+	$(COMPOSE) up -d --build jupyter
+
 compose-check: $(ENV_FILE)
 	$(COMPOSE) config -q
 	docker compose --env-file $(ENV_FILE) -f $(COMPOSE_DIR)/compose.aws.yaml config -q
@@ -48,3 +51,4 @@ compose-check: $(ENV_FILE)
 	docker compose --env-file $(ENV_FILE) -f $(COMPOSE_DIR)/compose.knowledge-gateway.yaml config -q
 	docker compose --env-file $(ENV_FILE) -f $(COMPOSE_DIR)/compose.demo-harness.yaml config -q
 	docker compose --env-file $(ENV_FILE) -f $(COMPOSE_DIR)/compose.observability.yaml config -q
+	docker compose --env-file $(ENV_FILE) -f $(COMPOSE_DIR)/compose.notebooks.yaml config -q

@@ -20,6 +20,7 @@ External networks must exist first (`make networks`).
 | `orchestration/compose.ingestion-pipeline.yaml` | connector worker, ingestion worker, webhook receiver | `kbs-data`, `kbs-sources`, `kbs-aws`, `kbs-obs` |
 | `orchestration/compose.knowledge-gateway.yaml` | API on 8000, MCP on 8001 | `kbs-data`, `kbs-obs` |
 | `orchestration/compose.demo-harness.yaml` | HR 8101, Sales 8102, Product 8103, Engineering 8104 | `kbs-sources`, `kbs-obs` |
+| `orchestration/compose.notebooks.yaml` | Jupyter 8888 | `kbs-sources`, `kbs-obs` |
 | `orchestration/compose.observability.yaml` | Alloy, Loki, Prometheus 9090, Grafana 3000 | `kbs-obs` |
 
 `kbs-data` is `--internal`. Postgres and Neo4j have no published ports. Debug with `docker compose exec`.
@@ -32,6 +33,6 @@ Scheduler schedules are not created. EventBridge Scheduler cannot run faster tha
 
 ## What the processes do
 
-They load, or they wait. The gateway lists the four source contracts and exits if the registry is invalid. The connector worker does the same and logs a P0 poll without fetching. The ingestion worker checks that the three queues answer. The harness serves an empty change list from SQLite. No chunking, embedding, or retrieval runs.
+They load, or they wait. The gateway lists the four source contracts and exits if the registry is invalid. The connector worker does the same and logs a P0 poll without fetching. The ingestion worker checks that the three queues answer. The HR harness serves a seeded directory and policies from SQLite through SQLAlchemy. The other three harnesses still serve an empty change list. Jupyter calls the HR admin API and is not scraped: it has no `/metrics` endpoint. No chunking, embedding, or retrieval runs.
 
 Alloy scrapes `/metrics` on `kbs-obs` and remote-writes to Prometheus. It also tails container logs through a read-only Docker socket and pushes them to Loki. That socket is a trust-boundary exception: it can see stdout from containers that are not on `kbs-obs`. Loki and Alloy publish no host ports. Grafana on port 3000 is how you read logs. Details are in [ADR 0002](../_docs/03--adrs/0002-observability.md).

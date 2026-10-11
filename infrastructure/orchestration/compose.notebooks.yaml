@@ -1,0 +1,44 @@
+# Local notebooks. They call the harness over HTTP and never join kbs-data,
+# so they cannot reach Postgres or Neo4j. Jupyter has no /metrics endpoint
+# and is not a Prometheus target.
+
+services:
+  jupyter:
+    build:
+      context: ../..
+      dockerfile: notebooks/Dockerfile
+    command:
+      [
+        "jupyter", "lab",
+        "--ip=0.0.0.0",
+        "--port=8888",
+        "--no-browser",
+        "--ServerApp.root_dir=/notebooks",
+        "--allow-root",
+        "--IdentityProvider.token=${JUPYTER_TOKEN:-dev-only-notebook}",
+      ]
+    environment:
+      JUPYTER_TOKEN: ${JUPYTER_TOKEN:-dev-only-notebook}
+      HARNESS_HR_URL: http://harness-hr:8080
+    volumes:
+      - ../../notebooks:/notebooks
+    networks: [kbs-sources, kbs-obs]
+    ports: ["127.0.0.1:8888:8888"]
+    healthcheck:
+      test:
+        [
+          "CMD", "python", "-c",
+          "import os, urllib.request; urllib.request.urlopen(urllib.request.Request('http://127.0.0.1:8888/api/status', headers={'Authorization': 'token ' + os.environ['JUPYTER_TOKEN']}))",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 20s
+
+networks:
+  kbs-sources:
+    external: true
+    name: kbs-sources
+  kbs-obs:
+    external: true
+    name: kbs-obs
