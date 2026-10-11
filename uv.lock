@@ -10,6 +10,7 @@ resolution-markers = [
 members = [
     "connector-core",
     "connector-hr",
+    "gateway-core",
     "harness-common",
     "harness-engineering",
     "harness-hr",
@@ -700,6 +701,25 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/02/01/248d44fbda9e78fa1a7b5a475194bef4c4a3e285db286419f3bb42f2efdf/fqdn-1.6.0.tar.gz", hash = "sha256:e39bf62e2a9481aa2cb780554fdfd944dd8ee5f230eb831684d539cbafed8de2", size = 130737, upload-time = "2026-09-28T05:43:35.482Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/15/d5/a8f9149b97cced9e1f4bff92ff0b6206120e2c853ae774d7020d6ecd8fa8/fqdn-1.6.0-py3-none-any.whl", hash = "sha256:6c793c312ccfa29981e1135b3ef5e1277ebe639731a6b0f7350d90e96e63f0b4", size = 12569, upload-time = "2026-09-28T05:43:33.951Z" },
+]
+
+[[package]]
+name = "gateway-core"
+version = "0.1.0"
+source = { editable = "backend/libs/gateway-core" }
+dependencies = [
+    { name = "knowledge-store" },
+    { name = "pyjwt" },
+    { name = "pyyaml" },
+    { name = "shared" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "knowledge-store", editable = "backend/libs/knowledge-store" },
+    { name = "pyjwt", specifier = ">=2.10" },
+    { name = "pyyaml", specifier = ">=6" },
+    { name = "shared", editable = "shared" },
 ]
 
 [[package]]
@@ -1400,6 +1420,7 @@ source = { virtual = "." }
 dev = [
     { name = "connector-core" },
     { name = "connector-hr" },
+    { name = "gateway-core" },
     { name = "harness-common" },
     { name = "harness-engineering" },
     { name = "harness-hr" },
@@ -1428,6 +1449,7 @@ notebooks = [
 dev = [
     { name = "connector-core", editable = "backend/libs/connector-core" },
     { name = "connector-hr", editable = "backend/connectors/hr" },
+    { name = "gateway-core", editable = "backend/libs/gateway-core" },
     { name = "harness-common", editable = "demo-harness/common" },
     { name = "harness-engineering", editable = "demo-harness/engineering" },
     { name = "harness-hr", editable = "demo-harness/hr" },

@@ -32,9 +32,10 @@ excluded_fields:
   - ssn
   - national_id
 acl_mapping:
+  # No department on hr_employee: an employee in any department may read it.
+  # An empty acl_departments list means the same thing on the stored chunk.
   - native: hr_employee
     attributes:
-      department: people
       clearance: internal
       group: employees
   - native: hr_policy_admin

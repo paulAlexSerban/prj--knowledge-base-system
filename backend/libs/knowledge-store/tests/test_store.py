@@ -10,6 +10,7 @@ from sqlalchemy import text
 
 from ingest_contract.events import RAW_BUCKET, ChangeEvent
 from knowledge_store.acl import AclView, Principal
+from knowledge_store.chunkers import ChunkDraft
 from knowledge_store.embedder import HashEmbedder
 from knowledge_store.graph import GraphWriter
 from knowledge_store.postgres import ChunkTable
@@ -189,10 +190,12 @@ def test_two_principals_and_rls(world) -> None:
     key = "raw/hr/policy/pol-1.md"
     _put(client, key, POLICY, "hr_employee,hr_policy_admin", "1", "hash-1")
     store.upsert_object(_event("pol-1", key, "1", "hash-1"))
-    employee = Principal("ada", ("employees",), "internal", "people")
+    employee = Principal("ada", ("employees",), "internal", "engineering")
     outsider = Principal("bob", ("sales_team",), "internal", "sales")
     admin_low = Principal("cam", ("hr_admins",), "internal", "people")
+    blank = Principal("ada", ("employees",), "internal", "")
     assert store.chunks.count_visible(None) == 0
+    assert store.chunks.count_visible(blank) == 0
     assert store.chunks.count_visible(employee) == 2
     assert store.chunks.count_visible(outsider) == 0
     found = store.search("Germany", employee, limit=5, request_id="req-1")
@@ -209,6 +212,71 @@ def test_two_principals_and_rls(world) -> None:
     assert ("ada", "allow", True) in decisions
     assert ("bob", "deny", False) in decisions
     assert ("cam", "deny", True) in decisions
+
+
+def test_admin_only_policy_is_hidden_from_an_engineer(world) -> None:
+    store, _spy, client, _admin, _driver = world
+    key = "raw/hr/policy/pol-admin.md"
+    _put(client, key, POLICY, "hr_policy_admin", "1", "hash-admin")
+    store.upsert_object(_event("pol-admin", key, "1", "hash-admin"))
+    engineer = Principal("eve", ("employees",), "internal", "engineering")
+    admin = Principal("ira", ("hr_admins",), "confidential", "people")
+    assert store.chunks.count_visible(engineer) == 0
+    assert store.search("Germany", engineer, request_id="eng-admin") == []
+    found = store.search("Germany", admin, request_id="admin-ok")
+    assert found
+    assert "Germany" in found[0].text
+
+
+def test_named_department_still_excludes_other_departments(world) -> None:
+    store, _spy, _client, _admin, _driver = world
+    embedder = HashEmbedder()
+    draft = ChunkDraft(0, "body", "Quarterly forecast for the account.", "record-v1")
+    vector = embedder.embed([draft.text])[0]
+    acl = AclView(
+        ("sales_team",),
+        ("sales",),
+        0,
+        ({"group": "sales_team", "department": "sales", "clearance": "public"},),
+        (),
+    )
+    store.chunks.replace_chunks(
+        "sales", "deal-1", "deal", "1", "hash-deal", embedder.name, [draft], [vector], acl
+    )
+    sales = Principal("sam", ("sales_team",), "internal", "sales")
+    engineer = Principal("eve", ("sales_team",), "internal", "engineering")
+    assert store.chunks.count_visible(sales) == 1
+    assert store.chunks.count_visible(engineer) == 0
+    assert store.search("forecast", sales, request_id="sales-ok")
+    assert store.search("forecast", engineer, request_id="sales-no") == []
+
+
+def test_stored_employee_department_is_opened_by_the_migration(world) -> None:
+    store, _spy, _client, admin, _driver = world
+    embedder = HashEmbedder()
+    draft = ChunkDraft(0, "Eligibility", "Parental leave in Germany.", "markdown-headings-v1")
+    vector = embedder.embed([draft.text])[0]
+    old = AclView(
+        ("employees",),
+        ("people",),
+        1,
+        ({"group": "employees", "department": "people", "clearance": "internal"},),
+        (),
+    )
+    store.chunks.replace_chunks(
+        "hr", "pol-old", "policy", "1", "hash-old", embedder.name, [draft], [vector], old
+    )
+    engineer = Principal("eve", ("employees",), "internal", "engineering")
+    assert store.chunks.count_visible(engineer) == 0
+    sql = (_root() / "database" / "postgres" / "migrations" / "003-abac-department.sql").read_text()
+    with admin.begin() as connection:
+        for statement in sql.split(";"):
+            if statement.strip():
+                connection.execute(text(statement))
+    assert store.chunks.count_visible(engineer) == 1
+    found = store.search("Germany", engineer, request_id="rewritten")
+    assert found
+    assert found[0].object_id == "pol-old"
 
 
 def test_unmapped_acl_is_visible_to_nobody(world) -> None:
@@ -261,6 +329,21 @@ def test_deal_edge_survives_either_order_and_dies_with_the_epic(neo4j_driver) ->
     graph.write("sales", "deal", "deal-1", {"account_id": "acme", "epic_id": "epic-9"}, "Acme", acl, "1")
     graph.write("engineering", "epic", "epic-9", {"title": "Billing", "status": "unreleased"}, "Billing", acl, "1")
     assert graph.depends_on("deal-1", "epic-9")
+
+
+def test_hash_embedder_abstains_without_a_lexical_hit(world) -> None:
+    store, _spy, client, admin, _driver = world
+    key = "raw/hr/policy/pol-1.md"
+    _put(client, key, POLICY, "hr_employee", "1", "hash-1")
+    store.upsert_object(_event("pol-1", key, "1", "hash-1"))
+    employee = Principal("ada", ("employees",), "internal", "engineering")
+    assert store.search("xylophone quantum payroll", employee, request_id="no-answer") == []
+    with admin.connect() as connection:
+        decision = connection.execute(
+            text("SELECT decision, chunk_id FROM audit_log WHERE request_id = 'no-answer'")
+        ).one()
+    assert decision.decision == "deny"
+    assert decision.chunk_id is None
 
 
 def test_hr_contract_loads() -> None:

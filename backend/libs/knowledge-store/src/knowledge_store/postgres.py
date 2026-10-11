@@ -12,6 +12,7 @@ from sqlalchemy.engine import Engine
 
 from knowledge_store.acl import AclView, Principal, allows
 from knowledge_store.chunkers import ChunkDraft
+from knowledge_store.embedder import HASH_MODEL
 
 RRF_K = 60
 OVERFETCH = 3
@@ -28,20 +29,23 @@ class Hit:
     chunk_id: int
     source_id: str
     object_id: str
+    object_type: str
     version: str
     section_path: str
     text: str
     score: float
+    synced_at: str
 
 
 class ChunkTable:
-    def __init__(self, writer: Engine, reader: Engine) -> None:
+    def __init__(self, writer: Engine | None, reader: Engine) -> None:
         self.writer = writer
         self.reader = reader
 
     def ping(self) -> bool:
+        engine = self.writer if self.writer is not None else self.reader
         try:
-            with self.writer.connect() as connection:
+            with engine.connect() as connection:
                 connection.execute(text("SELECT 1"))
         except Exception:  # noqa: BLE001 - the driver raises several connection errors
             return False
@@ -244,11 +248,15 @@ class ChunkTable:
         }
         vector_sql = text(
             """
-            SELECT id, source_id, object_id, version, section_path, content, acl_rules
+            SELECT id, source_id, object_id, object_type, version, section_path,
+                   content, acl_rules, synced_at
             FROM chunks
             WHERE embedding_model = :model
               AND acl_groups && CAST(:groups AS text[])
-              AND :department = ANY (acl_departments)
+              AND (
+                cardinality(acl_departments) = 0
+                OR :department = ANY (acl_departments)
+              )
               AND min_clearance <= kbs.clearance_rank(:clearance)
             ORDER BY embedding <=> CAST(:vector AS vector)
             LIMIT :fetch
@@ -256,11 +264,15 @@ class ChunkTable:
         )
         lexical_sql = text(
             """
-            SELECT id, source_id, object_id, version, section_path, content, acl_rules
+            SELECT id, source_id, object_id, object_type, version, section_path,
+                   content, acl_rules, synced_at
             FROM chunks
             WHERE embedding_model = :model
               AND acl_groups && CAST(:groups AS text[])
-              AND :department = ANY (acl_departments)
+              AND (
+                cardinality(acl_departments) = 0
+                OR :department = ANY (acl_departments)
+              )
               AND min_clearance <= kbs.clearance_rank(:clearance)
               AND fts @@ plainto_tsquery('english', :query)
             ORDER BY ts_rank(fts, plainto_tsquery('english', :query)) DESC
@@ -272,9 +284,13 @@ class ChunkTable:
             vector_rows = list(connection.execute(vector_sql, params).mappings())
             lexical_rows = list(connection.execute(lexical_sql, params).mappings())
             ranked = _fuse(vector_rows, lexical_rows)
+            # hash-v1 is not semantic. A vector-only neighbor is not an answer.
+            lexical_ids = {int(row["id"]) for row in lexical_rows}
             hits: list[Hit] = []
             denied = False
             for row, score in ranked:
+                if model == HASH_MODEL and int(row["id"]) not in lexical_ids:
+                    continue
                 view = _view_from_rules(row["acl_rules"])
                 allowed, rule = allows(view, principal)
                 if not allowed:
@@ -282,22 +298,44 @@ class ChunkTable:
                     _audit(connection, principal, row, "deny", None, request_id)
                     continue
                 _audit(connection, principal, row, "allow", rule, request_id)
-                hits.append(
-                    Hit(
-                        chunk_id=int(row["id"]),
-                        source_id=row["source_id"],
-                        object_id=row["object_id"],
-                        version=row["version"],
-                        section_path=row["section_path"],
-                        text=row["content"],
-                        score=score,
-                    )
-                )
+                hits.append(_hit(row, score))
                 if len(hits) >= limit:
                     break
             if not hits and not denied:
                 _audit(connection, principal, None, "deny", None, request_id)
             return hits
+
+    def get_chunk(self, chunk_id: int, principal: Principal, request_id: str) -> Hit | None:
+        """One chunk the caller may read. Missing and unauthorized both return None."""
+        statement = text(
+            """
+            SELECT id, source_id, object_id, object_type, version, section_path,
+                   content, acl_rules, synced_at
+            FROM chunks
+            WHERE id = :id
+            """
+        )
+        with self.reader.begin() as connection:
+            _set_principal(connection, principal)
+            row = connection.execute(statement, {"id": chunk_id}).mappings().first()
+            if row is None:
+                return None
+            view = _view_from_rules(row["acl_rules"])
+            allowed, rule = allows(view, principal)
+            if not allowed:
+                _audit(connection, principal, row, "deny", None, request_id)
+                return None
+            _audit(connection, principal, row, "allow", rule, request_id)
+            return _hit(row, 1.0)
+
+    def last_success(self) -> dict[str, str | None]:
+        statement = text("SELECT source_id, last_success_at FROM sync_state")
+        with self.reader.connect() as connection:
+            found: dict[str, str | None] = {}
+            for row in connection.execute(statement):
+                stamp = row.last_success_at
+                found[row.source_id] = None if stamp is None else stamp.isoformat()
+            return found
 
     def orphans(self) -> list[tuple[str, str, str]]:
         statement = text(
@@ -347,6 +385,21 @@ class ChunkTable:
             for row in connection.execute(statement):
                 found.setdefault(row.source_id, {"index": 0, "source": 0})[row.kind] = int(row.n)
         return {key: (value["index"], value["source"]) for key, value in found.items()}
+
+
+def _hit(row, score: float) -> Hit:
+    stamp = row["synced_at"]
+    return Hit(
+        chunk_id=int(row["id"]),
+        source_id=row["source_id"],
+        object_id=row["object_id"],
+        object_type=row["object_type"] or "",
+        version=row["version"],
+        section_path=row["section_path"],
+        text=row["content"],
+        score=score,
+        synced_at=stamp.isoformat() if hasattr(stamp, "isoformat") else str(stamp),
+    )
 
 
 def _set_principal(connection, principal: Principal | None) -> None:

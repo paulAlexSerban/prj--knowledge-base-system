@@ -8,7 +8,7 @@ import pytest
 from neo4j import GraphDatabase
 from sqlalchemy import create_engine, text
 
-ROOT = Path(__file__).resolve().parents[4]
+ROOT = Path(__file__).resolve().parents[1]
 MIGRATIONS = ROOT / "database" / "postgres" / "migrations"
 
 BOOTSTRAP = """
@@ -98,8 +98,8 @@ def database():
     try:
         _wait_postgres(admin_url)
         _psql(name, BOOTSTRAP)
-        _psql(name, (MIGRATIONS / "001-sync-state.sql").read_text())
-        _psql(name, (MIGRATIONS / "002-knowledge-store.sql").read_text())
+        for path in sorted(MIGRATIONS.glob("*.sql")):
+            _psql(name, path.read_text())
     except Exception as exc:
         logs = subprocess.run(
             ["docker", "logs", name], check=False, capture_output=True, text=True

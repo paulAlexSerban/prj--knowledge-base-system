@@ -2,7 +2,9 @@
 
 An unmapped native value adds no grant. If nothing maps, the object is stored
 and nobody can read it. Clearance order is public < internal < confidential <
-restricted. A mapping that omits clearance is treated as public.
+restricted. A mapping that omits clearance is treated as public. A mapping
+that omits department grants every department: the coarse department list is
+then empty, and a non-empty list still requires a match.
 """
 
 from dataclasses import dataclass
@@ -45,7 +47,12 @@ def map_acl(native: list[str], contract: SourceContract) -> AclView:
     if not rules:
         return AclView((), (), CLOSED, (), tuple(sorted(unmapped)))
     groups = tuple(sorted({rule["group"] for rule in rules if rule.get("group")}))
-    departments = tuple(sorted({rule["department"] for rule in rules if rule.get("department")}))
+    # One rule with no department opens the object to every department.
+    # The coarse column must not be narrower than the fine check.
+    if any(not rule.get("department") for rule in rules):
+        departments = ()
+    else:
+        departments = tuple(sorted({rule["department"] for rule in rules if rule.get("department")}))
     ranks = [clearance_rank(rule.get("clearance", "public")) for rule in rules]
     return AclView(groups, departments, min(ranks), tuple(rules), tuple(sorted(unmapped)))
 

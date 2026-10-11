@@ -12,6 +12,7 @@ COPY pyproject.toml uv.lock ./
 COPY shared/pyproject.toml shared/pyproject.toml
 COPY backend/libs/ingest-contract/pyproject.toml backend/libs/ingest-contract/pyproject.toml
 COPY backend/libs/knowledge-store/pyproject.toml backend/libs/knowledge-store/pyproject.toml
+COPY backend/libs/gateway-core/pyproject.toml backend/libs/gateway-core/pyproject.toml
 COPY backend/libs/connector-core/pyproject.toml backend/libs/connector-core/pyproject.toml
 COPY backend/apis/knowledge-api/pyproject.toml backend/apis/knowledge-api/pyproject.toml
 COPY backend/apis/mcp-server/pyproject.toml backend/apis/mcp-server/pyproject.toml

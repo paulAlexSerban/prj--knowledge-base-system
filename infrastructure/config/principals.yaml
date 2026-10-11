@@ -1,0 +1,17 @@
+# Dev personas for the mock identity provider. Not a real directory.
+# outsider has no groups, so retrieval returns nothing.
+employee_eng:
+  subject: employee-eng
+  groups: [employees]
+  clearance: internal
+  department: engineering
+hr_admin:
+  subject: hr-admin
+  groups: [employees, hr_admins]
+  clearance: confidential
+  department: people
+outsider:
+  subject: outsider
+  groups: []
+  clearance: internal
+  department: engineering

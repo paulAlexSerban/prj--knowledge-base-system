@@ -12,6 +12,7 @@ COPY pyproject.toml uv.lock ./
 COPY shared/pyproject.toml shared/pyproject.toml
 COPY backend/libs/ingest-contract/pyproject.toml backend/libs/ingest-contract/pyproject.toml
 COPY backend/libs/knowledge-store/pyproject.toml backend/libs/knowledge-store/pyproject.toml
+COPY backend/libs/gateway-core/pyproject.toml backend/libs/gateway-core/pyproject.toml
 COPY backend/libs/connector-core/pyproject.toml backend/libs/connector-core/pyproject.toml
 COPY backend/apis/knowledge-api/pyproject.toml backend/apis/knowledge-api/pyproject.toml
 COPY backend/apis/mcp-server/pyproject.toml backend/apis/mcp-server/pyproject.toml
@@ -25,6 +26,9 @@ COPY demo-harness/product/pyproject.toml demo-harness/product/pyproject.toml
 COPY demo-harness/engineering/pyproject.toml demo-harness/engineering/pyproject.toml
 
 COPY shared shared
+COPY backend/libs/ingest-contract backend/libs/ingest-contract
+COPY backend/libs/knowledge-store backend/libs/knowledge-store
+COPY backend/libs/gateway-core backend/libs/gateway-core
 COPY backend/apis/knowledge-api backend/apis/knowledge-api
 
 RUN uv sync --frozen --no-dev --no-default-groups --package knowledge-api
