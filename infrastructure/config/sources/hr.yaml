@@ -16,11 +16,14 @@ acl_recheck_at_read: true
 in_scope_fields:
   - policy_id
   - title
+  - category
   - body
   - region
   - version
   - person_id
   - email
+  - full_name
+  - manager_id
   - team
   - role
 excluded_fields:

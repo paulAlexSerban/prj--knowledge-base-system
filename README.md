@@ -130,7 +130,7 @@ Contracts live in [infrastructure/config/sources](infrastructure/config/sources)
 | `infrastructure/config/sources/` | The four YAML contracts.                                                        |
 | `backend/`                       | API, MCP, workers, and the change-event model. Stubs.                           |
 | `database/`                      | Postgres init (pgvector, roles, placeholder RLS) and Neo4j constraints.         |
-| `demo-harness/`                  | Four FastAPI services. Empty SQLite. No documents yet.                          |
+| `demo-harness/`                  | Four FastAPI services. HR is seeded (people, policies, admin API). The other three are empty stubs. |
 | `infrastructure/`                | Compose projects, Terraform for floci, source contracts.                        |
 | `observability/`                 | Alloy and Loki config, Prometheus scrape config, and the Grafana dashboard.    |
 | `tools/`                         | Seed, mutation, and evaluation scripts. Empty.                                  |
