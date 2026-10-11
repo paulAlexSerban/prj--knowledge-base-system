@@ -33,7 +33,30 @@ Capability flags on each contract: `webhook`, `cursor_feed`, `updated_since`, `s
 | Product | Markdown specs on disk | Webhook on file change | Low. Bounded sync window. |
 | Engineering | Jira-like epics in SQLite | `updated_since` listing | Medium. Project membership. |
 
-Each source ships a YAML contract in the registry: owner, freshness tier, sensitivity, which fields are in scope, and the ACL mapping from native permissions to platform attributes (`department`, `clearance`, `region`, `group`). Attributes are attached to the document at ingestion. Retrieval evaluates them as a policy decision. The audit log records which attributes justified showing a chunk to a user. See [ADR 0001](../03--adrs/0001-storage.md) and [spike 03](03--exposing-knowledge-to-ai-agents-though-consistent-access-layer.md).
+Each source ships a YAML contract in [infrastructure/config/sources](../../infrastructure/config/sources). Attributes are attached to the document at ingestion. Retrieval evaluates them as a policy decision. The audit log records which attributes justified showing a chunk to a user. See [ADR 0001](../03--adrs/0001-storage.md) and [spike 03](03--exposing-knowledge-to-ai-agents-though-consistent-access-layer.md).
+
+### Container view
+
+Connector workers sit against the four harness services. The harness is outside the gateway. Downstream containers are inside the boundary and drawn grey because this view does not open them. Blue boxes are the ingestion containers.
+
+![Connector containers](../00--project-brief/01-c4-l2--container-connectors.png)
+
+Source: [01-c4-l2--container-connectors.drawio](../00--project-brief/01-c4-l2--container-connectors.drawio).
+
+### Contract fields
+
+The Pydantic model in [shared/contracts/source_contract.py](../../shared/contracts/source_contract.py) is the source of truth. JSON Schema is generated next to it. `make contracts-check` validates the four YAML files, runs the registration tests, and fails if the committed schema drifted. GitHub Actions runs that target on changes under `shared/contracts` and `infrastructure/config/sources`. Worker bootstrap must call `shared.contracts.validate.load_contracts` and must refuse to start a connector that has no valid contract.
+
+| Field | Rule |
+| ----- | ---- |
+| `owner.team`, `owner.contact` | Required. A connector with no owner does not register. |
+| `freshness_tier` | `P0`, `P1`, or `P2`. Required. |
+| `freshness_target_seconds` | At most 30 / 300 / 86400 for P0 / P1 / P2. |
+| `capabilities` | At least one of `webhook`, `cursor_feed`, `updated_since`, `snapshot_diff`. P0 cannot be `snapshot_diff` alone. |
+| `acl_mapping` | At least one rule. Each rule maps a native permission to one or more of `department`, `clearance`, `region`, `group`. |
+| `sensitivity` | `high` requires `acl_recheck_at_read: true`. |
+| `in_scope_fields` | Required, and must not include `salary`, `compensation`, `ssn`, or `national_id`. |
+| `excluded_fields` | Disjoint from `in_scope_fields`. |
 
 Chunking is format-aware and registered per source type (markdown by heading, PDF by section, records as one chunk per row plus a short textual rendering). A single fixed-size splitter is not used. Chunks carry source, section path, version, timestamp, ACL attributes, `embedding_model`, and `chunker_version`. See [ADR 0003](../03--adrs/0003-embedding-and-chunk-versioning.md).
 
@@ -71,5 +94,4 @@ Ingestion health is a first-class metric: sync recency per source, failed syncs,
 
 ## Open TODOs
 
-- Container diagram (C4 level 2) showing connector workers against the four harness services.
-- Contract schema (JSON Schema or Pydantic) checked in CI so a connector cannot register without owner, tier, and ACL mapping.
+- Connector worker code that calls `load_contracts` at startup and implements `discover`, `list_changes`, `fetch`, `get_acl`, and `normalize`.

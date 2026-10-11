@@ -155,7 +155,7 @@ Makefile targets that support the script: `up`, `seed`, `demo`, `test`, `eval`.
 
 | Path | Role |
 | ---- | ---- |
-| `_docs/00--project-brief/` | This brief and the C4 system-context diagram. A container-level diagram is a follow-up. |
+| `_docs/00--project-brief/` | This brief, the C4 system-context diagram, and the [C4 container diagram](01-c4-l2--container-connectors.png) for connector workers. |
 | `_docs/01--spikes/` | Decision records for ingestion, knowledge representation, access, and synchronization. |
 | `_docs/02--architecture/` | Architecture document. Outline only until the next pass. |
 | `_docs/03--adrs/` | Short ADRs for storage, observability, and embedding/chunk versioning. |
@@ -166,9 +166,9 @@ Makefile targets that support the script: `up`, `seed`, `demo`, `test`, `eval`.
 | `backend/functions` | Small pure functions (chunking, fusion, hashing). |
 | `database` | Postgres and Neo4j schema. |
 | `demo-harness/` | HR, Sales, Product, and Engineering mock services. |
-| `infrastructure/` | Compose orchestration, Terraform provisioning, floci config. |
+| `infrastructure/` | Compose orchestration, Terraform provisioning, floci config, and `config/sources` YAML contracts. |
 | `observability` | One dashboard and metric definitions. |
-| `shared` | Contracts shared by the harness and the gateway. |
+| `shared` | Contracts shared by the harness and the gateway. Source contracts in `shared/contracts` are checked by `make contracts-check`. |
 | `tools` | Seed, mutation, and evaluation scripts. |
 
 ## Related decisions

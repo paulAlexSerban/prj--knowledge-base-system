@@ -6,7 +6,7 @@ This document answers the assignment's first deliverable. Each section below sta
 
 ## Overview
 
-One paragraph: what the gateway does, the two demo questions, and the line between what is built and what is a production path. Point at the system-context diagram in the brief. A C4 container diagram is a follow-up and is not in the brief's drawio file yet.
+One paragraph: what the gateway does, the two demo questions, and the line between what is built and what is a production path. Point at the system-context diagram and the connector container diagram in the brief.
 
 ## Requirements
 
