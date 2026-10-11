@@ -75,6 +75,37 @@ def test_model_answer_and_untrusted_framing():
     assert [m["role"] for m in build_messages("q", [HIT])] == ["system", "user"]
 
 
+def test_rate_limit_shows_the_upstream_sentence():
+    client = httpx.Client(
+        transport=httpx.MockTransport(
+            lambda r: httpx.Response(
+                429,
+                json={
+                    "error": {
+                        "message": "Provider returned error",
+                        "metadata": {"raw": "temporarily rate-limited upstream"},
+                    }
+                },
+            )
+        )
+    )
+    text, mode = answer("q", [HIT], "key", "m", client)
+    assert mode == "retrieval"
+    assert text.startswith("The model call failed (429 temporarily rate-limited upstream).")
+    assert "Provider returned error" not in text
+
+
+def test_empty_model_content_falls_back_to_passages():
+    client = httpx.Client(
+        transport=httpx.MockTransport(
+            lambda r: httpx.Response(200, json={"choices": [{"message": {"content": None}}]})
+        )
+    )
+    text, mode = answer("q", [HIT], "key", "m", client)
+    assert mode == "retrieval"
+    assert "Germany: 14 weeks." in text
+
+
 def test_model_failure_falls_back_to_passages():
     client = httpx.Client(
         transport=httpx.MockTransport(

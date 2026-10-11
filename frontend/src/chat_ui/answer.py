@@ -60,15 +60,30 @@ def retrieval_only(hits: list[dict]) -> str:
 
 def _failure(exc: Exception) -> str:
     if isinstance(exc, httpx.HTTPStatusError):
-        detail = ""
-        try:
-            message = exc.response.json().get("error", {}).get("message", "")
-        except (json.JSONDecodeError, AttributeError, ValueError):
-            message = ""
-        if isinstance(message, str) and message and len(message) <= 120:
-            detail = " " + message.rstrip(".")
+        message = _provider_message(exc.response)
+        detail = f" {message.rstrip('.')}" if message else ""
         return f"The model call failed ({exc.response.status_code}{detail})."
     return "The model call failed."
+
+
+def _provider_message(response: httpx.Response) -> str:
+    try:
+        error = response.json().get("error", {})
+    except (json.JSONDecodeError, AttributeError, ValueError):
+        return ""
+    if not isinstance(error, dict):
+        return ""
+    message = error.get("message") if isinstance(error.get("message"), str) else ""
+    metadata = error.get("metadata")
+    raw = ""
+    if isinstance(metadata, dict) and isinstance(metadata.get("raw"), str):
+        raw = metadata["raw"]
+    # "Provider returned error" hides the upstream sentence.
+    if raw and (not message or message == "Provider returned error"):
+        message = raw
+    if len(message) > 240:
+        message = message[:237].rstrip() + "..."
+    return message
 
 
 def model_answer(
@@ -85,7 +100,10 @@ def model_answer(
         json={"model": model, "messages": build_messages(question, hits)},
     )
     response.raise_for_status()
-    return str(response.json()["choices"][0]["message"]["content"])
+    content = response.json()["choices"][0]["message"].get("content")
+    if not isinstance(content, str) or not content.strip():
+        raise ValueError("empty model content")
+    return content
 
 
 def answer(
@@ -101,7 +119,7 @@ def answer(
     if api_key and model:
         try:
             return model_answer(question, hits, api_key, model, client), "model"
-        except (httpx.HTTPError, KeyError, IndexError) as exc:
+        except (httpx.HTTPError, KeyError, IndexError, ValueError) as exc:
             text = f"{_failure(exc)} These are the retrieved passages:\n\n{passages(hits)}"
             return text, "retrieval"
     return retrieval_only(hits), "retrieval"
