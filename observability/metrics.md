@@ -50,4 +50,18 @@ Exposed on `ingestion-worker:9101`. Queue depth is `GetQueueAttributes` (`Approx
 
 `kbs_delete_verification_failures_total` is the same series as the connector, with `store` `postgres` or `neo4j`.
 
-Not built yet: retrieval latency and empty-result rate. There is no retrieval endpoint, so those series are not emitted. The overview dashboard says so in a text panel. It does not query `kbs.audit_log`.
+## Retrieval
+
+The API exposes these on `gateway-api:8000/metrics`. The MCP server exposes the same names on `gateway-mcp:8001/metrics`. `surface` is `rest` or `mcp`. A principal, an object id, and chunk text are not labels. `permission_group` is the caller's highest-privilege group (`hr_admins`, then `employees`), or `none`.
+
+| Metric | Labels | Meaning |
+| ------ | ------ | ------- |
+| `kbs_retrieval_seconds` | `tool`, `surface` | Time in `search`, `get_document`, or `find_related`. The 0.25 bucket is the 250 ms target. |
+| `kbs_retrieval_requests_total` | `tool`, `surface`, `result` (`ok` or `empty`) | Finished retrieval calls. |
+| `kbs_retrieval_empty_total` | `source_id`, `permission_group` | Searches that returned no chunk. `source_id` is `none` when nothing matched. |
+| `kbs_retrieval_total` | `source_id`, `permission_group` | Searches, including ones that returned chunks. The empty-result rate is the empty counter divided by this one. |
+| `kbs_auth_failures_total` | `reason` (`missing`, `expired`, `invalid`, `missing_claim`, `clearance`, `secret`) | Rejected bearer tokens. |
+
+A retrieval log line has `request_id`, `principal`, `decision` (`allow` or `deny`), `tool`, and `count`. It has no snippet. Grafana's Loki datasource links `request_id` to the other lines for that request. The deny panel is `{service=~".+"} | json | decision="deny"`.
+
+`hash-v1` only returns a chunk that also matched full text. A vector-only neighbor is not an answer, so a query with no shared terms is an empty result.

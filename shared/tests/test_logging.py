@@ -64,6 +64,8 @@ def test_formatter_drops_excluded_fields(capsys) -> None:
             aws_secret_access_key="aws-secret",
             retrieved_text="parental leave prose",
             chunk_text="more prose",
+            snippet="wrapped prose",
+            content="raw prose",
             nested={"ssn": "333", "Salary": 1, "region": "de"},
         )
     finally:
@@ -86,6 +88,10 @@ def test_formatter_drops_excluded_fields(capsys) -> None:
         "aws_secret_access_key",
         "retrieved_text",
         "chunk_text",
+        "snippet",
+        "content",
+        "wrapped prose",
+        "raw prose",
         "100",
         "200",
         "parental leave prose",

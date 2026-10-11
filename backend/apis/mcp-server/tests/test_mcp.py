@@ -13,6 +13,7 @@ from sqlalchemy import text
 
 from gateway_core.auth import issue_token, principal_from_token
 from gateway_core.graph_read import GraphReader
+from gateway_core.metrics import AUTH_FAILURES
 from gateway_core.service import GatewayService
 from gateway_core.tools import FIND_RELATED, GET_DOCUMENT, LIST_SOURCES, SEARCH
 from ingest_contract.events import RAW_BUCKET, ChangeEvent
@@ -89,6 +90,15 @@ def _use(persona: str):
     access = asyncio.run(JwtVerifier().verify_token(issue_token(persona, SECRET)))
     assert access is not None
     return auth_context_var.set(AuthenticatedUser(access))
+
+
+def test_bad_mcp_token_is_counted(monkeypatch) -> None:
+    import asyncio
+
+    monkeypatch.setenv("GATEWAY_JWT_SECRET", SECRET)
+    before = AUTH_FAILURES.labels(reason="invalid")._value.get()
+    assert asyncio.run(JwtVerifier().verify_token("not-a-token")) is None
+    assert AUTH_FAILURES.labels(reason="invalid")._value.get() == before + 1
 
 
 def test_mcp_route_rejects_a_missing_token(mcp) -> None:

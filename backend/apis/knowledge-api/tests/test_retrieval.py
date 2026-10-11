@@ -1,6 +1,9 @@
 """Authorized retrieval through the API. Two principals, one pool."""
 
+import json
+import logging
 from datetime import UTC, datetime
+from io import StringIO
 
 import boto3
 import pytest
@@ -10,6 +13,7 @@ from sqlalchemy import text
 
 from gateway_core.auth import issue_token
 from gateway_core.graph_read import GraphReader
+from gateway_core.metrics import AUTH_FAILURES, EMPTY, REQUESTS
 from gateway_core.service import GatewayService
 from ingest_contract.events import RAW_BUCKET, ChangeEvent
 from knowledge_api.app import create_app
@@ -18,6 +22,7 @@ from knowledge_store.graph import GraphWriter
 from knowledge_store.postgres import ChunkTable
 from knowledge_store.store import KnowledgeStore
 from shared.contracts.validate import load_contracts
+from shared.logging import JsonFormatter
 
 SECRET = "test-secret-test-secret-test-secret"
 DE = b"# Leave\n\n## Eligibility\n\nParental leave in Germany is sixteen weeks.\n"
@@ -239,6 +244,40 @@ def test_graph_paths_follow_the_caller(api) -> None:
         headers=_auth("employee_eng"),
     )
     assert missing.status_code == 400
+
+
+def test_empty_search_is_a_deny_line_and_a_metric(api) -> None:
+    http, _admin = api
+    stream = StringIO()
+    handler = logging.StreamHandler(stream)
+    handler.setFormatter(JsonFormatter("gateway-api", "access"))
+    logger = logging.getLogger("gateway")
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
+    empty_before = EMPTY.labels(source_id="none", permission_group="none")._value.get()
+    requests_before = REQUESTS.labels(tool="search", surface="rest", result="empty")._value.get()
+    missing_before = AUTH_FAILURES.labels(reason="missing")._value.get()
+    try:
+        denied = http.post(
+            "/v1/search",
+            json={"query": "Germany"},
+            headers={**_auth("outsider"), "x-request-id": "req-metric"},
+        )
+        refused = http.post("/v1/search", json={"query": "Germany"})
+    finally:
+        logger.removeHandler(handler)
+    assert denied.status_code == 200
+    assert denied.json()["results"] == []
+    assert refused.status_code == 401
+    line = json.loads(stream.getvalue().strip().splitlines()[-1])
+    assert line["decision"] == "deny"
+    assert line["request_id"] == "req-metric"
+    assert line["tool"] == "search"
+    assert "text" not in line
+    assert "snippet" not in line
+    assert EMPTY.labels(source_id="none", permission_group="none")._value.get() == empty_before + 1
+    assert REQUESTS.labels(tool="search", surface="rest", result="empty")._value.get() == requests_before + 1
+    assert AUTH_FAILURES.labels(reason="missing")._value.get() == missing_before + 1
 
 
 def test_dev_token_issues_a_persona_and_stays_hidden(api, monkeypatch) -> None:

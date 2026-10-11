@@ -26,6 +26,8 @@ DROPPED_KEYS = frozenset(
         "aws_secret_access_key",
         "retrieved_text",
         "chunk_text",
+        "snippet",
+        "content",
     }
 )
 

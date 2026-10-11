@@ -14,6 +14,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 
 from gateway_core.auth import AuthError, principal_from_token
+from gateway_core.metrics import AUTH_FAILURES
 from gateway_core.runtime import open_gateway
 from gateway_core.service import GatewayService
 from gateway_core.tools import FIND_RELATED, GET_DOCUMENT, LIST_SOURCES, SEARCH
@@ -39,7 +40,8 @@ class JwtVerifier(TokenVerifier):
         secret = os.environ.get("GATEWAY_JWT_SECRET", "")
         try:
             principal = principal_from_token(token, secret)
-        except AuthError:
+        except AuthError as exc:
+            AUTH_FAILURES.labels(reason=exc.reason).inc()
             return None
         return AccessToken(
             token=token,
@@ -55,6 +57,7 @@ class JwtVerifier(TokenVerifier):
 
 
 def build_server(service: GatewayService) -> MCPServer:
+    service.surface = "mcp"
     server = MCPServer(
         "knowledge-gateway",
         token_verifier=JwtVerifier(),
@@ -88,7 +91,9 @@ def build_server(service: GatewayService) -> MCPServer:
         """Bounded graph path. kind is teammates, team, or policies."""
         request_id = _request_id(ctx)
         try:
-            return service.find_related(_caller(), kind, entity_id, max(1, min(limit, 25)), request_id)
+            return service.find_related(
+                _caller(), kind, entity_id, max(1, min(limit, 25)), request_id
+            )
         except ValueError as exc:
             return {"request_id": request_id, "error": str(exc)}
 

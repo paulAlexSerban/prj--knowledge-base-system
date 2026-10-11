@@ -17,6 +17,7 @@ from prometheus_client import make_asgi_app
 from pydantic import BaseModel, Field
 
 from gateway_core.auth import AuthError, issue_token, principal_from_token
+from gateway_core.metrics import AUTH_FAILURES
 from gateway_core.runtime import open_gateway
 from gateway_core.service import GatewayService
 from gateway_core.tools import FIND_RELATED, GET_DOCUMENT, LIST_SOURCES, SEARCH
@@ -141,11 +142,13 @@ _AUTHORIZATION = Header(default=None)
 
 def _principal(authorization: str | None = _AUTHORIZATION) -> Principal:
     if not authorization or not authorization.lower().startswith("bearer "):
+        AUTH_FAILURES.labels(reason="missing").inc()
         raise HTTPException(status_code=401, detail="unauthorized")
     secret = os.environ.get("GATEWAY_JWT_SECRET", "")
     try:
         return principal_from_token(authorization.split(" ", 1)[1].strip(), secret)
     except AuthError as exc:
+        AUTH_FAILURES.labels(reason=exc.reason).inc()
         raise HTTPException(status_code=401, detail="unauthorized") from exc
 
 
