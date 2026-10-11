@@ -1,0 +1,34 @@
+# Chat page. It calls the gateway REST API with a persona token and holds no store
+# credentials. It joins kbs-sources like Jupyter, never kbs-data. Streamlit has no
+# /metrics endpoint and is not a Prometheus target.
+
+services:
+  chat-ui:
+    build:
+      context: ../..
+      dockerfile: frontend/Dockerfile
+    environment:
+      GATEWAY_API_URL: http://gateway-api:8000
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-openai/gpt-4o-mini}
+      HOME: /tmp
+    networks: [kbs-sources]
+    ports:
+      - "127.0.0.1:8501:8501"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8501/_stcore/health')",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 20s
+
+networks:
+  kbs-sources:
+    external: true
+    name: kbs-sources

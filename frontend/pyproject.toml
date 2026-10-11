@@ -1,0 +1,16 @@
+[project]
+name = "chat-ui"
+version = "0.1.0"
+description = "Streamlit chat page over the knowledge gateway."
+requires-python = ">=3.12"
+dependencies = [
+  "httpx>=0.28.1",
+  "streamlit>=1.40",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
