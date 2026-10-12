@@ -35,6 +35,7 @@ QUEUES = (
     "kbs-p1.fifo",
     "kbs-p2.fifo",
 )
+HOOK_QUEUES = ("kbs-product-hooks-dlq.fifo", "kbs-product-hooks.fifo")
 
 
 def _aws(service: str):
@@ -137,6 +138,11 @@ def _restore_floci() -> None:
             QueueName=name,
             Attributes={"FifoQueue": "true", "ContentBasedDeduplication": "true"},
         )
+    for name in HOOK_QUEUES:
+        sqs.create_queue(
+            QueueName=name,
+            Attributes={"FifoQueue": "true", "ContentBasedDeduplication": "false"},
+        )
 
 
 def test_hr_snapshot_cycle() -> None:
@@ -147,9 +153,11 @@ def test_hr_snapshot_cycle() -> None:
 
     _request("POST", "/admin/reset")
     _wait_until(
-        lambda: _metric("kbs_reconcile_drift", source_id="hr") == 0
-        and _metric("kbs_source_objects", source_id="hr") == 86
-        and _s3_count() == 86,
+        lambda: (
+            _metric("kbs_reconcile_drift", source_id="hr") == 0
+            and _metric("kbs_source_objects", source_id="hr") == 86
+            and _s3_count() == 86
+        ),
         seconds=1200,
         label="reset to the curated seed",
     )
@@ -186,8 +194,10 @@ def test_hr_snapshot_cycle() -> None:
     subprocess.run([*COMPOSE, "stop", "floci"], check=True)
     try:
         _wait_until(
-            lambda: _metric("kbs_connector_dependency_up", dependency="s3") == 0
-            or (_metric("kbs_snapshot_errors_total", source_id="hr", stage="s3_put") or 0) > 0,
+            lambda: (
+                _metric("kbs_connector_dependency_up", dependency="s3") == 0
+                or (_metric("kbs_snapshot_errors_total", source_id="hr", stage="s3_put") or 0) > 0
+            ),
             seconds=90,
             label="S3 outage on the errors panel",
         )
@@ -204,9 +214,11 @@ def test_hr_snapshot_cycle() -> None:
 
     _request("POST", "/admin/reset")
     _wait_until(
-        lambda: _request("GET", "/discover")["counts"] == {"person": 48, "policy": 38}
-        and _metric("kbs_reconcile_drift", source_id="hr") == 0
-        and _s3_count() == 86,
+        lambda: (
+            _request("GET", "/discover")["counts"] == {"person": 48, "policy": 38}
+            and _metric("kbs_reconcile_drift", source_id="hr") == 0
+            and _s3_count() == 86
+        ),
         seconds=1200,
         label="reset after the cycle",
     )
