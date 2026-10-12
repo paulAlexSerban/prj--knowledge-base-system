@@ -42,7 +42,8 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "prometheus"
+                        "name": "prometheus",
+                        "uid": "prometheus"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -60,10 +61,10 @@
               "transformations": []
             }
           },
-          "description": "1 means Prometheus or Alloy scraped the target. 0 is down. Red at 80 was wrong: up never reaches 80, so a dead target stayed green.",
+          "description": "1 means Alloy or Prometheus scraped the target. Target is 1 for every job. Red at 0. A red job is not being scraped, so its other panels go empty. Check that the process is healthy and that Alloy has a scrape block for it.",
           "id": 1,
           "links": [],
-          "title": "Scrape targets up",
+          "title": "Scrape targets (up)",
           "vizConfig": {
             "group": "stat",
             "kind": "VizConfig",
@@ -121,7 +122,8 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "prometheus"
+                        "name": "prometheus",
+                        "uid": "prometheus"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -139,10 +141,10 @@
               "transformations": []
             }
           },
-          "description": "p95 of snapshot time minus the source updated_at, per source. Yellow at 30s is the HR contract. Red at 300s is the sales, product, and engineering contract. A single 30s red line marked a healthy slower source as failed.",
+          "description": "95th percentile of snapshot time minus the source updated_at, per source. The source variable applies. Yellow at 30 seconds is the HR contract. Red at 300 seconds is the sales, product, and engineering contract. A red source is past every contract. Check that connector's last success and its logs.",
           "id": 11,
           "links": [],
-          "title": "Snapshot lag p95",
+          "title": "Snapshot lag p95 by source (s)",
           "vizConfig": {
             "group": "stat",
             "kind": "VizConfig",
@@ -205,7 +207,8 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "prometheus"
+                        "name": "prometheus",
+                        "uid": "prometheus"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -223,10 +226,10 @@
               "transformations": []
             }
           },
-          "description": "Seconds since the last sync that advanced the watermark, per source. A cursor watermark leaves this unset. Yellow at 30s, red at 300s, matching the contract targets. HR polls every 10s. The other sources poll every 60s.",
+          "description": "Seconds since the last sync that advanced the watermark, per source. A cursor watermark leaves the series unset. Yellow at 30 seconds. Red at 300 seconds. HR polls every 10 seconds. The other sources poll every 60 seconds. Red means the connector has not completed a cycle inside the slowest contract.",
           "id": 12,
           "links": [],
-          "title": "Last successful sync age",
+          "title": "Last successful sync age (s)",
           "vizConfig": {
             "group": "stat",
             "kind": "VizConfig",
@@ -289,7 +292,8 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "prometheus"
+                        "name": "prometheus",
+                        "uid": "prometheus"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -308,7 +312,8 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "prometheus"
+                        "name": "prometheus",
+                        "uid": "prometheus"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -326,10 +331,10 @@
               "transformations": []
             }
           },
-          "description": "Snapshots written or skipped per second, per source. A skip means version, ACL, and hash already matched. This is a rate, not an error, so it has no red threshold.",
+          "description": "Snapshots written or skipped per second, per source. A skip means version, ACL, and hash already matched. There is no red threshold: a high rate is work, not a failure. If writes stay at zero while the source is changing, read snapshot errors.",
           "id": 13,
           "links": [],
-          "title": "Snapshot write and skip rate",
+          "title": "Snapshot writes and skips (/s)",
           "vizConfig": {
             "group": "timeseries",
             "kind": "VizConfig",
@@ -417,7 +422,8 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "prometheus"
+                        "name": "prometheus",
+                        "uid": "prometheus"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -435,10 +441,10 @@
               "transformations": []
             }
           },
-          "description": "Snapshot failures per second by source and stage. A contract stage is an object that carried an excluded field. enqueue is a publish that failed after the snapshot write.",
+          "description": "Snapshot failures per second by source and stage. Target is zero. Red above zero. contract means the object carried an excluded field. enqueue means the publish failed after the snapshot write. Read the connector logs for that source.",
           "id": 14,
           "links": [],
-          "title": "Snapshot errors by stage",
+          "title": "Snapshot errors by stage (/s)",
           "vizConfig": {
             "group": "timeseries",
             "kind": "VizConfig",
@@ -529,7 +535,8 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "prometheus"
+                        "name": "prometheus",
+                        "uid": "prometheus"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -547,10 +554,10 @@
               "transformations": []
             }
           },
-          "description": "Absolute difference between snapshot count and source count, per source. Zero is healthy. Negative drift is the same failure as positive drift. Red at one object.",
+          "description": "Absolute difference between snapshot count and source count, per source. Target is zero. Red at one object. Negative drift is the same failure as positive drift. A red source is missing a snapshot or still has a deleted one. Run is not required: the next sync reconciles, unless delete verification is also red.",
           "id": 15,
           "links": [],
-          "title": "Reconciliation drift",
+          "title": "Snapshot drift (objects)",
           "vizConfig": {
             "group": "stat",
             "kind": "VizConfig",
@@ -608,7 +615,8 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "prometheus"
+                        "name": "prometheus",
+                        "uid": "prometheus"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -626,10 +634,10 @@
               "transformations": []
             }
           },
-          "description": "Delete checks that still found the object, counted over the selected range. The raw counter showed the total since process start. store is s3 on the connector, postgres or neo4j on the worker. Red on any failure in the range.",
+          "description": "Same failures as the SLO stat, split by source and store, over the selected range. Target is zero. Red at one. s3 is the connector. postgres and neo4j are the worker. Do not ignore a red store: the object is still there after a delete.",
           "id": 16,
           "links": [],
-          "title": "Delete verification failures",
+          "title": "Delete verification failures in range (count)",
           "vizConfig": {
             "group": "stat",
             "kind": "VizConfig",
@@ -688,7 +696,8 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "loki"
+                        "name": "loki",
+                        "uid": "loki"
                       },
                       "group": "loki",
                       "kind": "DataQuery",
@@ -708,7 +717,7 @@
               "transformations": []
             }
           },
-          "description": "Logs from every connector. The old query was connector-hr only, so sales, product, and engineering failures were invisible.",
+          "description": "Logs from every connector. There is no color threshold. Use this when a source panel is red. The line names the object type, version, and byte count. It does not contain the body.",
           "id": 17,
           "links": [],
           "title": "Connector logs",
@@ -753,7 +762,8 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "prometheus"
+                        "name": "prometheus",
+                        "uid": "prometheus"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -771,10 +781,10 @@
               "transformations": []
             }
           },
-          "description": "connector and ingestion. 1 is up.",
+          "description": "1 after the connector or the ingestion worker loaded its contracts. Target is 1. Red at 0. A red worker has not finished startup. Read that service's logs. This stays 1 while the process waits on Postgres or the bucket.",
           "id": 2,
           "links": [],
-          "title": "Workers up",
+          "title": "Workers (up)",
           "vizConfig": {
             "group": "stat",
             "kind": "VizConfig",
@@ -832,7 +842,8 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "loki"
+                        "name": "loki",
+                        "uid": "loki"
                       },
                       "group": "loki",
                       "kind": "DataQuery",
@@ -852,7 +863,8 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "loki"
+                        "name": "loki",
+                        "uid": "loki"
                       },
                       "group": "loki",
                       "kind": "DataQuery",
@@ -871,10 +883,10 @@
               "transformations": []
             }
           },
-          "description": "Errors, and lines whose decision is deny. The Loki datasource opens the other lines for the same request_id.",
+          "description": "Error lines, and lines whose decision is deny. The service variable filters both. There is no color threshold. A deny is demo step 2: open the line and follow request_id. An error line is a failed sync, enqueue, or store write. The line has no snippet and no secret.",
           "id": 3,
           "links": [],
-          "title": "Errors and audit denies",
+          "title": "Errors and denies",
           "vizConfig": {
             "group": "logs",
             "kind": "VizConfig",
@@ -917,7 +929,8 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "prometheus"
+                        "name": "prometheus",
+                        "uid": "prometheus"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -935,10 +948,10 @@
               "transformations": []
             }
           },
-          "description": "postgres, neo4j, s3, and sqs. 0 is red. 1 is up.",
+          "description": "1 when Postgres, Neo4j, S3, or SQS answered the ingestion worker. Target is 1. Red at 0. A red dependency means the worker cannot finish a message. Check that store or floci, then the worker logs.",
           "id": 18,
           "links": [],
-          "title": "Worker dependencies",
+          "title": "Worker dependencies (up)",
           "vizConfig": {
             "group": "stat",
             "kind": "VizConfig",
@@ -996,7 +1009,8 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "prometheus"
+                        "name": "prometheus",
+                        "uid": "prometheus"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -1015,7 +1029,8 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "prometheus"
+                        "name": "prometheus",
+                        "uid": "prometheus"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -1033,10 +1048,10 @@
               "transformations": []
             }
           },
-          "description": "Event lag is now minus occurred_at when the worker finishes the message, per source. Watermark lag is one series per source. A cursor watermark is omitted. Yellow at 30s is the HR contract. Red at 300s is the other contracts. This is not oldest-message age. SQS does not expose that outside CloudWatch.",
+          "description": "Event lag is now minus occurred_at when the worker finishes the message. Watermark lag is one series per source. A cursor watermark is omitted. Yellow at 30 seconds is the HR contract. Red at 300 seconds is the other contracts. This is not oldest-message age. A red source is late: check queue depth and the worker logs.",
           "id": 21,
           "links": [],
-          "title": "Sync lag per source",
+          "title": "Ingest lag by source (s)",
           "vizConfig": {
             "group": "timeseries",
             "kind": "VizConfig",
@@ -1132,7 +1147,8 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "prometheus"
+                        "name": "prometheus",
+                        "uid": "prometheus"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -1149,10 +1165,10 @@
               "transformations": []
             }
           },
-          "description": "Visible messages from GetQueueAttributes, per tier queue.",
+          "description": "Visible messages on kbs-p0, kbs-p1, and kbs-p2, from GetQueueAttributes. There is no red threshold: a short queue during a sync is normal. A depth that climbs and does not fall means the worker is not keeping up. Check workers and store errors.",
           "id": 22,
           "links": [],
-          "title": "Queue depth",
+          "title": "Queue depth (messages)",
           "vizConfig": {
             "group": "timeseries",
             "kind": "VizConfig",
@@ -1230,7 +1246,8 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "prometheus"
+                        "name": "prometheus",
+                        "uid": "prometheus"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -1248,10 +1265,10 @@
               "transformations": []
             }
           },
-          "description": "Visible messages on each tier dead-letter queue right now. This is a gauge from GetQueueAttributes, not a counter, so it is not wrapped in increase(). Red when any message is visible.",
+          "description": "Visible messages on each tier dead-letter queue right now. Target is empty. Red at one message on any queue. This is a gauge. Read the ingestion logs for the failing object, fix the cause, then replay.",
           "id": 23,
           "links": [],
-          "title": "Dead-letter depth",
+          "title": "Dead-letter depth by queue (messages)",
           "vizConfig": {
             "group": "stat",
             "kind": "VizConfig",
@@ -1310,7 +1327,8 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "prometheus"
+                        "name": "prometheus",
+                        "uid": "prometheus"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -1328,7 +1346,8 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "prometheus"
+                        "name": "prometheus",
+                        "uid": "prometheus"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -1345,10 +1364,10 @@
               "transformations": []
             }
           },
-          "description": "Skips are unchanged content hashes. The graph write still runs.",
+          "description": "Embedding calls per second by model, and skips per second by source. A skip is an unchanged content hash. The graph write still runs. There is no red threshold. A sudden jump in calls is a real content change, not by itself a failure.",
           "id": 24,
           "links": [],
-          "title": "Embed calls and skips",
+          "title": "Embed calls and skips (/s)",
           "vizConfig": {
             "group": "timeseries",
             "kind": "VizConfig",
@@ -1426,7 +1445,8 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "prometheus"
+                        "name": "prometheus",
+                        "uid": "prometheus"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -1444,10 +1464,10 @@
               "transformations": []
             }
           },
-          "description": "Absolute difference between indexed objects and source_objects, per source. Sits beside snapshot reconciliation drift. Red at one object.",
+          "description": "Absolute difference between indexed objects and the source object count, per source. Target is zero. Red at one object. Sits beside snapshot drift. A red source is in the bucket but not in the index, or the reverse. Check store errors and the worker logs.",
           "id": 25,
           "links": [],
-          "title": "Index drift",
+          "title": "Index drift (objects)",
           "vizConfig": {
             "group": "stat",
             "kind": "VizConfig",
@@ -1505,7 +1525,8 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "prometheus"
+                        "name": "prometheus",
+                        "uid": "prometheus"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -1522,10 +1543,10 @@
               "transformations": []
             }
           },
-          "description": "Postgres and Neo4j write time.",
+          "description": "95th percentile of one Postgres or Neo4j write, by store and operation. There is no red threshold in this POC. A line that climbs while store errors are red means that store is the bottleneck. Postgres is authoritative. Neo4j is the derived index.",
           "id": 26,
           "links": [],
-          "title": "Store write latency",
+          "title": "Store write latency p95 (s)",
           "vizConfig": {
             "group": "timeseries",
             "kind": "VizConfig",
@@ -1604,7 +1625,8 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "prometheus"
+                        "name": "prometheus",
+                        "uid": "prometheus"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -1622,10 +1644,10 @@
               "transformations": []
             }
           },
-          "description": "Failed Postgres or Neo4j writes over the selected range. The raw counter showed the total since process start. Red on any failure in the range.",
+          "description": "Failed Postgres or Neo4j writes over the selected range, by store and operation. Target is zero. Red at one. The raw counter is the total since process start, so this panel uses increase. A red store left the message unacknowledged. Read the ingestion logs.",
           "id": 27,
           "links": [],
-          "title": "Store errors",
+          "title": "Store errors in range (count)",
           "vizConfig": {
             "group": "stat",
             "kind": "VizConfig",
@@ -1684,7 +1706,8 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "loki"
+                        "name": "loki",
+                        "uid": "loki"
                       },
                       "group": "loki",
                       "kind": "DataQuery",
@@ -1704,7 +1727,7 @@
               "transformations": []
             }
           },
-          "description": "event_type and decision are in the line. request_id is in the line, not a label.",
+          "description": "Logs from the ingestion worker. There is no color threshold. event_type and decision are in the line. request_id is in the line, not a label. Use this when queue depth, store errors, or dead-letter depth is red.",
           "id": 28,
           "links": [],
           "title": "Ingestion logs",
@@ -1749,7 +1772,8 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "prometheus"
+                        "name": "prometheus",
+                        "uid": "prometheus"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -1767,10 +1791,10 @@
               "transformations": []
             }
           },
-          "description": "p95 of kbs_retrieval_seconds by tool. Search includes the HR ACL re-check. The unit is seconds. Red above 0.25s, which is the 250 ms target and the 0.25 histogram bucket.",
+          "description": "95th percentile of search, get_document, and find_related. The surface variable applies. Target for search is under 0.25 seconds. Red at 0.25. Search includes the HR ACL re-check. A red search with a calm ACL re-check is the index. A red search with a slow re-check is the HR harness.",
           "id": 30,
           "links": [],
-          "title": "Retrieval latency p95",
+          "title": "Retrieval latency p95 by tool (s)",
           "vizConfig": {
             "group": "timeseries",
             "kind": "VizConfig",
@@ -1862,7 +1886,8 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "prometheus"
+                        "name": "prometheus",
+                        "uid": "prometheus"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -1880,10 +1905,10 @@
               "transformations": []
             }
           },
-          "description": "Searches with no chunk, divided by all searches, by permission group. Shown as a fraction of 1.",
+          "description": "Searches with no chunk, divided by all searches, by permission group. The permission group variable applies. There is no red threshold: an empty result is often a deny or a question with no overlap, and hash-v1 only returns a chunk that also matched full text. A group stuck at 100 percent is the access check. Compare with the deny log.",
           "id": 31,
           "links": [],
-          "title": "Empty-result rate",
+          "title": "Empty-result rate by group",
           "vizConfig": {
             "group": "timeseries",
             "kind": "VizConfig",
@@ -1962,7 +1987,8 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "prometheus"
+                        "name": "prometheus",
+                        "uid": "prometheus"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -1979,10 +2005,10 @@
               "transformations": []
             }
           },
-          "description": "Rejected bearer tokens by reason.",
+          "description": "Rejected bearer tokens over five minutes, by reason. There is no red threshold: a demo that omits the token produces missing. A climb in invalid or expired means a bad or old token. clearance and missing_claim are a principal the gateway refused. secret means the process has no signing secret.",
           "id": 32,
           "links": [],
-          "title": "Auth failures",
+          "title": "Auth failures (count)",
           "vizConfig": {
             "group": "timeseries",
             "kind": "VizConfig",
@@ -2060,7 +2086,8 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "prometheus"
+                        "name": "prometheus",
+                        "uid": "prometheus"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -2078,10 +2105,10 @@
               "transformations": []
             }
           },
-          "description": "Product notices over the selected range. ok, invalid, and error are separate series. The raw counter showed the total since process start. invalid and error turn red. ok stays green.",
+          "description": "Product notices over the selected range. ok, invalid, and error are separate. Target is no invalid and no error. Those two turn red at one. ok stays green. invalid means the body was refused. error means SQS did not take the notice. Read the webhook receiver logs.",
           "id": 40,
           "links": [],
-          "title": "Webhook notices",
+          "title": "Webhook notices in range (count)",
           "vizConfig": {
             "group": "stat",
             "kind": "VizConfig",
@@ -2161,7 +2188,8 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "prometheus"
+                        "name": "prometheus",
+                        "uid": "prometheus"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -2180,7 +2208,8 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "prometheus"
+                        "name": "prometheus",
+                        "uid": "prometheus"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -2198,10 +2227,10 @@
               "transformations": []
             }
           },
-          "description": "Visible messages right now. The main hook queue can hold work, so it stays green. The dead-letter queue turns red at one message. The old panel turned both red.",
+          "description": "Visible messages right now. The main hook queue can hold work, so it stays green. The dead-letter queue turns red at one message. A red dead-letter queue means a notice was not consumed. Read the product connector logs.",
           "id": 41,
           "links": [],
-          "title": "Hook queue depth",
+          "title": "Hook queue depth (messages)",
           "vizConfig": {
             "group": "stat",
             "kind": "VizConfig",
@@ -2281,7 +2310,8 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "prometheus"
+                        "name": "prometheus",
+                        "uid": "prometheus"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -2299,10 +2329,10 @@
               "transformations": []
             }
           },
-          "description": "Finished requests per second by process and route. /health and /metrics are left out so scrapes do not hide traffic. An unknown path is the route unmatched.",
+          "description": "Finished requests per second by process and route. /health and /metrics are left out so scrapes do not hide traffic. An unknown path is the route unmatched. There is no red threshold. A rate of unmatched means clients are calling paths the process did not register.",
           "id": 42,
           "links": [],
-          "title": "HTTP request rate",
+          "title": "HTTP request rate (/s)",
           "vizConfig": {
             "group": "timeseries",
             "kind": "VizConfig",
@@ -2390,7 +2420,8 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "prometheus"
+                        "name": "prometheus",
+                        "uid": "prometheus"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -2408,10 +2439,10 @@
               "transformations": []
             }
           },
-          "description": "Responses at 500 and above, per second, by process, route, and status. Red above zero.",
+          "description": "Responses at 500 and above, per second, by process, route, and status. Target is zero. Red above zero. A red route is a failed request, not an auth denial. Auth denials are 401 and are on the auth panel. Read that service's logs.",
           "id": 43,
           "links": [],
-          "title": "HTTP 5xx rate",
+          "title": "HTTP 5xx rate (/s)",
           "vizConfig": {
             "group": "timeseries",
             "kind": "VizConfig",
@@ -2503,7 +2534,8 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "prometheus"
+                        "name": "prometheus",
+                        "uid": "prometheus"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -2521,10 +2553,10 @@
               "transformations": []
             }
           },
-          "description": "p95 request duration by process and route, in seconds. This is not the 250 ms search target. That target is the retrieval panel.",
+          "description": "95th percentile of request duration by process and route, in seconds. Health and metrics are left out. There is no red threshold here. The 0.25 second target is the search panel, not every route. Use this to see which route is slow.",
           "id": 44,
           "links": [],
-          "title": "HTTP duration p95",
+          "title": "HTTP duration p95 (s)",
           "vizConfig": {
             "group": "timeseries",
             "kind": "VizConfig",
@@ -2612,7 +2644,8 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "prometheus"
+                        "name": "prometheus",
+                        "uid": "prometheus"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -2630,10 +2663,10 @@
               "transformations": []
             }
           },
-          "description": "HR snapshot lag p95. The contract target is under 30 seconds. Red at 30. No samples in the window is idle, not a breach. This panel stays on HR even when the source variable is set to another department.",
+          "description": "HR snapshot time minus the source updated_at, 95th percentile. Target is under 30 seconds, the HR contract. Red at 30. No samples means the connector wrote nothing in the window, so check the connector logs before treating it as a breach. This panel stays on HR when the source variable changes.",
           "id": 51,
           "links": [],
-          "title": "P0 freshness",
+          "title": "HR snapshot lag p95 (s)",
           "vizConfig": {
             "group": "stat",
             "kind": "VizConfig",
@@ -2692,7 +2725,8 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "prometheus"
+                        "name": "prometheus",
+                        "uid": "prometheus"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -2710,10 +2744,10 @@
               "transformations": []
             }
           },
-          "description": "p95 of search, in seconds. The target is under 0.25 seconds. Red at 0.25. The surface variable applies. No samples in the window means nobody searched.",
+          "description": "95th percentile of search, including the HR ACL re-check. Target is under 0.25 seconds. Red at 0.25. The surface variable applies. No samples means nobody searched. Open the retrieval panel to see which tool is slow.",
           "id": 52,
           "links": [],
-          "title": "Search p95",
+          "title": "Search latency p95 (s)",
           "vizConfig": {
             "group": "stat",
             "kind": "VizConfig",
@@ -2772,7 +2806,8 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "prometheus"
+                        "name": "prometheus",
+                        "uid": "prometheus"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -2790,10 +2825,10 @@
               "transformations": []
             }
           },
-          "description": "Visible messages across the tier dead-letter queues right now. The target is empty. Red at one message. This is a gauge, not a counter.",
+          "description": "Visible messages across the tier dead-letter queues right now. Target is empty. Red at one message. This is a gauge. A red value means a message exhausted retries. Read the ingestion logs, then replay with make dlq-replay only after the cause is fixed.",
           "id": 53,
           "links": [],
-          "title": "Dead-letter queues",
+          "title": "Dead-letter depth (messages)",
           "vizConfig": {
             "group": "stat",
             "kind": "VizConfig",
@@ -2852,7 +2887,8 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "prometheus"
+                        "name": "prometheus",
+                        "uid": "prometheus"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -2870,10 +2906,10 @@
               "transformations": []
             }
           },
-          "description": "Delete checks that still found the object, over the selected range. The target is zero. Red at one. The source variable applies.",
+          "description": "Deletes that still found the object, counted over the selected range. Target is zero. Red at one. The source variable applies. Check the store label: s3 is the connector, postgres and neo4j are the worker. A red value means a delete was not verified.",
           "id": 54,
           "links": [],
-          "title": "Delete verification",
+          "title": "Delete verification failures (count)",
           "vizConfig": {
             "group": "stat",
             "kind": "VizConfig",
@@ -3435,7 +3471,8 @@
     "liveNow": false,
     "preload": false,
     "tags": [
-      "kbs"
+      "kbs",
+      "overview"
     ],
     "timeSettings": {
       "autoRefresh": "",
@@ -3457,7 +3494,7 @@
       "timezone": "browser",
       "to": "now"
     },
-    "title": "KBS overview",
+    "title": "KBS / Overview",
     "variables": [
       {
         "kind": "QueryVariable",
@@ -3484,7 +3521,8 @@
             "group": "prometheus",
             "version": "v0",
             "datasource": {
-              "name": "prometheus"
+              "name": "prometheus",
+              "uid": "prometheus"
             },
             "spec": {
               "query": "label_values(kbs_source_objects, source_id)",
@@ -3538,7 +3576,7 @@
         "spec": {
           "name": "service",
           "label": "Service",
-          "description": "Filters the error and deny log panel. All keeps every service.",
+          "description": "Filters the error and deny log panel. All keeps every service. The value is .+ because Loki rejects an empty-matching .*.",
           "hide": "dontHide",
           "refresh": "onDashboardLoad",
           "skipUrlSync": false,
@@ -3551,14 +3589,15 @@
           "sort": "alphabeticalAsc",
           "multi": true,
           "includeAll": true,
-          "allValue": ".*",
+          "allValue": ".+",
           "allowCustomValue": false,
           "query": {
             "kind": "DataQuery",
             "group": "prometheus",
             "version": "v0",
             "datasource": {
-              "name": "prometheus"
+              "name": "prometheus",
+              "uid": "prometheus"
             },
             "spec": {
               "query": "label_values(up, job)",
