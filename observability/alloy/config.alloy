@@ -90,6 +90,27 @@ prometheus.scrape "connector_hr" {
   forward_to      = [prometheus.remote_write.local.receiver]
 }
 
+prometheus.scrape "connector_engineering" {
+  targets         = [{__address__ = "connector-engineering:9102"}]
+  job_name        = "connector-engineering"
+  scrape_interval = "15s"
+  forward_to      = [prometheus.remote_write.local.receiver]
+}
+
+prometheus.scrape "connector_sales" {
+  targets         = [{__address__ = "connector-sales:9103"}]
+  job_name        = "connector-sales"
+  scrape_interval = "15s"
+  forward_to      = [prometheus.remote_write.local.receiver]
+}
+
+prometheus.scrape "connector_product" {
+  targets         = [{__address__ = "connector-product:9104"}]
+  job_name        = "connector-product"
+  scrape_interval = "15s"
+  forward_to      = [prometheus.remote_write.local.receiver]
+}
+
 prometheus.scrape "ingestion_worker" {
   targets         = [{__address__ = "ingestion-worker:9101"}]
   job_name        = "ingestion-worker"
