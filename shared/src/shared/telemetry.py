@@ -106,6 +106,16 @@ def sqs_message_attributes() -> dict[str, dict[str, str]]:
     return {"traceparent": {"DataType": "String", "StringValue": traceparent}}
 
 
+def forwarded_traceparent(message: Mapping[str, Any]) -> dict[str, dict[str, str]]:
+    """Copy an inbound traceparent onto another send. Empty when the message has none."""
+    attributes = message.get("MessageAttributes") or {}
+    raw = attributes.get("traceparent") if isinstance(attributes, dict) else None
+    value = raw.get("StringValue") if isinstance(raw, dict) else None
+    if not isinstance(value, str) or not value:
+        return {}
+    return {"traceparent": {"DataType": "String", "StringValue": value}}
+
+
 def sqs_parent(message: Mapping[str, Any]) -> Any:
     """Context from a received message. A missing header starts a new trace."""
     attributes = message.get("MessageAttributes") or {}

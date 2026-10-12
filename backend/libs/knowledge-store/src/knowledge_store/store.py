@@ -55,25 +55,33 @@ class KnowledgeStore:
         source_id = event.source_id
         object_id = event.object_id
         try:
-            with metrics.STORE_WRITE.labels(store="postgres", op="delete").time():
+            with (
+                span("postgres.commit", store="postgres", op="delete", source_id=source_id),
+                metrics.STORE_WRITE.labels(store="postgres", op="delete").time(),
+            ):
                 self.chunks.tombstone(
                     source_id, object_id, event.version or "", event.content_hash or ""
                 )
         except Exception:
             metrics.STORE_ERRORS.labels(store="postgres", op="delete").inc()
             raise
-        if self.chunks.count_chunks(source_id, object_id):
-            metrics.DELETE_FAILURES.labels(source_id, "postgres").inc()
-            raise VerifyError("postgres")
+        with span("delete.verify", store="postgres", source_id=source_id):
+            if self.chunks.count_chunks(source_id, object_id):
+                metrics.DELETE_FAILURES.labels(source_id, "postgres").inc()
+                raise VerifyError("postgres")
         try:
-            with metrics.STORE_WRITE.labels(store="neo4j", op="delete").time():
+            with (
+                span("neo4j.write", store="neo4j", op="delete", source_id=source_id),
+                metrics.STORE_WRITE.labels(store="neo4j", op="delete").time(),
+            ):
                 self.graph.delete(source_id, object_id)
         except Exception:
             metrics.STORE_ERRORS.labels(store="neo4j", op="delete").inc()
             raise
-        if self.graph.count_node(source_id, object_id):
-            metrics.DELETE_FAILURES.labels(source_id, "neo4j").inc()
-            raise VerifyError("neo4j")
+        with span("delete.verify", store="neo4j", source_id=source_id):
+            if self.graph.count_node(source_id, object_id):
+                metrics.DELETE_FAILURES.labels(source_id, "neo4j").inc()
+                raise VerifyError("neo4j")
         log_event(LOG, "object deleted", source_id=source_id, object_id=object_id)
 
     def search(
@@ -166,7 +174,10 @@ class KnowledgeStore:
         vectors = self.embedder.embed([chunk.text for chunk in parsed.chunks])
         metrics.EMBED_CALLS.labels(model=self.embedder.name).inc(len(parsed.chunks))
         try:
-            with metrics.STORE_WRITE.labels(store="postgres", op="upsert").time():
+            with (
+                span("postgres.commit", store="postgres", op="upsert", source_id=event.source_id),
+                metrics.STORE_WRITE.labels(store="postgres", op="upsert").time(),
+            ):
                 self.chunks.replace_chunks(
                     event.source_id,
                     event.object_id,
@@ -186,7 +197,10 @@ class KnowledgeStore:
 
     def _graph_write(self, event: ChangeEvent, parsed: Parsed, acl, version: str) -> None:
         try:
-            with metrics.STORE_WRITE.labels(store="neo4j", op="upsert").time():
+            with (
+                span("neo4j.write", store="neo4j", op="upsert", source_id=event.source_id),
+                metrics.STORE_WRITE.labels(store="neo4j", op="upsert").time(),
+            ):
                 self.graph.write(
                     event.source_id,
                     parsed.object_type,
@@ -202,7 +216,10 @@ class KnowledgeStore:
 
     def _graph_acl(self, event: ChangeEvent, acl) -> None:
         try:
-            with metrics.STORE_WRITE.labels(store="neo4j", op="acl").time():
+            with (
+                span("neo4j.write", store="neo4j", op="acl", source_id=event.source_id),
+                metrics.STORE_WRITE.labels(store="neo4j", op="acl").time(),
+            ):
                 self.graph.set_acl(event.source_id, event.object_id, acl)
         except Exception:
             metrics.STORE_ERRORS.labels(store="neo4j", op="acl").inc()

@@ -29,6 +29,7 @@ from ingest_contract.events import RAW_BUCKET, TIER_QUEUES
 from shared.contracts.source_contract import SourceContract
 from shared.logging import configure, log_event
 from shared.registry import load_registry
+from shared.telemetry import init_telemetry
 
 
 def select_source(contracts: list[SourceContract], source_id: str) -> SourceContract:
@@ -68,6 +69,7 @@ def prepare(
     """Load the contract and block until Postgres, S3, the harness, and the tier queue answer."""
     log = logging.getLogger(service)
     configure(service, "ingestion")
+    init_telemetry(service)
     port = int(os.environ.get("METRICS_PORT", "9100"))
     start_http_server(port)
     contract = select_source(load_registry(), source_id)

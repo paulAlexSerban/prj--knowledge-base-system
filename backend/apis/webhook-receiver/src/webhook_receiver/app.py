@@ -20,7 +20,7 @@ from ingest_contract.events import fit_sqs_id
 from ingest_contract.hooks import HOOK_QUEUE, HookNotice
 from shared.http_metrics import HttpMetricsMiddleware
 from shared.logging import configure, log_event
-from shared.telemetry import init_telemetry
+from shared.telemetry import init_telemetry, span, sqs_message_attributes
 
 LOG = logging.getLogger("webhook-receiver")
 
@@ -88,12 +88,22 @@ def create_app() -> FastAPI:
 def enqueue(notice: HookNotice) -> None:
     client = _sqs_client()
     url = client.get_queue_url(QueueName=HOOK_QUEUE)["QueueUrl"]
-    client.send_message(
-        QueueUrl=url,
-        MessageBody=notice.to_json(),
-        MessageGroupId=fit_sqs_id(f"product:{notice.object_id}"),
-        MessageDeduplicationId=uuid.uuid4().hex,
-    )
+    with span(
+        "sqs.publish",
+        queue=HOOK_QUEUE,
+        source_id="product",
+        event_type=notice.event_type,
+    ):
+        kwargs: dict[str, object] = {
+            "QueueUrl": url,
+            "MessageBody": notice.to_json(),
+            "MessageGroupId": fit_sqs_id(f"product:{notice.object_id}"),
+            "MessageDeduplicationId": uuid.uuid4().hex,
+        }
+        attributes = sqs_message_attributes()
+        if attributes:
+            kwargs["MessageAttributes"] = attributes
+        client.send_message(**kwargs)
 
 
 def _sqs_client():

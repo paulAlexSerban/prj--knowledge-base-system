@@ -18,6 +18,7 @@ from ingest_contract.events import DLQ_FOR, TIER_ORDER, ChangeEvent, fit_sqs_id
 from ingestion_worker import metrics
 from ingestion_worker.store import Store, dispatch
 from shared.logging import log_event
+from shared.telemetry import forwarded_traceparent, span, sqs_parent
 
 LOG = logging.getLogger("ingestion-worker")
 MAX_RECEIVE = 5
@@ -102,6 +103,7 @@ class Consumer:
             "MaxNumberOfMessages": 10,
             "WaitTimeSeconds": wait,
             "AttributeNames": ["All"],
+            "MessageAttributeNames": ["All"],
         }
         if self.visibility_timeout is not None:
             kwargs["VisibilityTimeout"] = self.visibility_timeout
@@ -114,6 +116,10 @@ class Consumer:
 
     def _handle_message(self, queue_name: str, message: dict) -> bool:
         """True when the message was deleted. False when it stays in flight."""
+        with span("sqs.consume", context=sqs_parent(message), queue=queue_name) as current:
+            return self._apply(queue_name, message, current)
+
+    def _apply(self, queue_name: str, message: dict, current) -> bool:
         count = int(message.get("Attributes", {}).get("ApproximateReceiveCount", "1"))
         if count > MAX_RECEIVE:
             return self._move_to_dlq(queue_name, message)
@@ -129,6 +135,8 @@ class Consumer:
                 decision="invalid",
             )
             return False
+        current.set_attribute("source_id", event.source_id)
+        current.set_attribute("event_type", event.event_type.value)
         try:
             if self.fail_object_id and event.object_id == self.fail_object_id:
                 raise HandlerError(f"FAIL_OBJECT_ID matched {event.object_id}")
@@ -173,12 +181,16 @@ class Consumer:
         attributes = message.get("Attributes", {})
         group = attributes.get("MessageGroupId") or "poison"
         try:
-            self.client.send_message(
-                QueueUrl=self.queue_url(dlq_name),
-                MessageBody=message["Body"],
-                MessageGroupId=fit_sqs_id(group),
-                MessageDeduplicationId=fit_sqs_id(f"dlq-{message['MessageId']}"),
-            )
+            kwargs: dict[str, object] = {
+                "QueueUrl": self.queue_url(dlq_name),
+                "MessageBody": message["Body"],
+                "MessageGroupId": fit_sqs_id(group),
+                "MessageDeduplicationId": fit_sqs_id(f"dlq-{message['MessageId']}"),
+            }
+            forwarded = forwarded_traceparent(message)
+            if forwarded:
+                kwargs["MessageAttributes"] = forwarded
+            self.client.send_message(**kwargs)
             self._delete(queue_name, message)
         except (BotoCoreError, ClientError, OSError) as exc:
             log_event(

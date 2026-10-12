@@ -17,6 +17,7 @@ from knowledge_store import metrics as store_metrics
 from knowledge_store.runtime import open_store, ready
 from shared.logging import configure, log_event
 from shared.registry import load_registry
+from shared.telemetry import init_telemetry
 
 LOG = logging.getLogger("ingestion-worker")
 DEPTH_SECONDS = 10
@@ -24,6 +25,7 @@ DEPTH_SECONDS = 10
 
 def main() -> None:
     configure("ingestion-worker", "ingestion")
+    init_telemetry("ingestion-worker")
     contracts = load_registry()
     port = int(os.environ.get("METRICS_PORT", "9101"))
     from prometheus_client import start_http_server

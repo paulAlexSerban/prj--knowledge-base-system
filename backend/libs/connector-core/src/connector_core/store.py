@@ -9,6 +9,8 @@ from pathlib import PurePosixPath
 
 from botocore.exceptions import ClientError
 
+from shared.telemetry import span
+
 METADATA_HASH = "kbs-content-hash"
 METADATA_VERSION = "kbs-version"
 METADATA_ACL = "kbs-native-acl"
@@ -45,13 +47,15 @@ class SnapshotStore:
             stored = current.get("Metadata", {}).get(METADATA_HASH)
             if stored == metadata[METADATA_HASH]:
                 return PutResult(skipped=True, version_id=current.get("VersionId"))
-        response = self.client.put_object(
-            Bucket=self.bucket,
-            Key=key,
-            Body=body,
-            ContentType=content_type,
-            Metadata=metadata,
-        )
+        source_id = key.split("/")[1] if key.startswith("raw/") else ""
+        with span("s3.put", source_id=source_id):
+            response = self.client.put_object(
+                Bucket=self.bucket,
+                Key=key,
+                Body=body,
+                ContentType=content_type,
+                Metadata=metadata,
+            )
         return PutResult(skipped=False, version_id=response.get("VersionId"))
 
     def delete_all_versions(self, key: str) -> int:

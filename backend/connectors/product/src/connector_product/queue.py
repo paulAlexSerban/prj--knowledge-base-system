@@ -8,6 +8,7 @@ from pydantic import ValidationError
 
 from ingest_contract.hooks import HOOK_DLQ, HOOK_QUEUE, HookNotice
 from shared.logging import log_event
+from shared.telemetry import sqs_parent
 
 HOOK_DEPTH = Gauge(
     "kbs_hook_queue_depth",
@@ -30,13 +31,14 @@ class HookQueue:
             return False
         return True
 
-    def receive(self, wait: int = 10) -> list[tuple[HookNotice, str]]:
+    def receive(self, wait: int = 10) -> list[tuple[HookNotice, str, object]]:
         response = self.client.receive_message(
             QueueUrl=self.url,
             MaxNumberOfMessages=10,
             WaitTimeSeconds=wait,
+            MessageAttributeNames=["All"],
         )
-        found: list[tuple[HookNotice, str]] = []
+        found: list[tuple[HookNotice, str, object]] = []
         for message in response.get("Messages", []):
             handle = message["ReceiptHandle"]
             try:
@@ -44,7 +46,7 @@ class HookQueue:
             except ValidationError as exc:
                 log_event(LOG, "invalid hook message", level=logging.ERROR, error=str(exc))
                 continue
-            found.append((notice, handle))
+            found.append((notice, handle, sqs_parent(message)))
         return found
 
     def ack(self, handle: str) -> None:

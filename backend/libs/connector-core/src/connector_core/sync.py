@@ -17,6 +17,7 @@ from datetime import UTC, datetime
 from threading import Lock
 
 from botocore.exceptions import BotoCoreError, ClientError
+from opentelemetry import context as otel_context
 from sqlalchemy.exc import SQLAlchemyError
 
 from connector_core import metrics
@@ -35,6 +36,7 @@ from ingest_contract.events import ChangeEvent, EventType
 from ingest_contract.hashing import snapshot_hash
 from shared.contracts.source_contract import SourceContract
 from shared.logging import log_event
+from shared.telemetry import span
 
 LOG = logging.getLogger("connector")
 HARD_EXCLUDED = frozenset({"salary", "compensation", "ssn", "national_id"})
@@ -80,6 +82,10 @@ class Syncer:
         self._lock = Lock()
 
     def run(self) -> SyncReport:
+        with span("connector.sync", source_id=self.contract.source_id):
+            return self._run_cycle()
+
+    def _run_cycle(self) -> SyncReport:
         source_id = self.contract.source_id
         started = time.perf_counter()
         log_event(
@@ -131,6 +137,10 @@ class Syncer:
 
     def reconcile(self) -> None:
         """Delete snapshots the source no longer lists, and backfill ids the feed missed."""
+        with span("connector.reconcile", source_id=self.contract.source_id):
+            self._reconcile_cycle()
+
+    def _reconcile_cycle(self) -> None:
         source_id = self.contract.source_id
         try:
             payload = self.connector.list_ids()
@@ -203,10 +213,19 @@ class Syncer:
                 return items, server_time
 
     def _map(self, items: list[dict]) -> list[ItemOutcome]:
+        parent = otel_context.get_current()
+
+        def run(item: dict) -> ItemOutcome:
+            token = otel_context.attach(parent)
+            try:
+                return self._one(item)
+            finally:
+                otel_context.detach(token)
+
         if self.workers <= 1 or len(items) <= 1:
-            return [self._one(item) for item in items]
+            return [run(item) for item in items]
         with ThreadPoolExecutor(max_workers=self.workers) as pool:
-            return list(pool.map(self._one, items))
+            return list(pool.map(run, items))
 
     def _one(self, item: dict, force: bool = False) -> ItemOutcome:
         if item.get("op") == "delete":

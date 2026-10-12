@@ -15,6 +15,7 @@ services:
     environment:
       CONTRACTS_DIR: /contracts
       METRICS_PORT: "9100"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://alloy:4318
       # P0 target is 30s. Scheduler cannot fire inside a minute, so the loop is 10s.
       P0_POLL_SECONDS: "10"
       RECONCILE_SECONDS: "60"
@@ -57,6 +58,7 @@ services:
     environment:
       CONTRACTS_DIR: /contracts
       METRICS_PORT: "9102"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://alloy:4318
       # P1. Sixty seconds is inside the freshness target. HR stays on the faster loop.
       POLL_SECONDS: "60"
       RECONCILE_SECONDS: "60"
@@ -99,6 +101,7 @@ services:
     environment:
       CONTRACTS_DIR: /contracts
       METRICS_PORT: "9103"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://alloy:4318
       POLL_SECONDS: "60"
       RECONCILE_SECONDS: "60"
       SYNC_WORKERS: "4"
@@ -140,6 +143,7 @@ services:
     environment:
       CONTRACTS_DIR: /contracts
       METRICS_PORT: "9104"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://alloy:4318
       RECONCILE_SECONDS: "60"
       SYNC_WORKERS: "4"
       AWS_ENDPOINT_URL: http://floci:4566
@@ -183,6 +187,7 @@ services:
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
       AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION}
       METRICS_PORT: "9101"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://alloy:4318
       CONTRACTS_DIR: /contracts
       RAW_BUCKET: kbs-raw-snapshots
       EMBEDDER: hash

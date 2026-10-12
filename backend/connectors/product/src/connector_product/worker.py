@@ -17,6 +17,7 @@ from connector_product.client import ProductConnector
 from connector_product.queue import HookQueue
 from ingest_contract.hooks import HookNotice
 from shared.logging import log_event
+from shared.telemetry import span
 
 LOG = logging.getLogger("connector-product")
 
@@ -25,7 +26,7 @@ def _client(base_url: str) -> ProductConnector:
     return ProductConnector(httpx.Client(base_url=base_url, timeout=30))
 
 
-def take_notices(hooks: HookQueue) -> list[tuple[HookNotice, str]] | None:
+def take_notices(hooks: HookQueue) -> list[tuple[HookNotice, str, object]] | None:
     """Read one batch. None means the queue could not be reached, so the process stays up."""
     try:
         hooks.observe()
@@ -71,16 +72,22 @@ def main() -> None:
         if notices is None:
             time.sleep(2)
             continue
-        for notice, handle in notices:
+        for notice, handle, parent in notices:
             try:
-                report = apply_notice(
-                    ready.connector,
-                    ready.contract,
-                    ready.state,
-                    ready.snapshots,
-                    ready.publisher,
-                    notice,
-                )
+                with span(
+                    "hook.apply",
+                    context=parent,
+                    source_id="product",
+                    event_type=notice.event_type,
+                ):
+                    report = apply_notice(
+                        ready.connector,
+                        ready.contract,
+                        ready.state,
+                        ready.snapshots,
+                        ready.publisher,
+                        notice,
+                    )
             except Exception as exc:  # noqa: BLE001 - one bad notice must not kill the process
                 log_event(
                     LOG,

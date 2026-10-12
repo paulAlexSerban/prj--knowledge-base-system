@@ -7,6 +7,7 @@ same, so per-object order is unchanged.
 """
 
 from ingest_contract.events import DLQ_FOR, fit_sqs_id
+from shared.telemetry import forwarded_traceparent
 
 PAIRS = tuple((dlq, tier) for tier, dlq in DLQ_FOR.items())
 
@@ -23,6 +24,7 @@ def replay_queue(client: object, dlq_name: str, tier_name: str, limit: int = 100
             WaitTimeSeconds=1,
             VisibilityTimeout=30,
             AttributeNames=["All"],
+            MessageAttributeNames=["All"],
         )
         messages = response.get("Messages", [])
         if not messages:
@@ -31,12 +33,18 @@ def replay_queue(client: object, dlq_name: str, tier_name: str, limit: int = 100
             attributes = message.get("Attributes", {})
             group = attributes.get("MessageGroupId") or "replay"
             original = attributes.get("MessageDeduplicationId") or message["MessageId"]
-            client.send_message(
-                QueueUrl=tier_url,
-                MessageBody=message["Body"],
-                MessageGroupId=fit_sqs_id(group),
-                MessageDeduplicationId=fit_sqs_id(f"{original}:replay:{message['MessageId']}"),
-            )
+            send: dict[str, object] = {
+                "QueueUrl": tier_url,
+                "MessageBody": message["Body"],
+                "MessageGroupId": fit_sqs_id(group),
+                "MessageDeduplicationId": fit_sqs_id(
+                    f"{original}:replay:{message['MessageId']}"
+                ),
+            }
+            forwarded = forwarded_traceparent(message)
+            if forwarded:
+                send["MessageAttributes"] = forwarded
+            client.send_message(**send)
             client.delete_message(QueueUrl=dlq_url, ReceiptHandle=message["ReceiptHandle"])
             moved += 1
             if moved >= limit:
