@@ -1,0 +1,49 @@
+# Golden set. Four categories from the architecture document, plus paraphrases
+# (no word shared with the policy, so only dense retrieval can pass) and the graph.
+# Run with `make eval` against a seeded stack. Thresholds fail the run.
+thresholds:
+  recall_at_5: 0.90          # known + paraphrase
+  paraphrase_recall_at_5: 0.80
+  mrr: 0.70
+  no_answer: 1.0
+  conflicting: 1.0
+  access: 1.0
+  graph: 1.0
+  latency_p95_ms: 500        # regression guard on a laptop. The design target is 250 ms p95.
+
+cases:
+  # Known supporting chunk
+  - {id: known-parental-de, category: known, persona: employee_eng, query: "parental leave Germany", expect: [pol-parental-leave-de]}
+  - {id: known-expenses, category: known, persona: employee_eng, query: "travel and expense reimbursement receipts", expect: [pol-expenses]}
+  - {id: known-sick, category: known, persona: employee_eng, query: "sick leave policy", expect: [pol-sick-leave]}
+  - {id: known-remote, category: known, persona: employee_eng, query: "remote work policy", expect: [pol-remote-work]}
+  - {id: known-disciplinary-admin, category: known, persona: hr_admin, query: "disciplinary termination procedure", expect: [pol-disciplinary-procedure]}
+
+  # Paraphrase: written without the policy's own words
+  - {id: para-baby, category: paraphrase, persona: employee_eng, query: "time off after having a baby in Germany", expect: [pol-parental-leave-de]}
+  - {id: para-couch, category: paraphrase, persona: employee_eng, query: "can I work from my couch instead of the office", expect: [pol-remote-work]}
+  - {id: para-money-back, category: paraphrase, persona: employee_eng, query: "how do I get my money back for a business trip", expect: [pol-expenses]}
+  - {id: para-report-wrongdoing, category: paraphrase, persona: employee_eng, query: "someone is breaking the law at our company, how do I report it", expect: [pol-whistleblowing]}
+  - {id: para-desk, category: paraphrase, persona: employee_eng, query: "who pays for my desk and chair at home", expect: [pol-home-office-allowance]}
+
+  # No answer in the corpus: the system must return nothing
+  - {id: none-nonsense, category: no_answer, persona: employee_eng, query: "xylophone quantum payroll"}
+  - {id: none-offtopic, category: no_answer, persona: employee_eng, query: "recipe for sourdough bread starter"}
+
+  # Conflicting sources: one question, several countries, all must surface
+  - {id: conflict-parental, category: conflicting, persona: employee_eng, query: "parental leave", limit: 10, expect_all: [pol-parental-leave-de, pol-parental-leave-fr, pol-parental-leave-uk]}
+
+  # Access boundary: two principals, one pool
+  - {id: access-outsider, category: access, persona: outsider, query: "parental leave Germany"}
+  - {id: access-admin-only, category: access, persona: employee_eng, query: "disciplinary termination procedure", expect_none_of: [pol-disciplinary-procedure]}
+  - {id: access-admin-sees, category: access, persona: hr_admin, query: "disciplinary termination procedure", expect: [pol-disciplinary-procedure]}
+  - {id: access-compensation, category: access, persona: employee_eng, query: "compensation review guidelines", expect_none_of: [pol-compensation-review]}
+
+  # Question 2 through the graph
+  - id: graph-roadmap-lead
+    category: graph
+    persona: product_lead
+    kind: roadmap_deals
+    expect_deals: [deal-northwind-q3, deal-fabrikam-q3, deal-adventure-q3, deal-wideworld-q3, deal-litware-q3, deal-alpine-q3]
+  - {id: graph-roadmap-employee, category: graph, persona: employee_eng, kind: roadmap_deals, expect_deals: []}
+  - {id: graph-roadmap-outsider, category: graph, persona: outsider, kind: roadmap_deals, expect_deals: []}

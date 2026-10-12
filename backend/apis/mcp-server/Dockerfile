@@ -37,5 +37,11 @@ COPY backend/apis/mcp-server backend/apis/mcp-server
 
 RUN uv sync --frozen --no-dev --no-default-groups --package mcp-server
 
+# Bake the embedding model into the image so the demo never downloads at run time.
+ENV FASTEMBED_CACHE_PATH=/opt/fastembed
+RUN python -c "from fastembed import TextEmbedding; TextEmbedding('BAAI/bge-small-en-v1.5')" \
+    && chmod -R a+rX /opt/fastembed
+ENV HF_HUB_OFFLINE=1
+
 USER nobody
 CMD ["python", "-m", "mcp_server"]

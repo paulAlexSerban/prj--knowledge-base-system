@@ -2,6 +2,7 @@
 
 import logging
 from datetime import UTC, datetime
+from typing import ClassVar
 
 import boto3
 import pytest
@@ -34,6 +35,27 @@ class Spy(HashEmbedder):
     def embed(self, texts: list[str]) -> list[list[float]]:
         self.calls += len(texts)
         return super().embed(texts)
+
+
+class TopicEmbedder:
+    """Stands in for a semantic model: paraphrases land on one axis, strangers do not."""
+
+    name = "topic-test"
+    semantic = True
+    LEAVE: ClassVar[set[str]] = {"leave", "parental", "baby", "newborn", "germany", "eligibility", "pay"}
+
+    def _vector(self, text: str) -> list[float]:
+        words = {w.strip(".,#").lower() for w in text.split()}
+        axis = 0 if words & self.LEAVE else 2
+        vector = [0.0] * 384
+        vector[axis] = 1.0
+        return vector
+
+    def embed(self, texts: list[str]) -> list[list[float]]:
+        return [self._vector(t) for t in texts]
+
+    def embed_query(self, text: str) -> list[float]:
+        return self._vector(text)
 
 
 def _attach_worker_logs():
@@ -395,3 +417,60 @@ def test_hash_embedder_abstains_without_a_lexical_hit(world) -> None:
 
 def test_hr_contract_loads() -> None:
     assert _contracts()["hr"].source_id == "hr"
+
+
+def _index_policy(store, client) -> None:
+    key = "raw/hr/policy/pol-1.md"
+    _put(client, key, POLICY, "hr_employee", "1", "hash-1")
+    store.upsert_object(_event("pol-1", key, "1", "hash-1"))
+
+
+def test_semantic_embedder_finds_a_paraphrase_and_still_abstains(world) -> None:
+    store, _spy, client, _admin, _driver = world
+    store.embedder = TopicEmbedder()
+    _index_policy(store, client)
+    employee = Principal("ada", ("employees",), "internal", "engineering")
+    # No shared word with the policy, so full-text cannot match. Only the vector can.
+    found = store.search("newborn baby time off", employee, request_id="para")
+    assert {hit.object_id for hit in found} == {"pol-1"}
+    # A semantic model must not turn nearest-neighbour into an answer for any question.
+    assert store.search("xylophone quantum payroll", employee, request_id="none") == []
+
+
+def test_semantic_hit_is_still_blocked_for_an_unauthorized_principal(world) -> None:
+    store, _spy, client, _admin, _driver = world
+    store.embedder = TopicEmbedder()
+    _index_policy(store, client)
+    outsider = Principal("eve", ("outsiders",), "public", "none")
+    assert store.search("newborn baby time off", outsider, request_id="deny") == []
+
+
+def test_reindex_rebuilds_under_the_new_model_and_drops_the_old_one(world) -> None:
+    store, _spy, client, admin, _driver = world
+    key = "raw/hr/policy/pol-1.md"
+    _put(client, key, POLICY, "hr_employee", "1", "hash-1")
+    with admin.begin() as connection:
+        connection.execute(
+            text(
+                """
+                INSERT INTO source_objects (
+                    source_id, object_id, object_type, version, content_hash,
+                    native_acl, s3_key, source_updated_at
+                ) VALUES (
+                    'hr', 'pol-1', 'policy', '1', 'hash-1', 'hr_employee', :key,
+                    '2026-01-15T09:00:00Z'
+                )
+                """
+            ),
+            {"key": key},
+        )
+    store.upsert_object(_event("pol-1", key, "1", "hash-1"))
+    assert store.chunks.count_by_model() == {"hash-v1": 2}
+    store.embedder = TopicEmbedder()
+    employee = Principal("ada", ("employees",), "internal", "engineering")
+    # Before the rebuild the new model has no chunks, and old vectors are never ranked with it.
+    assert store.search("newborn baby time off", employee, request_id="before") == []
+    result = store.reindex()
+    assert result == {"rebuilt": 1, "missing": 0, "removed": 2}
+    assert store.chunks.count_by_model() == {"topic-test": 2}
+    assert store.reindex() == {"rebuilt": 0, "missing": 0, "removed": 0}

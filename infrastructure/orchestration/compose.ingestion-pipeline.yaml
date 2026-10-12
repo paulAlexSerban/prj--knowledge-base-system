@@ -190,7 +190,8 @@ services:
       OTEL_EXPORTER_OTLP_ENDPOINT: http://alloy:4318
       CONTRACTS_DIR: /contracts
       RAW_BUCKET: kbs-raw-snapshots
-      EMBEDDER: hash
+      EMBEDDER: ${EMBEDDER:-fastembed}
+      VECTOR_MAX_DISTANCE: ${VECTOR_MAX_DISTANCE:-0.40}
       POSTGRES_HOST: postgres
       POSTGRES_DB: kbs
       POSTGRES_USER: ingestion_rw

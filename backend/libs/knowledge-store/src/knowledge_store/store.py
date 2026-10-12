@@ -92,9 +92,17 @@ class KnowledgeStore:
         request_id: str = "",
     ) -> list[Hit]:
         with span("embed"):
-            vector = self.embedder.embed([query])[0]
+            vector = self.embedder.embed_query(query)
         metrics.EMBED_CALLS.labels(model=self.embedder.name).inc()
-        return self.chunks.search(query, principal, self.embedder.name, vector, limit, request_id)
+        return self.chunks.search(
+            query,
+            principal,
+            self.embedder.name,
+            vector,
+            limit,
+            request_id,
+            semantic=self.embedder.semantic,
+        )
 
     def reconcile_index(self) -> None:
         for source_id, object_id, _object_type in self.chunks.orphans():
@@ -108,20 +116,44 @@ class KnowledgeStore:
                 )
             )
         for row in self.chunks.missing(self.embedder.name):
-            self.upsert_object(
-                ChangeEvent(
+            try:
+                self.upsert_object(
+                    ChangeEvent(
+                        source_id=row["source_id"],
+                        object_id=row["object_id"],
+                        event_type=EventType.UPDATE,
+                        version=row["version"],
+                        content_hash=row["content_hash"],
+                        occurred_at=datetime.now(UTC),
+                        s3_pointer=row["s3_key"],
+                    )
+                )
+            except StoreError as exc:
+                # One stale or missing snapshot must not stop the sweep. A newer event for
+                # that object is already queued, or the next sweep retries it.
+                log_event(
+                    LOG,
+                    "reconcile skipped object",
                     source_id=row["source_id"],
                     object_id=row["object_id"],
-                    event_type=EventType.UPDATE,
-                    version=row["version"],
-                    content_hash=row["content_hash"],
-                    occurred_at=datetime.now(UTC),
-                    s3_pointer=row["s3_key"],
+                    error=str(exc)[:120],
                 )
-            )
         for source_id, (indexed, source) in self.chunks.drift().items():
             metrics.INDEX_OBJECTS.labels(source_id=source_id).set(indexed)
             metrics.INDEX_DRIFT.labels(source_id=source_id).set(indexed - source)
+
+    def reindex(self) -> dict[str, int]:
+        """Rebuild under the active embedding model, then drop other models' chunks.
+
+        New chunks are written next to the old ones. Search filters to the active
+        model, so readers never see a mix. The old rows go last, so a failure
+        halfway leaves the previous index serving. ADR 0003.
+        """
+        pending = self.chunks.missing(self.embedder.name)
+        self.reconcile_index()
+        still_missing = self.chunks.missing(self.embedder.name)
+        removed = 0 if still_missing else self.chunks.delete_other_models(self.embedder.name)
+        return {"rebuilt": len(pending) - len(still_missing), "missing": len(still_missing), "removed": removed}
 
     def _write(self, event: ChangeEvent, acl_only: bool) -> None:
         if not event.s3_pointer:

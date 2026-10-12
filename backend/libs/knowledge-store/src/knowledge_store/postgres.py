@@ -5,6 +5,7 @@ that forgets the predicate still cannot read another principal's rows.
 """
 
 import json
+import os
 from dataclasses import dataclass
 
 from sqlalchemy import text
@@ -12,10 +13,12 @@ from sqlalchemy.engine import Engine
 
 from knowledge_store.acl import AclView, Principal, allows, view_from_rules
 from knowledge_store.chunkers import ChunkDraft
-from knowledge_store.embedder import HASH_MODEL
 from shared.telemetry import span
 
 RRF_K = 60
+# Cosine distance above which a vector-only hit is not an answer (semantic models only).
+# bge-small puts unrelated English text near 0.5; calibrated with `make eval`.
+DEFAULT_MAX_DISTANCE = float(os.environ.get("VECTOR_MAX_DISTANCE", "0.40"))
 OVERFETCH = 3
 
 
@@ -236,6 +239,8 @@ class ChunkTable:
         query_vector: list[float],
         limit: int,
         request_id: str,
+        semantic: bool = False,
+        max_distance: float = DEFAULT_MAX_DISTANCE,
     ) -> list[Hit]:
         fetch = max(limit * OVERFETCH, limit)
         params = {
@@ -250,7 +255,8 @@ class ChunkTable:
         vector_sql = text(
             """
             SELECT id, source_id, object_id, object_type, version, section_path,
-                   content, acl_rules, synced_at
+                   content, acl_rules, synced_at,
+                   embedding <=> CAST(:vector AS vector) AS distance
             FROM chunks
             WHERE embedding_model = :model
               AND acl_groups && CAST(:groups AS text[])
@@ -288,13 +294,19 @@ class ChunkTable:
             with span("chunks.full_text", acl_prefilter=True):
                 lexical_rows = list(connection.execute(lexical_sql, params).mappings())
             ranked = _fuse(vector_rows, lexical_rows)
-            # hash-v1 is not semantic. A vector-only neighbor is not an answer.
+            # A vector-only neighbor is an answer only when the model is semantic and the
+            # chunk is close enough. hash-v1 never qualifies. Nearest-neighbour search
+            # always returns something, so the floor is what lets a question abstain.
             lexical_ids = {int(row["id"]) for row in lexical_rows}
+            close_ids = {
+                int(row["id"]) for row in vector_rows if float(row["distance"]) <= max_distance
+            }
             hits: list[Hit] = []
             denied = False
             with span("audit.write") as current:
                 for row, score in ranked:
-                    if model == HASH_MODEL and int(row["id"]) not in lexical_ids:
+                    row_id = int(row["id"])
+                    if row_id not in lexical_ids and not (semantic and row_id in close_ids):
                         continue
                     view = view_from_rules(row["acl_rules"])
                     allowed, rule = allows(view, principal)
@@ -381,6 +393,16 @@ class ChunkTable:
                 (row.source_id, row.object_id, row.object_type)
                 for row in connection.execute(statement)
             ]
+
+    def delete_other_models(self, model: str) -> int:
+        statement = text("DELETE FROM chunks WHERE embedding_model <> :model")
+        with self.writer.begin() as connection:
+            return int(connection.execute(statement, {"model": model}).rowcount or 0)
+
+    def count_by_model(self) -> dict[str, int]:
+        statement = text("SELECT embedding_model, count(*) AS n FROM chunks GROUP BY 1")
+        with self.writer.connect() as connection:
+            return {row.embedding_model: int(row.n) for row in connection.execute(statement)}
 
     def missing(self, model: str) -> list[dict]:
         statement = text(

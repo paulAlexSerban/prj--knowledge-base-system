@@ -1,10 +1,11 @@
 """One active embedder per process. Vectors are 384 dimensions.
 
 hash-v1 is deterministic and needs no download. It does not put similar
-sentences near each other; lexical search still finds exact terms. The
-fastembed model is the quality path and is selected with EMBEDDER=fastembed
-when that package is installed. Mixing the two in one index is an ADR 0003
-rebuild, so config picks one name and every query filters to it.
+sentences near each other; lexical search still finds exact terms. It is the
+default for tests and offline runs. The fastembed model (bge-small, ONNX, CPU)
+is the semantic path and is selected with EMBEDDER=fastembed; the images bake
+the model file in at build time. Mixing the two in one index is an ADR 0003
+rebuild (`make reindex`), so config picks one name and every query filters to it.
 """
 
 import hashlib
@@ -15,30 +16,53 @@ HASH_MODEL = "hash-v1"
 FASTEMBED_MODEL = "fastembed-bge-small-v1"
 
 
+# bge models embed a query with this instruction and a passage without it.
+BGE_QUERY_PREFIX = "Represent this sentence for searching relevant passages: "
+FASTEMBED_ID = "BAAI/bge-small-en-v1.5"
+
+
 class Embedder(Protocol):
     name: str
+    semantic: bool
 
-    def embed(self, texts: list[str]) -> list[list[float]]: ...
+    def embed(self, texts: list[str]) -> list[list[float]]:
+        """Passage vectors, used at ingestion."""
+        ...
+
+    def embed_query(self, text: str) -> list[float]:
+        """One query vector. Asymmetric models add an instruction here."""
+        ...
 
 
 class HashEmbedder:
     name = HASH_MODEL
+    semantic = False
 
     def embed(self, texts: list[str]) -> list[list[float]]:
         return [_hash_vector(text) for text in texts]
 
+    def embed_query(self, text: str) -> list[float]:
+        return _hash_vector(text)
+
 
 class FastEmbedEmbedder:
-    """Local bge-small. The model file is downloaded on first use, not baked in."""
+    """Local bge-small through fastembed. The image build downloads the model file."""
 
     name = FASTEMBED_MODEL
+    semantic = True
 
     def __init__(self) -> None:
         from fastembed import TextEmbedding
 
-        self._model = TextEmbedding("BAAI/bge-small-en-v1.5")
+        self._model = TextEmbedding(FASTEMBED_ID)
 
     def embed(self, texts: list[str]) -> list[list[float]]:
+        return self._run(texts)
+
+    def embed_query(self, text: str) -> list[float]:
+        return self._run([BGE_QUERY_PREFIX + text])[0]
+
+    def _run(self, texts: list[str]) -> list[list[float]]:
         rows = []
         for row in self._model.embed(texts):
             values = [float(item) for item in row]

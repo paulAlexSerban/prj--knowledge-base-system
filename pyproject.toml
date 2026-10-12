@@ -147,6 +147,7 @@ testpaths = [
   "demo-harness/common/tests",
   "notebooks/tests",
   "frontend/tests",
+  "tools/tests",
 ]
 markers = [
   "e2e: requires the live compose stack",

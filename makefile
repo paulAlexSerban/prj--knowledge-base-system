@@ -45,6 +45,9 @@ reindex: networks $(ENV_FILE)
 seed:
 	uv run python tools/scripts/seed.py
 
+eval:
+	uv run python tools/eval/run.py $(ARGS)
+
 demo:
 	uv run python tools/scripts/demo.py $(ARGS)
 
