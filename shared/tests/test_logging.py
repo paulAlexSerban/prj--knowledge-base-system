@@ -156,21 +156,22 @@ def _hcl_string(value: str) -> str:
 def test_alloy_keeps_feature_logs_and_drops_probes() -> None:
     text = ALLOY_CONFIG.read_text()
     rule = text.split("Feature logs only", 1)[1].split("loki.source.docker", 1)[0]
-    for dropped in (
-        "alloy",
-        "loki",
-        "tempo",
-        "prometheus",
-        "grafana",
-        "jupyter",
-        "pgadmin",
-        "postgres",
-        "neo4j",
-        "floci",
+    assert 'action        = "keep"' in rule
+    for kept in (
+        "gateway-api",
+        "gateway-mcp",
+        "webhook-receiver",
+        "ingestion-worker",
+        "connector-hr",
+        "harness-hr",
+        "chat-ui",
     ):
-        assert dropped in rule
-    for kept in ("gateway-api", "connector-hr", "ingestion-worker", "harness-hr", "chat-ui"):
-        assert kept not in rule
+        assert kept in rule
+    for dropped in ("loki", "grafana", "postgres", "neo4j", "floci", "jupyter", "alloy"):
+        assert dropped not in rule
+    gate = text.split('loki.relabel "features"', 1)[1].split('loki.process "kbs"', 1)[0]
+    assert 'action        = "keep"' in gate
+    assert "loki.relabel.features.receiver" in text
     expression = text.split("expression", 1)[1].split("\n", 1)[0].split("=", 1)[1]
     pattern = re.compile(_hcl_string(expression))
     assert pattern.search('INFO: 127.0.0.1 - "GET /health HTTP/1.1" 200 OK')
@@ -198,7 +199,7 @@ def test_traces_board_hides_probe_roots() -> None:
     for key in ("panel-70", "panel-72"):
         query = elements[key]["spec"]["data"]["spec"]["queries"][0]["spec"]["query"]["spec"]["query"]
         assert "rootName !~" in query
-        assert "/(health|metrics)" in query
+        assert "/(health|metrics).*" in query
         assert "_stcore/health" in query
     slow = elements["panel-71"]["spec"]["data"]["spec"]["queries"][0]["spec"]["query"]["spec"]["query"]
     assert 'name = "retrieval"' in slow

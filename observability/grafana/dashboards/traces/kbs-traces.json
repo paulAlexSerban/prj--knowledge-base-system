@@ -56,7 +56,7 @@
                       "spec": {
                         "filters": [],
                         "limit": 20,
-                        "query": "{ resource.service.name =~ \"$service\" && rootName !~ \"^(GET|HEAD|POST) /(health|metrics)\" && rootName !~ \"^(GET|HEAD) /(ready|live|-/healthy|-/ready|_stcore/health)\" }",
+                        "query": "{ resource.service.name =~ \"$service\" && rootName !~ \"^(GET|HEAD|POST) /(health|metrics).*\" && rootName !~ \"^(GET|HEAD) /(ready|live|-/healthy|-/ready|_stcore/health).*\" }",
                         "queryType": "traceql",
                         "tableType": "traces"
                       }
@@ -182,7 +182,7 @@
                       "spec": {
                         "filters": [],
                         "limit": 20,
-                        "query": "{ resource.service.name =~ \"$service\" && status = error && rootName !~ \"^(GET|HEAD|POST) /(health|metrics)\" && rootName !~ \"^(GET|HEAD) /(ready|live|-/healthy|-/ready|_stcore/health)\" }",
+                        "query": "{ resource.service.name =~ \"$service\" && status = error && rootName !~ \"^(GET|HEAD|POST) /(health|metrics).*\" && rootName !~ \"^(GET|HEAD) /(ready|live|-/healthy|-/ready|_stcore/health).*\" }",
                         "queryType": "traceql",
                         "tableType": "traces"
                       }

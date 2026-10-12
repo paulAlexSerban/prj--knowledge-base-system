@@ -27,12 +27,12 @@ discovery.relabel "containers" {
     target_label  = "service"
   }
 
-  // Feature logs only. The collector, Grafana, stores, floci, and dev viewers
-  // stay on their own stdout. Metrics for those processes are unchanged.
+  // Feature logs only. A missing service label is not kept. Metrics scrapes
+  // of the other processes are unchanged.
   rule {
     source_labels = ["service"]
-    regex         = "alloy|loki|tempo|prometheus|grafana|jupyter|pgadmin|sqlite-hr|sqlite-sales|sqlite-product|sqlite-engineering|postgres|neo4j|postgres-migrate|neo4j-init|floci|floci-ready"
-    action        = "drop"
+    regex         = "gateway-api|gateway-mcp|webhook-receiver|ingestion-worker|connector-hr|connector-engineering|connector-sales|connector-product|harness-hr|harness-sales|harness-product|harness-engineering|chat-ui"
+    action        = "keep"
   }
 }
 
@@ -40,8 +40,20 @@ loki.source.docker "containers" {
   host             = "unix:///var/run/docker.sock"
   targets          = discovery.docker.containers.targets
   relabel_rules    = discovery.relabel.containers.rules
-  forward_to       = [loki.process.kbs.receiver]
+  forward_to       = [loki.relabel.features.receiver]
   refresh_interval = "5s"
+}
+
+// Second gate. A line with no service label, or from a process that is not
+// a feature, is dropped here even if the target filter missed it.
+loki.relabel "features" {
+  forward_to = [loki.process.kbs.receiver]
+
+  rule {
+    source_labels = ["service"]
+    regex         = "gateway-api|gateway-mcp|webhook-receiver|ingestion-worker|connector-hr|connector-engineering|connector-sales|connector-product|harness-hr|harness-sales|harness-product|harness-engineering|chat-ui"
+    action        = "keep"
+  }
 }
 
 loki.process "kbs" {
