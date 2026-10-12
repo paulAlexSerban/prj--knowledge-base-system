@@ -6,9 +6,6 @@ from datetime import UTC, datetime
 import boto3
 import pytest
 from fastapi.testclient import TestClient
-from mcp.server.auth.middleware.auth_context import auth_context_var
-from mcp.server.auth.middleware.bearer_auth import AuthenticatedUser
-from mcp.server.transport_security import TransportSecuritySettings
 from moto import mock_aws
 from sqlalchemy import text
 
@@ -22,7 +19,7 @@ from knowledge_store.embedder import HashEmbedder
 from knowledge_store.graph import GraphWriter
 from knowledge_store.postgres import ChunkTable
 from knowledge_store.store import KnowledgeStore
-from mcp_server.server import JwtVerifier, attach_http_metrics, build_server
+from mcp_server.server import JwtVerifier, build_server, http_app
 from shared.contracts.validate import load_contracts
 
 SECRET = "test-secret-test-secret-test-secret"
@@ -61,7 +58,13 @@ def mcp(database, neo4j_driver, monkeypatch):
         )
         rows = [
             ("pol-de", "raw/hr/policy/pol-de.md", DE, "hr_employee", "hash-de"),
-            ("pol-redundancy", "raw/hr/policy/pol-redundancy.md", ADMIN, "hr_policy_admin", "hash-admin"),
+            (
+                "pol-redundancy",
+                "raw/hr/policy/pol-redundancy.md",
+                ADMIN,
+                "hr_policy_admin",
+                "hash-admin",
+            ),
         ]
         for object_id, key, body, acl, digest in rows:
             client.put_object(
@@ -85,12 +88,31 @@ def mcp(database, neo4j_driver, monkeypatch):
         yield build_server(service), service
 
 
-def _use(persona: str):
+def _call(server, persona: str, tool: str, **arguments) -> dict:
+    """Call a tool over the real transport as a persona. Auth only runs there."""
     import asyncio
 
-    access = asyncio.run(JwtVerifier().verify_token(issue_token(persona, SECRET)))
-    assert access is not None
-    return auth_context_var.set(AuthenticatedUser(access))
+    import httpx2
+    from mcp import ClientSession
+    from mcp.client.streamable_http import streamable_http_client
+
+    app = http_app(server)
+    headers = {"Authorization": f"Bearer {issue_token(persona, SECRET)}"}
+
+    async def run() -> dict:
+        transport = httpx2.ASGITransport(app=app)
+        async with httpx2.AsyncClient(  # noqa: SIM117 - the client is an argument of the next one
+            transport=transport, base_url="http://testserver", headers=headers
+        ) as http:
+            async with streamable_http_client("http://testserver/mcp", http_client=http) as streams:
+                async with ClientSession(streams[0], streams[1]) as session:
+                    await session.initialize()
+                    result = await session.call_tool(tool, arguments)
+                    assert result.is_error is False
+                    return result.structured_content
+
+    with TestClient(app):
+        return asyncio.run(run())
 
 
 def test_bad_mcp_token_is_counted(monkeypatch) -> None:
@@ -106,10 +128,7 @@ def test_mcp_route_rejects_a_missing_token(mcp) -> None:
     from prometheus_client import REGISTRY
 
     server, _service = mcp
-    attach_http_metrics(server)
-    app = server.streamable_http_app(
-        transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False)
-    )
+    app = http_app(server)
     with TestClient(app) as http:
         refused = http.post("/mcp", headers={"accept": "application/json, text/event-stream"})
         assert refused.status_code == 401
@@ -130,7 +149,10 @@ def test_mcp_route_rejects_a_missing_token(mcp) -> None:
 
 def test_tools_match_the_shared_descriptions(mcp) -> None:
     server, _service = mcp
-    descriptions = {tool.name: tool.description for tool in server._tool_manager.list_tools()}
+    import asyncio
+
+    tools = asyncio.run(server.list_tools())
+    descriptions = {tool.name: tool.description for tool in tools}
     assert descriptions == {
         "search_knowledge": SEARCH,
         "get_document": GET_DOCUMENT,
@@ -139,60 +161,17 @@ def test_tools_match_the_shared_descriptions(mcp) -> None:
     }
 
 
-def _call(tool, **kwargs):
-    import asyncio
-
-    return asyncio.run(tool.fn(**kwargs))
-
-
 def test_search_over_the_http_transport(mcp) -> None:
-    """The SDK runs tools off the request thread. Call the real transport."""
-    import asyncio
-
-    import httpx2
-    from mcp import ClientSession
-    from mcp.client.streamable_http import streamable_http_client
-
     server, _service = mcp
-    app = server.streamable_http_app(
-        transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False)
-    )
-    employee = issue_token("employee_eng", SECRET)
-    outsider = issue_token("outsider", SECRET)
-
-    async def search(token: str) -> dict:
-        transport = httpx2.ASGITransport(app=app)
-        headers = {"Authorization": f"Bearer {token}"}
-        async with httpx2.AsyncClient(  # noqa: SIM117 - the client is an argument of the next one
-            transport=transport, base_url="http://testserver", headers=headers
-        ) as http:
-            async with streamable_http_client(
-                "http://testserver/mcp", http_client=http
-            ) as streams:
-                async with ClientSession(streams[0], streams[1]) as session:
-                    await session.initialize()
-                    result = await session.call_tool(
-                        "search_knowledge", {"query": "Germany", "limit": 5}
-                    )
-                    assert result.is_error is False
-                    return result.structured_content
-
-    with TestClient(app):
-        found = asyncio.run(search(employee))
-        hidden = asyncio.run(search(outsider))
+    found = _call(server, "employee_eng", "search_knowledge", query="Germany", limit=5)
+    hidden = _call(server, "outsider", "search_knowledge", query="Germany", limit=5)
     assert {item["object_id"] for item in found["results"]} == {"pol-de"}
     assert hidden["results"] == []
 
 
 def test_two_personas_match_the_service(mcp) -> None:
     server, service = mcp
-    search = server._tool_manager.get_tool("search_knowledge")
-    assert search is not None
-    engineer = _use("employee_eng")
-    try:
-        via_mcp = _call(search, query="Germany", limit=5)
-    finally:
-        auth_context_var.reset(engineer)
+    via_mcp = _call(server, "employee_eng", "search_knowledge", query="Germany", limit=5)
     via_rest = service.search(
         principal_from_token(issue_token("employee_eng", SECRET), SECRET),
         "Germany",
@@ -202,23 +181,11 @@ def test_two_personas_match_the_service(mcp) -> None:
     assert {item["object_id"] for item in via_mcp["results"]} == {"pol-de"}
     assert {item["object_id"] for item in via_rest["results"]} == {"pol-de"}
 
-    outsider = _use("outsider")
-    try:
-        hidden = _call(search, query="Germany", limit=5)
-        document = server._tool_manager.get_tool("get_document")
-        assert document is not None
-        missing = _call(document, chunk_id=via_mcp["results"][0]["chunk_id"])
-    finally:
-        auth_context_var.reset(outsider)
-    assert hidden["results"] == []
+    chunk_id = via_mcp["results"][0]["chunk_id"]
+    missing = _call(server, "outsider", "get_document", chunk_id=chunk_id)
     assert missing["error"] == "not found"
-
-    try:
-        _call(search, query="Germany")
-    except PermissionError:
-        pass
-    else:
-        raise AssertionError("expected PermissionError")
+    own = _call(server, "employee_eng", "get_document", chunk_id=chunk_id)
+    assert "error" not in own
 
 
 def test_roadmap_deals_matches_the_service(mcp) -> None:
@@ -241,20 +208,10 @@ def test_roadmap_deals_matches_the_service(mcp) -> None:
         """,
         rules=json.dumps([{"group": "roadmap", "department": "*", "clearance": "internal"}]),
     )
-    tool = server._tool_manager.get_tool("find_related")
-    assert tool is not None
-    lead = _use("product_lead")
-    try:
-        found = _call(tool, kind="roadmap_deals")
-    finally:
-        auth_context_var.reset(lead)
+    found = _call(server, "product_lead", "find_related", kind="roadmap_deals")
     assert found["kind"] == "roadmap_deals"
     assert found["paths"][0]["steps"][0]["id"] == "deal-northwind-q3"
-    engineer = _use("employee_eng")
-    try:
-        hidden = _call(tool, kind="roadmap_deals")
-        rejected = _call(tool, kind="roadmap_deals", quarter="Q3")
-    finally:
-        auth_context_var.reset(engineer)
+    hidden = _call(server, "employee_eng", "find_related", kind="roadmap_deals")
+    rejected = _call(server, "employee_eng", "find_related", kind="roadmap_deals", quarter="Q3")
     assert hidden["paths"] == []
     assert rejected["error"] == "quarter"

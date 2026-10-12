@@ -24,7 +24,7 @@ One decision per file. Spikes hold the longer reasoning. These records say what 
 | [0018](0018-authorization.md)         | ABAC in SQL, Cypher, and row-level security.                            |
 | [0019](0019-identity.md)              | Mock HS256 JWTs. OIDC is the production path.                           |
 | [0020](0020-fastapi.md)               | FastAPI for the HTTP services. Not compared in a spike.                 |
-| [0021](0021-mcp.md)                   | The official MCP SDK. The FastMCP name is not what runs.                |
+| [0021](0021-mcp.md)                   | FastMCP for the MCP server, on the official package.                  |
 | [0022](0022-local-platform.md)        | floci, Terraform, and one Compose file per trust area.                  |
 | [0023](0023-uv-workspace.md)          | A uv workspace. One image per deployable.                               |
 | [0024](0024-demo-harness.md)          | FastAPI and SQLite harnesses. HTTP only.                                |

@@ -6,37 +6,37 @@ This repository is a POC knowledge gateway: ingest four department sources, keep
 
 ## Layout
 
-| Path | Owns |
-| ---- | ---- |
-| `_docs/00--project-brief/` | Scope, assumptions, demo script. |
-| `_docs/01--spikes/` | Ingestion, knowledge representation, access, synchronization. |
-| `_docs/02--architecture/` | Architecture write-up. Fill the outline; do not add sections the assignment did not ask for. |
-| `_docs/03--adrs/` | One decision per ADR. The index is `_docs/03--adrs/README.md`. |
-| `_docs/99--dagrams/` | C4 diagrams, the end-to-end data flow, and the sequence diagrams (drawio and PNG). |
-| `shared/` | Source contracts, the start-up registry gate, JSON logging, and the OpenTelemetry bootstrap. Every process depends on it. |
-| `infrastructure/config/sources/` | One YAML contract per source. |
-| `backend/apis/knowledge-api/` | REST gateway. Own image. |
-| `backend/apis/mcp-server/` | MCP gateway. Own image. |
-| `backend/apis/webhook-receiver/` | Product webhook receiver. Own image. Enqueues a pointer on `kbs-product-hooks`. Production path is API Gateway plus Lambda; that function does not exist yet. |
-| `backend/workers/ingestion-worker/` | Queue consumer. Own image. Writes chunks and the graph through `knowledge-store`. |
-| `backend/connectors/hr/` | HR connector process (`connector-hr`). Own image. |
-| `backend/connectors/engineering/` | Engineering connector process (`connector-engineering`). Own image. |
-| `backend/connectors/sales/` | Sales connector process (`connector-sales`). Own image. |
-| `backend/connectors/product/` | Product connector process (`connector-product`). Own image. Reads the hook queue. |
-| `backend/libs/connector-core/` | Connector interface, snapshot sync, S3 store, Postgres sync state, and the SQS publisher. Library, no image. |
-| `backend/libs/ingest-contract/` | Change-event model, the product hook pointer, queue names, and the snapshot hash. Library, no image. |
-| `backend/libs/knowledge-store/` | Chunkers, the embedders (fastembed bge-small and the offline hash), Postgres chunks, reindex, ACL, and the Neo4j writer. Library, no image. |
-| `backend/libs/gateway-core/` | Retrieval service, principal and HS256 validation, Neo4j read templates (HR plus `roadmap_deals`), and the tool text shared by the API and the MCP server. Library, no image. |
-| `backend/tests/integration/` | Tests that cross a deployable boundary. |
-| `backend/tests/e2e/` | Opt-in live-stack test. `make e2e`. |
-| `database/` | Postgres migrations (sync state, chunks, full-text, vectors, ACL, row-level security) and Neo4j constraints. |
-| `demo-harness/` | One image per source. HR is built and can bulk-load. Sales, Product, and Engineering are curated SQLAlchemy stores on `harness-common`. |
-| `frontend/` | Streamlit chat page (`chat-ui`). Own image. Calls the gateway REST API only; holds no store credentials. Writes the answer from cited snippets with LangChain when an OpenRouter key is set. |
-| `notebooks/` | Jupyter notebooks that seed, inspect, and edit the HR harness (`00`–`30`), reset and edit the other three sources (`02`, `14`–`16`), call the gateway (`40`–`44`), and run two read-only LangChain agents over MCP (`50`, `51`). |
-| `infrastructure/orchestration/` | One Compose file per trust area, plus `compose.yaml` which includes them. |
-| `infrastructure/provisioning/terraform/` | Tier queues, the product hook queue, their dead-letter queues, and the snapshot bucket on floci. |
-| `observability/` | Alloy, Loki, Prometheus, Tempo, five dashboards, and metric definitions. |
-| `tools/` | `scripts/` (`setup.sh`, `seed.py`, `demo.py`, `kbs_client.py`, `dlq_replay.py`), `eval/` (`golden.yaml`, `run.py`), and `tests/`. Scripts call the gateway and harnesses over HTTP only. |
+| Path                                     | Owns                                                                                                                                                                                                                             |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `_docs/00--project-brief/`               | Scope, assumptions, demo script.                                                                                                                                                                                                 |
+| `_docs/01--spikes/`                      | Ingestion, knowledge representation, access, synchronization.                                                                                                                                                                    |
+| `_docs/02--architecture/`                | Architecture write-up. Fill the outline; do not add sections the assignment did not ask for.                                                                                                                                     |
+| `_docs/03--adrs/`                        | One decision per ADR. The index is `_docs/03--adrs/README.md`.                                                                                                                                                                   |
+| `_docs/99--dagrams/`                     | C4 diagrams, the end-to-end data flow, and the sequence diagrams (drawio and PNG).                                                                                                                                               |
+| `shared/`                                | Source contracts, the start-up registry gate, JSON logging, and the OpenTelemetry bootstrap. Every process depends on it.                                                                                                        |
+| `infrastructure/config/sources/`         | One YAML contract per source.                                                                                                                                                                                                    |
+| `backend/apis/knowledge-api/`            | REST gateway. Own image.                                                                                                                                                                                                         |
+| `backend/apis/mcp-server/`               | MCP gateway. Own image.                                                                                                                                                                                                          |
+| `backend/apis/webhook-receiver/`         | Product webhook receiver. Own image. Enqueues a pointer on `kbs-product-hooks`. Production path is API Gateway plus Lambda; that function does not exist yet.                                                                    |
+| `backend/workers/ingestion-worker/`      | Queue consumer. Own image. Writes chunks and the graph through `knowledge-store`.                                                                                                                                                |
+| `backend/connectors/hr/`                 | HR connector process (`connector-hr`). Own image.                                                                                                                                                                                |
+| `backend/connectors/engineering/`        | Engineering connector process (`connector-engineering`). Own image.                                                                                                                                                              |
+| `backend/connectors/sales/`              | Sales connector process (`connector-sales`). Own image.                                                                                                                                                                          |
+| `backend/connectors/product/`            | Product connector process (`connector-product`). Own image. Reads the hook queue.                                                                                                                                                |
+| `backend/libs/connector-core/`           | Connector interface, snapshot sync, S3 store, Postgres sync state, and the SQS publisher. Library, no image.                                                                                                                     |
+| `backend/libs/ingest-contract/`          | Change-event model, the product hook pointer, queue names, and the snapshot hash. Library, no image.                                                                                                                             |
+| `backend/libs/knowledge-store/`          | Chunkers, the embedders (fastembed bge-small and the offline hash), Postgres chunks, reindex, ACL, and the Neo4j writer. Library, no image.                                                                                      |
+| `backend/libs/gateway-core/`             | Retrieval service, principal and HS256 validation, Neo4j read templates (HR plus `roadmap_deals`), and the tool text shared by the API and the MCP server. Library, no image.                                                    |
+| `backend/tests/integration/`             | Tests that cross a deployable boundary.                                                                                                                                                                                          |
+| `backend/tests/e2e/`                     | Opt-in live-stack test. `make e2e`.                                                                                                                                                                                              |
+| `database/`                              | Postgres migrations (sync state, chunks, full-text, vectors, ACL, row-level security) and Neo4j constraints.                                                                                                                     |
+| `demo-harness/`                          | One image per source. HR is built and can bulk-load. Sales, Product, and Engineering are curated SQLAlchemy stores on `harness-common`.                                                                                          |
+| `frontend/`                              | Streamlit chat page (`chat-ui`). Own image. Calls the gateway REST API only; holds no store credentials. Writes the answer from cited snippets with LangChain when an OpenRouter key is set.                                     |
+| `notebooks/`                             | Jupyter notebooks that seed, inspect, and edit the HR harness (`00`–`30`), reset and edit the other three sources (`02`, `14`–`16`), call the gateway (`40`–`44`), and run two read-only LangChain agents over MCP (`50`, `51`). |
+| `infrastructure/orchestration/`          | One Compose file per trust area, plus `compose.yaml` which includes them.                                                                                                                                                        |
+| `infrastructure/provisioning/terraform/` | Tier queues, the product hook queue, their dead-letter queues, and the snapshot bucket on floci.                                                                                                                                 |
+| `observability/`                         | Alloy, Loki, Prometheus, Tempo, five dashboards, and metric definitions.                                                                                                                                                         |
+| `tools/`                                 | `scripts/` (`setup.sh`, `seed.py`, `demo.py`, `kbs_client.py`, `dlq_replay.py`), `eval/` (`golden.yaml`, `run.py`), and `tests/`. Scripts call the gateway and harnesses over HTTP only.                                         |
 
 ## Stack and commands
 
