@@ -46,6 +46,32 @@ Traces are deferred until a latency regression cannot be explained from the hist
 
 The Docker socket mount is a trust-boundary exception. It is read-only. It is how Alloy reads logs from containers that are not on `kbs-obs`, including Postgres, Neo4j, and floci. Alloy joins `kbs-obs` only. It has no path of its own onto `kbs-data`.
 
+## Dashboard review
+
+Reviewed [kbs-overview.json](../../observability/grafana/dashboards/kbs-overview.json) before changing it. The metric names match [metrics.md](../../observability/metrics.md) and the spikes. The page is one flat board. These are the defects. The commits that follow this note fix the ones that mislead a reader. The metric names stay.
+
+What is wrong:
+
+- Eight panels have an empty description. One is titled "Not built" and only says that traces are absent. That panel is not a signal.
+- `kbs_store_errors_total`, `kbs_delete_verification_failures_total`, and `kbs_webhook_events_total` are counters. The stat panels read the raw series, so the number is everything since the process started, not failures in the selected range.
+- `kbs_dlq_depth` and `kbs_hook_queue_depth` are gauges of visible messages. The current value is the right reading, so they are not wrapped in `increase()`. The hook panel turns red at 1 for every queue, including the live hook queue, where a visible message is normal work. Only the dead-letter queue should turn red.
+- Snapshot lag and the write rate are summed without `source_id`. The connector log query is `{service="connector-hr"}`. Four connectors emit the same series. A stale sales source disappears inside the HR number.
+- Last successful sync and snapshot lag turn red at 30 seconds for every source. The HR contract target is 30 seconds. Sales, product, and engineering are 300 seconds and poll every 60 seconds. One red line marks a healthy slower source as failed.
+- Scrape `up` turns red at 80. `up` is 0 or 1, so a down target stays green. The write-rate panel copies that same threshold.
+- Reconciliation drift turns red at 0.001 and again at 1. Drift is a whole number of objects. A negative drift is the same failure as a positive one, and the panel does not take the absolute value.
+- Retrieval latency has no unit and no line at 250 ms, even though that bucket exists on the histogram.
+- There is no request rate, error rate, or duration for HTTP. The retrieval histogram does not show a 5xx.
+- The board has no variables, so a demo cannot pin one source or one permission group.
+- Datasource references are not checked by a test.
+- Loki links `request_id` to other log lines. Nothing records a `trace_id`.
+
+What stays:
+
+- The metric names, the labels, and the rule that object ids, principals, and chunk text are not labels.
+- Alloy remote-write, the Loki label set, and dashboard colors instead of Alertmanager.
+- Dead-letter depth as the current gauge, red when any message is visible.
+- The deny panel reading the log line, not `kbs.audit_log`.
+
 ## Why
 
 Freshness and authorization are distributions, so the demo needs metrics. The deny in demo step 2 is one line, so the demo also needs a log store. Alloy is one collector for both, which is the pipeline this system would run in production, sized to one Compose project. Grep on a container does not survive the five-step demo, and it cannot tie a `request_id` on the dashboard back to the line.
