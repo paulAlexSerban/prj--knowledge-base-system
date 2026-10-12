@@ -36,7 +36,76 @@ def strip_markers(snippet: str) -> str:
 
 
 def citation(hit: dict) -> str:
+    steps = hit.get("steps")
+    if steps:
+        return _path_citation(steps)
     return f"{hit['source_id']} / {hit['object_id']} (v{hit['version']}, synced {hit['synced_at']})"
+
+
+def _by_type(steps: list[dict]) -> dict[str, dict]:
+    return {step["type"]: step for step in steps}
+
+
+def _path_citation(steps: list[dict]) -> str:
+    found = _by_type(steps)
+    deal, epic, team = found["Deal"], found["Epic"], found["Team"]
+    return (
+        f"Deal {deal['id']} (v{deal.get('version')}) -> "
+        f"Epic {epic['id']} (v{epic.get('version')}) -> "
+        f"Team {team['id']}"
+    )
+
+
+def paths_as_hits(paths: list[dict]) -> list[dict]:
+    """One numbered source per path, with the same untrusted wrapping as a chunk."""
+    hits = []
+    for path in paths:
+        steps = list(path["steps"])
+        found = _by_type(steps)
+        deal, epic, team = found["Deal"], found["Epic"], found["Team"]
+        body = (
+            f"Deal {deal['id']} ({deal.get('account_name') or ''}) "
+            f"ARR {deal.get('arr')} in {deal.get('quarter')}, version {deal.get('version')}. "
+            f"Depends on epic {epic['id']} ({epic.get('title') or ''}, "
+            f"{epic.get('status') or ''}, version {epic.get('version')}), "
+            f"owned by team {team['id']}."
+        )
+        hits.append(
+            {
+                "chunk_id": deal["id"],
+                "source_id": "sales",
+                "object_id": deal["id"],
+                "version": deal.get("version"),
+                "synced_at": "",
+                "snippet": f"{SNIPPET_START}\n{body}\n{SNIPPET_END}",
+                "steps": steps,
+            }
+        )
+    return hits
+
+
+def path_table(hits: list[dict]) -> str:
+    rows = [
+        "| Deal | Deal version | Account | ARR | Epic | Epic version | Status | Team |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- |",
+    ]
+    for hit in hits:
+        found = _by_type(hit["steps"])
+        deal, epic, team = found["Deal"], found["Epic"], found["Team"]
+        rows.append(
+            "| {deal} | {deal_version} | {account} | {arr} | {epic} | {epic_version} | "
+            "{status} | {team} |".format(
+                deal=deal["id"],
+                deal_version=deal.get("version"),
+                account=deal.get("account_name") or "",
+                arr=deal.get("arr"),
+                epic=epic["id"],
+                epic_version=epic.get("version"),
+                status=epic.get("status") or "",
+                team=team["id"],
+            )
+        )
+    return "\n".join(rows)
 
 
 def build_messages(question: str, hits: list[dict]) -> list[dict]:
@@ -58,6 +127,8 @@ def passages(hits: list[dict]) -> str:
 
 def retrieval_only(hits: list[dict]) -> str:
     """Offline answer: the best snippets with their citations, no model."""
+    if hits and all(hit.get("steps") for hit in hits):
+        return "No model key is set, so these are the paths:\n\n" + path_table(hits)
     return "No model key is set, so these are the retrieved passages:\n\n" + passages(hits)
 
 

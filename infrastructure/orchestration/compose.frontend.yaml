@@ -9,6 +9,7 @@ services:
       dockerfile: frontend/Dockerfile
     environment:
       GATEWAY_API_URL: http://gateway-api:8000
+      CHAT_PERSONAS: employee_eng,hr_admin,outsider,product_lead
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       OPENROUTER_MODEL: ${OPENROUTER_MODEL:-openai/gpt-4o-mini}
       OTEL_EXPORTER_OTLP_ENDPOINT: http://alloy:4318

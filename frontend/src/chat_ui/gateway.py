@@ -34,3 +34,14 @@ class Gateway:
         if response.status_code != 200:
             raise GatewayError(f"search: HTTP {response.status_code}")
         return response.json()
+
+    def roadmap_deals(self, persona: str) -> dict:
+        bearer = self.token(persona)
+        response = self._client.post(
+            "/v1/graph/related",
+            json={"kind": "roadmap_deals"},
+            headers={"authorization": f"Bearer {bearer}", **trace_headers()},
+        )
+        if response.status_code != 200:
+            raise GatewayError(f"roadmap_deals: HTTP {response.status_code}")
+        return response.json()
