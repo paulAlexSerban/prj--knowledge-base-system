@@ -1,6 +1,8 @@
 # AWS emulator. SQS and S3 share one floci process, so this project is
-# separate from ingestion and the knowledge store. Terraform runs on the
-# host (`make tf-apply`) against the published port and keeps local state.
+# separate from ingestion and the knowledge store. terraform-apply is a
+# one-shot container: it applies infrastructure/provisioning/terraform to
+# floci with throwaway state. floci keeps data in memory, so empty state is
+# the correct starting point and a stale state file cannot exist.
 # floci-ready is the in-compose signal that floci answered.
 
 services:
@@ -33,6 +35,25 @@ services:
           sleep 2
         done
         exit 1
+    restart: "no"
+
+  terraform-apply:
+    image: hashicorp/terraform:1.9
+    depends_on:
+      floci-ready:
+        condition: service_completed_successfully
+    volumes:
+      - ../provisioning/terraform:/src:ro
+    networks: [kbs-aws]
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        mkdir /work
+        cp /src/*.tf /src/.terraform.lock.hcl /work/
+        cd /work
+        terraform init -input=false
+        terraform apply -input=false -auto-approve -var aws_endpoint=http://floci:4566
     restart: "no"
 
 networks:

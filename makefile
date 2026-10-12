@@ -1,9 +1,8 @@
-.PHONY: sync contracts-schema contracts-check test e2e networks up down ps logs notebooks tools tf-apply tf-destroy compose-check dlq-replay
+.PHONY: setup seed demo eval reindex sync contracts-schema contracts-check test e2e networks up down ps logs notebooks tools tf-apply compose-check dlq-replay
 
 COMPOSE_DIR := infrastructure/orchestration
 ENV_FILE := .env
 COMPOSE := docker compose --env-file $(ENV_FILE) -f $(COMPOSE_DIR)/compose.yaml
-TF_DIR := infrastructure/provisioning/terraform
 
 sync:
 	uv sync
@@ -34,7 +33,21 @@ networks:
 
 up: networks $(ENV_FILE)
 	$(COMPOSE) up -d --build
-	$(MAKE) tf-apply
+
+# One command: preflight, .env, build, start, wait for health, seed, smoke test.
+setup:
+	bash tools/scripts/setup.sh
+
+# Rebuild the index under the active EMBEDDER (ADR 0003), then drop other models' chunks.
+reindex: networks $(ENV_FILE)
+	$(COMPOSE) run --rm --no-deps --no-TTY ingestion-worker python -m ingestion_worker.reindex
+
+seed:
+	uv run python tools/scripts/seed.py
+
+demo:
+	uv run python tools/scripts/demo.py $(ARGS)
+
 
 down:
 	@test -f $(ENV_FILE) || cp .env.example $(ENV_FILE)
@@ -54,24 +67,10 @@ tools: networks $(ENV_FILE)
 		harness-hr harness-sales harness-product harness-engineering \
 		sqlite-hr sqlite-sales sqlite-product sqlite-engineering
 
-# Host Terraform. State stays in $(TF_DIR)/terraform.tfstate.
-# floci is in memory: after a floci restart, delete that file or run
-# tf-destroy while floci is still up, then apply again.
-tf-apply: $(ENV_FILE)
-	i=0; \
-	while [ "$$i" -lt 30 ]; do \
-	  if curl -s -o /dev/null --max-time 2 http://127.0.0.1:4566/; then \
-	    break; \
-	  fi; \
-	  i=$$((i + 1)); \
-	  sleep 2; \
-	done; \
-	test "$$i" -lt 30
-	terraform -chdir=$(TF_DIR) init -input=false
-	terraform -chdir=$(TF_DIR) apply -input=false -auto-approve -refresh=true
-
-tf-destroy:
-	terraform -chdir=$(TF_DIR) destroy -input=false -auto-approve
+# Terraform runs in a one-shot container with throwaway state. floci is in memory,
+# so after a floci restart run `make tf-apply` again to recreate queues and bucket.
+tf-apply: networks $(ENV_FILE)
+	$(COMPOSE) up --no-deps --force-recreate terraform-apply
 
 # Re-send dead-letter messages to the tier queues. floci must already be up.
 dlq-replay: $(ENV_FILE)
