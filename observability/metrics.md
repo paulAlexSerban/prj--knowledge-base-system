@@ -4,6 +4,8 @@ Alloy scrapes `gateway-api:8000`, `gateway-mcp:8001`, `connector-hr:9100`, `conn
 
 `kbs_worker_up{worker="connector"}` stays 1 after the connector loads its contracts, including while it waits for Postgres or the bucket. `kbs_worker_up{worker="ingestion"}` stays 1 after the ingestion worker loads its contracts.
 
+The overview SLO row is four stats. HR snapshot lag p95 turns red at 30 seconds. Search p95 turns red at 0.25 seconds. Dead-letter depth turns red when any message is visible. Delete verification turns red on any failure in the selected range. Sales, product, and engineering stay on the per-source panels, where yellow is 30 seconds and red is 300 seconds.
+
 ## Connector
 
 Every connector exposes these through `connector-core`. Every series also has `source_id`, except `kbs_connector_dependency_up` and `kbs_worker_up`.
