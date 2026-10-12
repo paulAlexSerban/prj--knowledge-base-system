@@ -1,6 +1,7 @@
 """The API stub lists registered sources and refuses a bad registry."""
 
 from fastapi.testclient import TestClient
+from prometheus_client import REGISTRY
 
 from knowledge_api.app import create_app
 from shared.registry import load_registry
@@ -19,6 +20,28 @@ def test_sources_match_the_registry() -> None:
     health = client.get("/health")
     assert health.status_code == 200
     assert health.json()["sources"] == 4
+
+
+def test_unknown_path_is_not_a_metric_label() -> None:
+    raw = "/v1/people/ada-lovelace"
+    client = TestClient(create_app())
+    assert client.get(raw).status_code == 404
+    assert client.get("/v1/sources").status_code == 200
+    routes = _http_routes()
+    assert "unmatched" in routes
+    assert "/v1/sources" in routes
+    assert raw not in routes
+
+
+def _http_routes() -> set[str]:
+    routes: set[str] = set()
+    for family in REGISTRY.collect():
+        for sample in family.samples:
+            if sample.name == "kbs_http_requests_total":
+                route = sample.labels.get("route")
+                if route is not None:
+                    routes.add(route)
+    return routes
 
 
 def test_registry_refuses_to_start(tmp_path, monkeypatch) -> None:

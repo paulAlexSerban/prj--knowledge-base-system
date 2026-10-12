@@ -4,6 +4,7 @@ import boto3
 import pytest
 from fastapi.testclient import TestClient
 from moto import mock_aws
+from prometheus_client import REGISTRY
 
 from ingest_contract.hooks import HOOK_QUEUE, HookNotice
 from webhook_receiver.app import create_app
@@ -24,6 +25,20 @@ def aws(monkeypatch):
             Attributes={"FifoQueue": "true", "ContentBasedDeduplication": "false"},
         )["QueueUrl"]
         yield client, url
+
+
+def test_unknown_path_is_not_a_metric_label() -> None:
+    raw = "/webhooks/product/spec-checkout"
+    assert TestClient(create_app()).get(raw).status_code == 404
+    routes: set[str] = set()
+    for family in REGISTRY.collect():
+        for sample in family.samples:
+            if sample.name == "kbs_http_requests_total":
+                route = sample.labels.get("route")
+                if route is not None:
+                    routes.add(route)
+    assert "unmatched" in routes
+    assert raw not in routes
 
 
 def test_valid_notice_is_enqueued(aws):

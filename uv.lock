@@ -3052,12 +3052,14 @@ name = "shared"
 version = "0.1.0"
 source = { editable = "shared" }
 dependencies = [
+    { name = "prometheus-client" },
     { name = "pydantic", extra = ["email"] },
     { name = "pyyaml" },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "prometheus-client", specifier = ">=0.26.0" },
     { name = "pydantic", extras = ["email"], specifier = ">=2.6" },
     { name = "pyyaml", specifier = ">=6" },
 ]

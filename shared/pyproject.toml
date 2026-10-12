@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Source contracts and JSON logging used by every process."
 requires-python = ">=3.12"
 dependencies = [
+  "prometheus-client>=0.26.0",
   "pydantic[email]>=2.6",
   "pyyaml>=6",
 ]

@@ -21,9 +21,12 @@ from gateway_core.runtime import open_gateway
 from gateway_core.service import GatewayService
 from gateway_core.tools import FIND_RELATED, GET_DOCUMENT, LIST_SOURCES, SEARCH
 from knowledge_store.acl import Principal
+from shared.http_metrics import HttpMetricsMiddleware
 from shared.logging import configure, log_event
 
 LOG = logging.getLogger("gateway-mcp")
+
+HTTP_ROUTES = ("/health", "/metrics", "/mcp")
 
 try:
     from mcp.server.auth.middleware.auth_context import get_access_token
@@ -159,10 +162,23 @@ def _request_id(ctx: Context | None) -> str:
     return uuid.uuid4().hex
 
 
+def attach_http_metrics(server: MCPServer) -> None:
+    """Count /mcp, /health, and /metrics. Any other path is unmatched."""
+    original = server.streamable_http_app
+
+    def streamable_http_app(**kwargs):
+        app = original(**kwargs)
+        app.add_middleware(HttpMetricsMiddleware, templates=HTTP_ROUTES)
+        return app
+
+    server.streamable_http_app = streamable_http_app  # type: ignore[method-assign]
+
+
 def main() -> None:
     configure("gateway-mcp", "access")
     log_event(LOG, "mcp server started")
     server = build_server(open_gateway())
+    attach_http_metrics(server)
     server.run(
         transport="streamable-http",
         host="0.0.0.0",

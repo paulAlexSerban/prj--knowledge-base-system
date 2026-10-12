@@ -21,7 +21,7 @@ from knowledge_store.embedder import HashEmbedder
 from knowledge_store.graph import GraphWriter
 from knowledge_store.postgres import ChunkTable
 from knowledge_store.store import KnowledgeStore
-from mcp_server.server import JwtVerifier, build_server
+from mcp_server.server import JwtVerifier, attach_http_metrics, build_server
 from shared.contracts.validate import load_contracts
 
 SECRET = "test-secret-test-secret-test-secret"
@@ -102,7 +102,10 @@ def test_bad_mcp_token_is_counted(monkeypatch) -> None:
 
 
 def test_mcp_route_rejects_a_missing_token(mcp) -> None:
+    from prometheus_client import REGISTRY
+
     server, _service = mcp
+    attach_http_metrics(server)
     app = server.streamable_http_app(
         transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False)
     )
@@ -110,6 +113,18 @@ def test_mcp_route_rejects_a_missing_token(mcp) -> None:
         refused = http.post("/mcp", headers={"accept": "application/json, text/event-stream"})
         assert refused.status_code == 401
         assert http.get("/health").status_code == 200
+        raw = "/not-a-tool"
+        assert http.get(raw).status_code == 404
+    routes: set[str] = set()
+    for family in REGISTRY.collect():
+        for sample in family.samples:
+            if sample.name == "kbs_http_requests_total":
+                route = sample.labels.get("route")
+                if route is not None:
+                    routes.add(route)
+    assert "unmatched" in routes
+    assert "/health" in routes
+    assert raw not in routes
 
 
 def test_tools_match_the_shared_descriptions(mcp) -> None:

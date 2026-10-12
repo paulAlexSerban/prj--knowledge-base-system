@@ -61,6 +61,15 @@ Exposed on `ingestion-worker:9101`. Queue depth is `GetQueueAttributes` (`Approx
 
 `kbs_delete_verification_failures_total` is the same series as the connector, with `store` `postgres` or `neo4j`. The dashboard uses `increase` over the selected range, by source and store. The raw counter is the total since process start.
 
+## HTTP
+
+The API, the MCP server, and the webhook receiver expose these. `job` from the scrape names the process. A principal and the raw URL are not labels. `route` is a path template the process registered, or `unmatched` when the path matches none of them. `/health` and `/metrics` are templates. The dashboard leaves them out of the rate so scrapes do not hide real traffic.
+
+| Metric | Labels | Meaning |
+| ------ | ------ | ------- |
+| `kbs_http_requests_total` | `route`, `method`, `status` | Finished HTTP requests. `status` is the response code. |
+| `kbs_http_request_seconds` | `route`, `method` | Request duration. The 0.25 bucket is one second quarter, not by itself the search target. |
+
 ## Retrieval
 
 The API exposes these on `gateway-api:8000/metrics`. The MCP server exposes the same names on `gateway-mcp:8001/metrics`. `surface` is `rest` or `mcp`. A principal, an object id, and chunk text are not labels. `permission_group` is the caller's highest-privilege group (`hr_admins`, then `employees`), or `none`.

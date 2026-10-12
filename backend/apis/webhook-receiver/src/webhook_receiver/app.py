@@ -18,6 +18,7 @@ from pydantic import ValidationError
 
 from ingest_contract.events import fit_sqs_id
 from ingest_contract.hooks import HOOK_QUEUE, HookNotice
+from shared.http_metrics import HttpMetricsMiddleware
 from shared.logging import configure, log_event
 
 LOG = logging.getLogger("webhook-receiver")
@@ -35,6 +36,8 @@ def _events() -> Counter:
 
 
 EVENTS = _events()
+
+HTTP_ROUTES = ("/health", "/metrics", "/webhooks/product")
 
 
 def create_app() -> FastAPI:
@@ -77,6 +80,7 @@ def create_app() -> FastAPI:
         return {"accepted": True, "enqueued": True}
 
     app.mount("/metrics", make_asgi_app())
+    app.add_middleware(HttpMetricsMiddleware, templates=HTTP_ROUTES)
     return app
 
 

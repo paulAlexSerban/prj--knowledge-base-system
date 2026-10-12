@@ -22,10 +22,22 @@ from gateway_core.runtime import open_gateway
 from gateway_core.service import GatewayService
 from gateway_core.tools import FIND_RELATED, GET_DOCUMENT, LIST_SOURCES, SEARCH
 from knowledge_store.acl import Principal
+from shared.http_metrics import HttpMetricsMiddleware
 from shared.logging import configure, log_event
 from shared.registry import load_registry, source_payloads
 
 LOG = logging.getLogger("gateway-api")
+
+# Templates only. A path that matches none of these is the label "unmatched".
+HTTP_ROUTES = (
+    "/health",
+    "/metrics",
+    "/v1/sources",
+    "/v1/search",
+    "/v1/documents/{chunk_id}",
+    "/v1/graph/related",
+    "/dev/token",
+)
 
 
 class SearchBody(BaseModel):
@@ -134,6 +146,7 @@ def create_app(service: GatewayService | None = None) -> FastAPI:
         }
 
     app.mount("/metrics", make_asgi_app())
+    app.add_middleware(HttpMetricsMiddleware, templates=HTTP_ROUTES)
     return app
 
 
