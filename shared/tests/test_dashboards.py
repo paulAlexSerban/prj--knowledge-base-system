@@ -64,7 +64,7 @@ def _canonical(metric: str) -> str:
 
 
 def test_committed_dashboards_follow_the_convention() -> None:
-    files = sorted(DASHBOARDS.glob("*.json"))
+    files = sorted(DASHBOARDS.rglob("*.json"))
     assert files, "no dashboards to check"
     found: list[str] = []
     for path in files:

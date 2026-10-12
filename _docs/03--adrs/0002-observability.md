@@ -18,7 +18,7 @@ Loki labels are `service`, `trust_area`, `level`, and `source_id`. Services writ
 
 Grafana requires a sign-in. The local account is `admin`, and the password is `GRAFANA_ADMIN_PASSWORD`, which defaults to `admin`. The UI stays on `127.0.0.1`. Changes made in the UI are stored in Grafana's database and kept across restarts while the JSON file is unchanged. To keep a change in git, export the JSON and commit it under `observability/grafana/dashboards/`.
 
-Definitions are in [metrics.md](../../observability/metrics.md). The overview is [kbs-overview.json](../../observability/grafana/dashboards/kbs-overview.json). It keeps the SLO row, scrape and worker health, and the error and deny log. Detail is on [kbs-ingestion.json](../../observability/grafana/dashboards/kbs-ingestion.json), [kbs-retrieval-access.json](../../observability/grafana/dashboards/kbs-retrieval-access.json), and [kbs-platform.json](../../observability/grafana/dashboards/kbs-platform.json). Each board links to the others. Built panels:
+Definitions are in [metrics.md](../../observability/metrics.md). The overview is [kbs-overview.json](../../observability/grafana/dashboards/overview/kbs-overview.json). It keeps the SLO row, scrape and worker health, and the error and deny log. Detail is on [kbs-ingestion.json](../../observability/grafana/dashboards/ingestion/kbs-ingestion.json), [kbs-retrieval-access.json](../../observability/grafana/dashboards/retrieval-access/kbs-retrieval-access.json), and [kbs-platform.json](../../observability/grafana/dashboards/platform/kbs-platform.json). Each board links to the others. Built panels:
 
 | Panel | Source |
 | ----- | ------ |
@@ -50,7 +50,7 @@ The Docker socket mount is a trust-boundary exception. It is read-only. It is ho
 
 ## Dashboard review
 
-Reviewed [kbs-overview.json](../../observability/grafana/dashboards/kbs-overview.json) before changing it. The metric names match [metrics.md](../../observability/metrics.md) and the spikes. The page is one flat board. These are the defects. The commits that follow this note fix the ones that mislead a reader. The metric names stay.
+Reviewed [kbs-overview.json](../../observability/grafana/dashboards/overview/kbs-overview.json) before changing it. The metric names match [metrics.md](../../observability/metrics.md) and the spikes. The page is one flat board. These are the defects. The commits that follow this note fix the ones that mislead a reader. The metric names stay.
 
 What is wrong:
 
