@@ -1,6 +1,6 @@
 # Metrics
 
-Alloy scrapes `gateway-api:8000`, `gateway-mcp:8001`, `connector-hr:9100`, and `ingestion-worker:9101`, and remote-writes to Prometheus. Labels are the ones named below. Object ids, principals, native ACL lists, and chunk text are not labels.
+Alloy scrapes `gateway-api:8000`, `gateway-mcp:8001`, `connector-hr:9100`, `connector-engineering:9102`, `connector-sales:9103`, `connector-product:9104`, `ingestion-worker:9101`, and `webhook-receiver:8090`, and remote-writes to Prometheus. The four harnesses are scraped too. Labels are the ones named below. Object ids, principals, native ACL lists, and chunk text are not labels.
 
 `kbs_worker_up{worker="connector"}` stays 1 after the connector loads its contracts, including while it waits for Postgres or the bucket. `kbs_worker_up{worker="ingestion"}` stays 1 after the ingestion worker loads its contracts.
 
@@ -27,7 +27,18 @@ The HR connector exposes these. Every series also has `source_id`, except `kbs_c
 | `kbs_connector_dependency_up` | `dependency` (`postgres`, `s3`, `harness`, `sqs`) | 1 when that dependency answered. |
 | `kbs_events_published_total` | `event_type` | Change events sent to a tier queue. |
 
-Logs are JSON on stdout. `source_id` is a Loki label. A snapshot line names the object type, version, and byte count. It does not contain the body. `{service="connector-hr"}` is the connector panel.
+Logs are JSON on stdout. `source_id` is a Loki label. A snapshot line names the object type, version, and byte count. It does not contain the body. `{service="connector-hr"}` is the connector panel. The other connectors log as `connector-sales`, `connector-product`, and `connector-engineering`.
+
+A cursor watermark is not a timestamp. `kbs_connector_watermark_lag_seconds` stays unset for that cycle.
+
+## Product hooks
+
+The receiver exposes `kbs_webhook_events_total` on `webhook-receiver:8090/metrics`. The product connector exposes the queue depth on `connector-product:9104`.
+
+| Metric | Labels | Meaning |
+| ------ | ------ | ------- |
+| `kbs_webhook_events_total` | `result` (`ok`, `invalid`, or `error`) | Notices accepted, rejected as an invalid body, or refused because SQS did not take them. |
+| `kbs_hook_queue_depth` | `queue` | Visible messages on `kbs-product-hooks.fifo` or `kbs-product-hooks-dlq.fifo`. |
 
 ## Ingestion worker
 

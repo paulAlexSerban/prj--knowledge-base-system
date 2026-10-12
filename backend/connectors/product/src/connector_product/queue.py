@@ -3,10 +3,17 @@
 import logging
 
 from botocore.exceptions import BotoCoreError, ClientError
+from prometheus_client import Gauge
 from pydantic import ValidationError
 
-from ingest_contract.hooks import HOOK_QUEUE, HookNotice
+from ingest_contract.hooks import HOOK_DLQ, HOOK_QUEUE, HookNotice
 from shared.logging import log_event
+
+HOOK_DEPTH = Gauge(
+    "kbs_hook_queue_depth",
+    "Visible messages on the product hook queue or its dead-letter queue",
+    ["queue"],
+)
 
 LOG = logging.getLogger("connector-product")
 
@@ -42,3 +49,18 @@ class HookQueue:
 
     def ack(self, handle: str) -> None:
         self.client.delete_message(QueueUrl=self.url, ReceiptHandle=handle)
+
+    def observe(self) -> None:
+        for name in (HOOK_QUEUE, HOOK_DLQ):
+            try:
+                url = self.client.get_queue_url(QueueName=name)["QueueUrl"]
+                attributes = self.client.get_queue_attributes(
+                    QueueUrl=url, AttributeNames=["ApproximateNumberOfMessages"]
+                )
+            except (BotoCoreError, ClientError, OSError) as exc:
+                log_event(
+                    LOG, "hook depth failed", level=logging.WARNING, queue=name, error=str(exc)
+                )
+                continue
+            visible = int(attributes.get("Attributes", {}).get("ApproximateNumberOfMessages", "0"))
+            HOOK_DEPTH.labels(queue=name).set(visible)

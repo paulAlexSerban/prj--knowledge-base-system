@@ -48,6 +48,7 @@ def main() -> None:
     reconcile_every = int(os.environ.get("RECONCILE_SECONDS", "60"))
     last = time.monotonic()
     while True:
+        hooks.observe()
         for notice, handle in hooks.receive():
             try:
                 report = apply_notice(

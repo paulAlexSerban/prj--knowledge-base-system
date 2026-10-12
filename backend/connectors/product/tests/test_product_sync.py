@@ -15,12 +15,12 @@ from connector_core.store import METADATA_ACL, SnapshotStore, object_key
 from connector_core.sync import Syncer
 from connector_product.apply import apply_notice
 from connector_product.client import ProductConnector
-from connector_product.queue import HookQueue
+from connector_product.queue import HOOK_DEPTH, HookQueue
 from harness_product.app import create_app
 from harness_product.notify import Notifier
 from harness_product.store import Store
 from ingest_contract.events import RAW_BUCKET
-from ingest_contract.hooks import HOOK_QUEUE, HookNotice
+from ingest_contract.hooks import HOOK_DLQ, HOOK_QUEUE, HookNotice
 from shared.contracts.validate import load_contracts
 
 BUCKET = RAW_BUCKET
@@ -187,3 +187,23 @@ def test_invalid_queue_body_is_not_returned(monkeypatch):
             QueueUrl=url, AttributeNames=["ApproximateNumberOfMessagesNotVisible"]
         )["Attributes"]["ApproximateNumberOfMessagesNotVisible"]
         assert depth == "1"
+
+
+def test_hook_depth_counts_visible_messages(monkeypatch):
+    monkeypatch.delenv("AWS_ENDPOINT_URL", raising=False)
+    with mock_aws():
+        client = boto3.client("sqs", region_name="us-east-1")
+        attributes = {"FifoQueue": "true", "ContentBasedDeduplication": "false"}
+        url = client.create_queue(QueueName=HOOK_QUEUE, Attributes=attributes)["QueueUrl"]
+        client.create_queue(QueueName=HOOK_DLQ, Attributes=attributes)
+        client.send_message(
+            QueueUrl=url,
+            MessageBody='{"source_id":"product","object_id":"spec-checkout","event_type":"update"}',
+            MessageGroupId="product:spec-checkout",
+            MessageDeduplicationId="depth-1",
+        )
+        hooks = HookQueue(client)
+        assert hooks.ready()
+        hooks.observe()
+        assert HOOK_DEPTH.labels(queue=HOOK_QUEUE)._value.get() == 1
+        assert HOOK_DEPTH.labels(queue=HOOK_DLQ)._value.get() == 0
