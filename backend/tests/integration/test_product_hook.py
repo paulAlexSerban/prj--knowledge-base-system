@@ -74,7 +74,7 @@ def test_posted_hook_is_snapshotted(tmp_path, monkeypatch):
         assert hooks.ready()
         notices = hooks.receive(wait=0)
         assert len(notices) == 1
-        notice, handle = notices[0]
+        notice, handle, _parent = notices[0]
         report = apply_notice(
             connector, contract, state, SnapshotStore(s3, RAW_BUCKET), None, notice
         )

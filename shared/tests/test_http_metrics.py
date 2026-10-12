@@ -104,3 +104,37 @@ def test_server_span_continues_traceparent_and_drops_the_raw_path(monkeypatch) -
     assert format(current.context.trace_id, "032x") == "0af7651916cd43dd8448eb211c80319c"
     assert raw not in current.name
     assert "ada-lovelace" not in str(current.attributes)
+
+
+def test_health_is_counted_and_not_traced(monkeypatch) -> None:
+    exporter = InMemorySpanExporter()
+    provider = TracerProvider()
+    provider.add_span_processor(SimpleSpanProcessor(exporter))
+    monkeypatch.setattr(
+        "shared.telemetry.trace.get_tracer",
+        lambda *_args, **_kwargs: provider.get_tracer("kbs"),
+    )
+
+    async def app(scope, receive, send) -> None:
+        await send({"type": "http.response.start", "status": 200, "headers": []})
+        await send({"type": "http.response.body", "body": b""})
+
+    wrapped = HttpMetricsMiddleware(app, templates=TEMPLATES)
+    before = REQUESTS.labels(route="/health", method="GET", status="200")._value.get()
+
+    async def receive() -> dict:
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+    async def send(_message: dict) -> None:
+        return None
+
+    asyncio.run(
+        wrapped(
+            {"type": "http", "path": "/health", "method": "GET", "headers": []},
+            receive,
+            send,
+        )
+    )
+    after = REQUESTS.labels(route="/health", method="GET", status="200")._value.get()
+    assert after == before + 1
+    assert exporter.get_finished_spans() == ()

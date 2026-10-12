@@ -16,6 +16,7 @@ from harness_common.catalog import guard, register_catalog
 from harness_product.catalog import SEED_AT, specs
 from harness_product.notify import Notifier
 from harness_product.store import Store
+from shared.telemetry import FASTAPI_TELEMETRY
 
 SERVICE = "product"
 CAPABILITIES = ["webhook"]
@@ -62,7 +63,7 @@ def create_app(
         seed(store)
     if notifier is None:
         notifier = Notifier(os.environ.get("WEBHOOK_URL"))
-    app = FastAPI(title="Harness product", version="0.2.0")
+    app = FastAPI(title="Harness product", version="0.2.0", telemetry=FASTAPI_TELEMETRY)
     refresh = register_catalog(
         app,
         service=SERVICE,

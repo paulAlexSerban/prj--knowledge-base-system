@@ -48,7 +48,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "up{job=~\"alloy|loki|prometheus\"}",
+                        "expr": "up{job=~\"alloy|loki|prometheus|tempo\"}",
                         "legendFormat": "{{job}}"
                       },
                       "version": "v0"
@@ -61,7 +61,7 @@
               "transformations": []
             }
           },
-          "description": "1 means Prometheus scraped Alloy, Loki, or itself. Target is 1. Red at 0. A red target means this board is missing metrics or logs. Application targets stay on the overview.",
+          "description": "1 means Prometheus scraped Alloy, Loki, Tempo, or itself. Target is 1. Red at 0. A red target means this board is missing metrics, logs, or traces. Application targets stay on the overview.",
           "id": 60,
           "links": [],
           "title": "Observability targets (up)",

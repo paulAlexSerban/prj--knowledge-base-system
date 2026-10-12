@@ -1,6 +1,5 @@
 """HR connector snapshots. S3 is moto, state is SQLite, the harness is the real app."""
 
-import json
 from pathlib import Path
 
 import boto3
@@ -315,10 +314,8 @@ def test_unimplemented_sources_are_not_started():
 
 
 def test_metric_names_match_the_dashboard():
-    dashboard = json.loads(
-        (ROOT / "observability" / "grafana" / "dashboards" / "kbs-overview.json").read_text()
-    )
-    body = json.dumps(dashboard)
+    root = ROOT / "observability" / "grafana" / "dashboards"
+    body = "\n".join(path.read_text() for path in root.rglob("*.json"))
     used = {name for name in metrics.METRIC_LABELS if name in body}
     assert "kbs_snapshot_object_lag_seconds" in used
     assert "kbs_reconcile_drift" in used

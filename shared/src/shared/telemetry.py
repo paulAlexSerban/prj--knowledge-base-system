@@ -41,6 +41,16 @@ _DROPPED = frozenset(
 )
 
 
+# FastAPI 0.143 traces the raw URL path and the handler arguments. That path
+# can be an object id, and the arguments can be the query. Our spans stay on.
+FASTAPI_TELEMETRY = {
+    "tracing": False,
+    "metrics": False,
+    "logs": False,
+    "operation_spans": False,
+}
+
+
 def init_telemetry(service: str) -> None:
     """Install a batch exporter once. A missing endpoint leaves the no-op tracer."""
     global _READY

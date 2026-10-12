@@ -20,6 +20,12 @@ services:
     environment:
       JUPYTER_TOKEN: ${JUPYTER_TOKEN:-dev-only-notebook}
       HARNESS_HR_URL: http://harness-hr:8080
+      HARNESS_SALES_URL: http://harness-sales:8080
+      HARNESS_PRODUCT_URL: http://harness-product:8080
+      HARNESS_ENGINEERING_URL: http://harness-engineering:8080
+      SALES_METRICS_URL: http://connector-sales:9103/metrics
+      PRODUCT_METRICS_URL: http://connector-product:9104/metrics
+      ENGINEERING_METRICS_URL: http://connector-engineering:9102/metrics
       GATEWAY_API_URL: http://gateway-api:8000
       GATEWAY_MCP_URL: http://gateway-mcp:8001/mcp
       LOKI_URL: http://loki:3100

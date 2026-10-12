@@ -20,7 +20,7 @@ from ingest_contract.events import fit_sqs_id
 from ingest_contract.hooks import HOOK_QUEUE, HookNotice
 from shared.http_metrics import HttpMetricsMiddleware
 from shared.logging import configure, log_event
-from shared.telemetry import init_telemetry, span, sqs_message_attributes
+from shared.telemetry import FASTAPI_TELEMETRY, init_telemetry, span, sqs_message_attributes
 
 LOG = logging.getLogger("webhook-receiver")
 
@@ -42,7 +42,7 @@ HTTP_ROUTES = ("/health", "/metrics", "/webhooks/product")
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="Webhook receiver", version="0.2.0")
+    app = FastAPI(title="Webhook receiver", version="0.2.0", telemetry=FASTAPI_TELEMETRY)
 
     @app.get("/health")
     def health() -> dict[str, str]:

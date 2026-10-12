@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 from harness_common.catalog import guard, register_catalog
 from harness_sales.catalog import SEED_AT, deals
 from harness_sales.store import Store
+from shared.telemetry import FASTAPI_TELEMETRY
 
 SERVICE = "sales"
 CAPABILITIES = ["cursor_feed"]
@@ -56,7 +57,7 @@ def seed(store: Store) -> dict[str, int]:
 def create_app(store: Store, seed_if_empty: bool = True) -> FastAPI:
     if seed_if_empty and store.is_empty():
         seed(store)
-    app = FastAPI(title="Harness sales", version="0.2.0")
+    app = FastAPI(title="Harness sales", version="0.2.0", telemetry=FASTAPI_TELEMETRY)
     refresh = register_catalog(
         app,
         service=SERVICE,

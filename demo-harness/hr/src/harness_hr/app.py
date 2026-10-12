@@ -23,6 +23,7 @@ from harness_hr.catalog import seed
 from harness_hr.generate import generate_people, generate_policies
 from harness_hr.store import Conflict, Invalid, NotFound, Store, utc_now
 from shared.http_metrics import HttpMetricsMiddleware
+from shared.telemetry import FASTAPI_TELEMETRY
 
 SERVICE = "hr"
 CAPABILITIES = ["updated_since", "snapshot_diff"]
@@ -110,7 +111,7 @@ class PersonEdit(BaseModel):
 def create_app(store: Store, seed_if_empty: bool = True) -> FastAPI:
     if seed_if_empty and store.is_empty():
         seed(store)
-    app = FastAPI(title="Harness HR", version="0.2.0")
+    app = FastAPI(title="Harness HR", version="0.2.0", telemetry=FASTAPI_TELEMETRY)
     UP.labels(service=SERVICE).set(1)
 
     def refresh_gauges() -> None:

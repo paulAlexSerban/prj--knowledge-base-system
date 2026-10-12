@@ -11,6 +11,7 @@ groups:
       # Gauge of visible dead-letter messages, not a counter.
       - record: kbs:dlq_messages
         expr: sum(kbs_dlq_depth)
-      # Fixed five-minute window. The detail panel still uses the dashboard range.
+      # Fixed five-minute window. No samples means nothing failed, so the value is 0.
+      # The detail panel still uses the dashboard range.
       - record: kbs:delete_verification_failures_5m
-        expr: sum(increase(kbs_delete_verification_failures_total[5m]))
+        expr: sum(increase(kbs_delete_verification_failures_total[5m])) or vector(0)

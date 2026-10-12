@@ -72,6 +72,11 @@ def _parts(path: str) -> list[str]:
     return path.strip("/").split("/")
 
 
+def _record(route: str, method: str, status: int, started: float) -> None:
+    DURATION.labels(route=route, method=method).observe(time.perf_counter() - started)
+    REQUESTS.labels(route=route, method=method, status=str(status)).inc()
+
+
 def _carrier(scope: Scope) -> dict[str, str]:
     found: dict[str, str] = {}
     for key, value in scope.get("headers") or []:
@@ -104,6 +109,14 @@ class HttpMetricsMiddleware:
                 status = int(message.get("status", 500))
             await send(message)
 
+        # Health checks and scrapes are not traces. They would fill Tempo.
+        if route in {"/health", "/metrics"}:
+            try:
+                await self.app(scope, receive, send_wrapper)
+            finally:
+                _record(route, method, status, started)
+            return
+
         parent = extract(_carrier(scope))
         try:
             with span(f"{method} {route}", context=parent, method=method, route=route) as current:
@@ -114,5 +127,4 @@ class HttpMetricsMiddleware:
                     if status >= 500:
                         current.set_status(Status(StatusCode.ERROR))
         finally:
-            DURATION.labels(route=route, method=method).observe(time.perf_counter() - started)
-            REQUESTS.labels(route=route, method=method, status=str(status)).inc()
+            _record(route, method, status, started)

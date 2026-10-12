@@ -25,7 +25,7 @@ from knowledge_store.acl import Principal
 from shared.http_metrics import HttpMetricsMiddleware
 from shared.logging import configure, log_event
 from shared.registry import load_registry, source_payloads
-from shared.telemetry import init_telemetry
+from shared.telemetry import FASTAPI_TELEMETRY, init_telemetry
 
 LOG = logging.getLogger("gateway-api")
 
@@ -65,7 +65,12 @@ def create_app(service: GatewayService | None = None) -> FastAPI:
             app.state.service = open_gateway()
         yield
 
-    app = FastAPI(title="Knowledge Gateway", version="0.1.0", lifespan=lifespan)
+    app = FastAPI(
+        title="Knowledge Gateway",
+        version="0.1.0",
+        lifespan=lifespan,
+        telemetry=FASTAPI_TELEMETRY,
+    )
     app.state.contracts = contracts
     app.state.service = service
 
