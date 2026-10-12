@@ -11,6 +11,8 @@ import logging
 import sys
 from typing import Any
 
+from shared.telemetry import current_ids
+
 # Keys Alloy may promote. Anything else stays in the JSON body.
 LABEL_KEYS = ("service", "trust_area", "level", "source_id")
 
@@ -65,9 +67,10 @@ class JsonFormatter(logging.Formatter):
         extra = getattr(record, "kbs", None)
         if isinstance(extra, dict):
             payload.update(drop_excluded(extra))
-        # Filled from the current span once tracing is on. Not labels.
-        payload["trace_id"] = None
-        payload["span_id"] = None
+        # Not labels. Null when no span is current.
+        trace_id, span_id = current_ids()
+        payload["trace_id"] = trace_id
+        payload["span_id"] = span_id
         return json.dumps(drop_excluded(payload), default=str)
 
 
