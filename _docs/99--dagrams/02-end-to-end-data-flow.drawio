@@ -1,25 +1,25 @@
 <mxfile host="65bd71144e">
     <diagram id="dataflow" name="Page-1">
-        <mxGraphModel dx="886" dy="611" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2300" pageHeight="1130" math="0" shadow="0">
+        <mxGraphModel dx="1059" dy="909" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2300" pageHeight="1130" math="0" shadow="0">
             <root>
                 <mxCell id="0"/>
                 <mxCell id="1" parent="0"/>
                 <mxCell id="n_g_con" value="&lt;b&gt;Connector workers&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#666666;fontColor=#FFFFFF;fontFamily=Courier New;fontSize=13;dashed=1;dashPattern=8 4;strokeWidth=2;arcSize=3;align=left;verticalAlign=top;spacing=10;" parent="1" vertex="1">
                     <mxGeometry x="470" y="1120" width="290" height="820" as="geometry"/>
                 </mxCell>
-                <mxCell id="65" value="" style="rounded=0;whiteSpace=wrap;html=1;labelBackgroundColor=default;strokeWidth=3;fontFamily=Courier New;fontSize=12;fillColor=#000000;strokeColor=none;" vertex="1" parent="1">
+                <mxCell id="65" value="" style="rounded=0;whiteSpace=wrap;html=1;labelBackgroundColor=default;strokeWidth=3;fontFamily=Courier New;fontSize=12;fillColor=#000000;strokeColor=none;" parent="1" vertex="1">
                     <mxGeometry x="20" y="1000" width="2340" height="1300" as="geometry"/>
                 </mxCell>
                 <mxCell id="n_g_data" value="&lt;b&gt;Knowledge store (internal network)&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#666666;fontColor=#FFFFFF;fontFamily=Courier New;fontSize=13;dashed=1;dashPattern=8 4;strokeWidth=2;arcSize=3;align=left;verticalAlign=top;spacing=10;" parent="1" vertex="1">
                     <mxGeometry x="1270" y="1860" width="380" height="310" as="geometry"/>
                 </mxCell>
-                <mxCell id="2" value="&lt;b&gt;Ingestion Pipeline&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#666666;fontColor=#FFFFFF;fontFamily=Courier New;fontSize=13;dashed=1;dashPattern=8 4;strokeWidth=2;arcSize=3;align=left;verticalAlign=top;spacing=10;" vertex="1" parent="1">
+                <mxCell id="2" value="&lt;b&gt;Ingestion Pipeline&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#666666;fontColor=#FFFFFF;fontFamily=Courier New;fontSize=13;dashed=1;dashPattern=8 4;strokeWidth=2;arcSize=3;align=left;verticalAlign=top;spacing=10;" parent="1" vertex="1">
                     <mxGeometry x="440" y="1040" width="760" height="1130" as="geometry"/>
                 </mxCell>
-                <mxCell id="5" style="edgeStyle=none;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;fontFamily=Courier New;fontColor=#000000;exitX=1;exitY=0.5;exitDx=0;exitDy=0;strokeWidth=2;strokeColor=#FFFFFF;" edge="1" parent="1" source="n_product" target="n_hook">
+                <mxCell id="5" style="edgeStyle=none;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;fontFamily=Courier New;fontColor=#000000;exitX=1;exitY=0.5;exitDx=0;exitDy=0;strokeWidth=2;strokeColor=#FFFFFF;" parent="1" source="n_product" target="n_hook" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
-                <mxCell id="6" value="call webhook" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontFamily=Courier New;fontColor=#FFFFFF;labelBackgroundColor=#000000;" vertex="1" connectable="0" parent="5">
+                <mxCell id="6" value="call webhook" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontFamily=Courier New;fontColor=#FFFFFF;labelBackgroundColor=#000000;" parent="5" vertex="1" connectable="0">
                     <mxGeometry x="0.0878" relative="1" as="geometry">
                         <mxPoint x="27" y="-9" as="offset"/>
                     </mxGeometry>
@@ -51,10 +51,10 @@
                 <mxCell id="n_c_eng" value="&lt;b&gt;connector-engineering&lt;/b&gt;&lt;br&gt;contract gate (owner, tier, ACL)&lt;br&gt;fetch, get_acl, snapshot&lt;br&gt;raw snapshot, content hash&lt;br&gt;verified S3 delete, then event" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1061B0;strokeColor=#0B4884;fontColor=#FFFFFF;fontFamily=Courier New;fontSize=11;arcSize=6;align=left;verticalAlign=top;spacing=8;" parent="1" vertex="1">
                     <mxGeometry x="500" y="1690" width="230" height="100.37" as="geometry"/>
                 </mxCell>
-                <mxCell id="66" style="edgeStyle=none;html=1;strokeWidth=2;fontFamily=Courier New;fontSize=10;fontColor=#FFFFFF;entryX=-0.007;entryY=0.903;entryDx=0;entryDy=0;entryPerimeter=0;strokeColor=#FFFFFF;" edge="1" parent="1" source="n_hook" target="n_g_aws">
+                <mxCell id="66" style="edgeStyle=none;html=1;strokeWidth=2;fontFamily=Courier New;fontSize=10;fontColor=#FFFFFF;entryX=-0.007;entryY=0.903;entryDx=0;entryDy=0;entryPerimeter=0;strokeColor=#FFFFFF;" parent="1" source="n_hook" target="n_g_aws" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
-                <mxCell id="67" value="pointer" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;fontFamily=Courier New;fontColor=#FFFFFF;labelBackgroundColor=#000000;" vertex="1" connectable="0" parent="66">
+                <mxCell id="67" value="pointer" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;fontFamily=Courier New;fontColor=#FFFFFF;labelBackgroundColor=#000000;" parent="66" vertex="1" connectable="0">
                     <mxGeometry x="-0.3858" y="-1" relative="1" as="geometry">
                         <mxPoint x="20" y="-1" as="offset"/>
                     </mxGeometry>
@@ -209,8 +209,11 @@
                 <mxCell id="e18" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=classic;endFill=1;strokeWidth=2;strokeColor=#FFFFFF;fontColor=#FFFFFF;fontFamily=Courier New;fontSize=10;labelBackgroundColor=#000000;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="n_chat" target="n_llm" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
-                <mxCell id="64" value="&lt;b&gt;source-configuration&lt;/b&gt;&lt;br&gt;validated ABAC yaml contracts&lt;br&gt;&lt;span style=&quot;font-size: 11px;&quot;&gt;owner, tier, and ACL mapping.&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#BBBBBB;fontColor=#FFFFFF;fontFamily=Courier New;fontSize=11;arcSize=6;align=left;verticalAlign=top;spacing=8;" vertex="1" parent="1">
+                <mxCell id="64" value="&lt;b&gt;source-configuration&lt;/b&gt;&lt;br&gt;validated ABAC yaml contracts&lt;br&gt;&lt;span style=&quot;font-size: 11px;&quot;&gt;owner, tier, and ACL mapping.&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#BBBBBB;fontColor=#FFFFFF;fontFamily=Courier New;fontSize=11;arcSize=6;align=left;verticalAlign=top;spacing=8;" parent="1" vertex="1">
                     <mxGeometry x="500" y="1820" width="230" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="68" value="&lt;b&gt;Connectors&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#666666;fontColor=#FFFFFF;fontFamily=Courier New;fontSize=13;dashed=1;dashPattern=8 4;strokeWidth=2;arcSize=3;align=left;verticalAlign=top;spacing=10;" vertex="1" parent="1">
+                    <mxGeometry x="470" y="1120" width="290" height="820" as="geometry"/>
                 </mxCell>
             </root>
         </mxGraphModel>

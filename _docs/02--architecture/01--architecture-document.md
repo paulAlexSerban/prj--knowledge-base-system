@@ -1,6 +1,6 @@
 # Architecture Document: Knowledge Base Gateway
 
-This is Deliverable 1. It answers the assignment's eight questions and states its assumptions. Long-form reasoning lives in the [project brief](../00--project-brief/00-project-brief.md), the [spikes](../01--spikes/), and the [ADRs](../03--adrs/README.md). The POC and the AI-SDLC description are Deliverable 2 ([README](../../README.md#how-ai-was-used)).
+It answers the assignment's eight questions and states its assumptions. Long-form reasoning lives in the [project brief](../00--project-brief/00-project-brief.md), the [spikes](../01--spikes/), and the [ADRs](../03--adrs/README.md). The POC and the AI-SDLC description are Deliverable 2 ([README](../../README.md#how-ai-was-used)).
 
 ## Executive summary
 
