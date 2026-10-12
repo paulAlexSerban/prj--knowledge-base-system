@@ -1,0 +1,16 @@
+groups:
+  - name: kbs-slo
+    interval: 30s
+    rules:
+      # HR contract is 30 seconds. No samples in the window evaluate to NaN.
+      - record: kbs:hr_snapshot_lag_p95_seconds
+        expr: histogram_quantile(0.95, sum by (le) (rate(kbs_snapshot_object_lag_seconds_bucket{source_id="hr"}[5m])))
+      # Both surfaces. The 250 ms target is 0.25.
+      - record: kbs:search_p95_seconds
+        expr: histogram_quantile(0.95, sum by (le) (rate(kbs_retrieval_seconds_bucket{tool="search"}[5m])))
+      # Gauge of visible dead-letter messages, not a counter.
+      - record: kbs:dlq_messages
+        expr: sum(kbs_dlq_depth)
+      # Fixed five-minute window. The detail panel still uses the dashboard range.
+      - record: kbs:delete_verification_failures_5m
+        expr: sum(increase(kbs_delete_verification_failures_total[5m]))

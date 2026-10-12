@@ -48,7 +48,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "histogram_quantile(0.95, sum by (le) (rate(kbs_retrieval_seconds_bucket{tool=\"search\",surface=~\"$surface\"}[5m])))",
+                        "expr": "kbs:search_p95_seconds",
                         "legendFormat": "Search p95"
                       },
                       "version": "v0"
@@ -61,7 +61,7 @@
               "transformations": []
             }
           },
-          "description": "95th percentile of search, including the HR ACL re-check. Target is under 0.25 seconds. Red at 0.25. The surface variable applies. No samples means nobody searched. Open the retrieval panel to see which tool is slow.",
+          "description": "Search p95 from the recording rule, both surfaces together, in seconds. Target is under 0.25 seconds. Red at 0.25. No samples means nobody searched. Open Retrieval and access to split REST from MCP.",
           "id": 52,
           "links": [],
           "title": "Search latency p95 (s)",
@@ -296,7 +296,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(kbs_dlq_depth)",
+                        "expr": "kbs:dlq_messages",
                         "legendFormat": "Dead-letter queues"
                       },
                       "version": "v0"
@@ -309,7 +309,7 @@
               "transformations": []
             }
           },
-          "description": "Visible messages across the tier dead-letter queues right now. Target is empty. Red at one message. This is a gauge. A red value means a message exhausted retries. Read the ingestion logs, then replay with make dlq-replay only after the cause is fixed.",
+          "description": "Visible messages across the tier dead-letter queues, from the recording rule. Target is empty. Red at one message. This is a gauge. Open Ingestion to see which queue. Replay only after the cause is fixed.",
           "id": 53,
           "links": [],
           "title": "Dead-letter depth (messages)",
@@ -457,7 +457,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "histogram_quantile(0.95, sum by (le) (rate(kbs_snapshot_object_lag_seconds_bucket{source_id=\"hr\"}[5m])))",
+                        "expr": "kbs:hr_snapshot_lag_p95_seconds",
                         "legendFormat": "P0 freshness"
                       },
                       "version": "v0"
@@ -470,7 +470,7 @@
               "transformations": []
             }
           },
-          "description": "HR snapshot time minus the source updated_at, 95th percentile. Target is under 30 seconds, the HR contract. Red at 30. No samples means the connector wrote nothing in the window, so check the connector logs before treating it as a breach. This panel stays on HR when the source variable changes.",
+          "description": "HR snapshot lag p95 from the recording rule, in seconds. Target is under 30 seconds. Red at 30. NaN means the connector wrote nothing in the five-minute window, so check the connector logs before treating it as a breach.",
           "id": 51,
           "links": [],
           "title": "HR snapshot lag p95 (s)",
@@ -618,7 +618,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(increase(kbs_delete_verification_failures_total{source_id=~\"$source_id\"}[$__range]))",
+                        "expr": "kbs:delete_verification_failures_5m",
                         "legendFormat": "Delete verification"
                       },
                       "version": "v0"
@@ -631,7 +631,7 @@
               "transformations": []
             }
           },
-          "description": "Deletes that still found the object, counted over the selected range. Target is zero. Red at one. The source variable applies. Check the store label: s3 is the connector, postgres and neo4j are the worker. A red value means a delete was not verified.",
+          "description": "Delete checks that still found the object, over the last five minutes, from the recording rule. Target is zero. Red at one. Open Ingestion for the source and the store. The detail panel uses the dashboard range.",
           "id": 54,
           "links": [],
           "title": "Delete verification failures (count)",
@@ -887,61 +887,6 @@
     },
     "title": "KBS / Overview",
     "variables": [
-      {
-        "kind": "QueryVariable",
-        "spec": {
-          "name": "source_id",
-          "label": "Source",
-          "description": "Limit source series to one department. All keeps every source.",
-          "hide": "dontHide",
-          "refresh": "onDashboardLoad",
-          "skipUrlSync": false,
-          "current": {
-            "text": "All",
-            "value": "$__all"
-          },
-          "options": [],
-          "regex": "",
-          "sort": "alphabeticalAsc",
-          "multi": true,
-          "includeAll": true,
-          "allValue": ".*",
-          "allowCustomValue": false,
-          "query": {
-            "kind": "DataQuery",
-            "group": "prometheus",
-            "version": "v0",
-            "datasource": {
-              "name": "prometheus",
-              "uid": "prometheus"
-            },
-            "spec": {
-              "query": "label_values(kbs_source_objects, source_id)",
-              "refId": "A"
-            }
-          }
-        }
-      },
-      {
-        "kind": "CustomVariable",
-        "spec": {
-          "name": "surface",
-          "label": "Surface",
-          "description": "REST or MCP. All keeps both.",
-          "query": "rest,mcp",
-          "current": {
-            "text": "All",
-            "value": "$__all"
-          },
-          "options": [],
-          "multi": true,
-          "includeAll": true,
-          "allValue": ".*",
-          "hide": "dontHide",
-          "skipUrlSync": false,
-          "allowCustomValue": false
-        }
-      },
       {
         "kind": "QueryVariable",
         "spec": {

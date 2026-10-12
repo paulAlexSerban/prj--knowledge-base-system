@@ -22,7 +22,7 @@ Definitions are in [metrics.md](../../observability/metrics.md). The overview is
 
 | Panel | Source |
 | ----- | ------ |
-| SLO row | HR snapshot lag p95 (red at 30 seconds), search p95 (red at 0.25 seconds), dead-letter depth, delete verification failures in the selected range |
+| SLO row | Recording rules `kbs:hr_snapshot_lag_p95_seconds` (red at 30 seconds), `kbs:search_p95_seconds` (red at 0.25 seconds), `kbs:dlq_messages`, and `kbs:delete_verification_failures_5m`. Prometheus keeps 15 days. |
 | Scrape targets and workers | `up`, `kbs_worker_up` (connector and ingestion), `kbs_worker_dependency_up` |
 | Snapshot lag, last successful sync, write and skip rate, snapshot errors, snapshot drift, connector logs | The same series from every connector, broken out by `source_id`. Connector logs are `{service=~"connector-.*"}`. |
 | Sync lag per source | `kbs_ingest_event_lag_seconds` p95 and `kbs_connector_watermark_lag_seconds`. Yellow above 30 seconds (HR contract). Red above 300 seconds (sales, product, and engineering contracts). Event lag is now minus `occurred_at` when the worker finishes the message. SQS does not expose oldest-message age outside CloudWatch, so that is not the panel. |

@@ -88,3 +88,6 @@ compose-check: $(ENV_FILE)
 	docker compose --env-file $(ENV_FILE) -f $(COMPOSE_DIR)/compose.frontend.yaml config -q
 	docker compose --env-file $(ENV_FILE) -f $(COMPOSE_DIR)/compose.notebooks.yaml config -q
 	docker compose --env-file $(ENV_FILE) -f $(COMPOSE_DIR)/compose.tools.yaml config -q
+	docker run --rm --entrypoint promtool \
+		-v $(CURDIR)/observability/prometheus:/prometheus:ro \
+		prom/prometheus:v3.15.0 check rules /prometheus/rules.yml

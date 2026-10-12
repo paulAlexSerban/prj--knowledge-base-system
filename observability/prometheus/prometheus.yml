@@ -1,6 +1,9 @@
 global:
   scrape_interval: 15s
 
+rule_files:
+  - /etc/prometheus/rules.yml
+
 # Application targets are scraped by Alloy and remote-written here.
 # Prometheus itself scrapes the collector, the log store, and its own /metrics.
 # Jupyter, pgAdmin, and the SQLite viewers have no /metrics endpoint and are not targets.
