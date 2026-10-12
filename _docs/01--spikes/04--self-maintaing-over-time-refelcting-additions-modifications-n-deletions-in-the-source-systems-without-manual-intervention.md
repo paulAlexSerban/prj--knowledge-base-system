@@ -52,7 +52,7 @@ Workers drain P0 before P1 before P2. The POC runs one worker process with that 
 
 ### What is measured
 
-Per source: last successful sync, event lag, queue depth, dead-letter depth, embed calls skipped by hash, and delete verification failures. Event lag is `kbs_ingest_event_lag_seconds`, now minus that event's `occurred_at`, recorded when the worker finishes the message. SQS does not expose the age of the oldest message outside CloudWatch, so this is not oldest-message age. Queue depth comes from `GetQueueAttributes` in the worker. Definitions live with the dashboard in [ADR 0002](../03--adrs/0002-observability.md).
+Per source: last successful sync, event lag, queue depth, dead-letter depth, embed calls skipped by hash, and delete verification failures. Event lag is `kbs_ingest_event_lag_seconds`, now minus that event's `occurred_at`, recorded when the worker finishes the message. SQS does not expose the age of the oldest message outside CloudWatch, so this is not oldest-message age. Queue depth comes from `GetQueueAttributes` in the worker. The publisher puts a W3C `traceparent` on the message, and the worker continues that trace, so one object change is one trace. Definitions live with the dashboards in [ADR 0002](../03--adrs/0002-observability.md).
 
 ## Why
 

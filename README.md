@@ -12,10 +12,10 @@ This repository is a proof of concept for that gateway. The design is written do
 | Project brief, spikes, ADRs, the architecture document, and the C4 diagrams | Query router, answer synthesis, and a gateway answer for demo question 2 |
 | Source-contract model, four YAML contracts, validator, tests, and CI. Sales, Product, and Engineering harnesses and connectors. | `make demo` |
 | Compose for the harness, gateway, ingestion, store, floci, Jupyter, pgAdmin, SQLite viewers, and observability. HR can bulk-load. The other three sources are a curated set. | Golden evaluation set and `make eval` |
-| Terraform on floci: three tier queues, their dead-letter queues, the product hook queue and its dead-letter queue, and one snapshot bucket. `make dlq-replay` sends dead-letter messages back. | Traces |
+| Terraform on floci: three tier queues, their dead-letter queues, the product hook queue and its dead-letter queue, and one snapshot bucket. `make dlq-replay` sends dead-letter messages back. | Loki and Tempo on object storage |
 | Ingestion worker: chunking, hash embeddings (`hash-v1`, 384 dimensions, not semantic), Postgres chunks (full-text, HNSW, ACL columns, row-level security, tombstones), and the Neo4j writer. HR writes Person, Team, and Policy. A deal stores arr, quarter, stage, and product_key and depends on an epic. An epic stores team and product_key and is owned by an HR team. Specs stay prose. | A semantic embedder in place of `hash-v1` |
 | REST and MCP retrieval over `gateway-core`: search (one chunk per object), get document, bounded HR graph lookup, and list sources. Dev-only `POST /dev/token` signs an HS256 JWT. HR policy search re-checks the harness ACL. | OIDC in place of the shared-secret JWT. Gateway routing for deals, epics, and specs. |
-| Grafana overview: one series per source for sync lag, drift, and index drift, a product webhook row, plus retrieval p95, empty-result rate by group, and auth failures. A deny is a log line. Notebooks `00`–`30` edit HR, `02` and `14`–`16` edit the other sources, and `40`–`43` call the gateway. | Alertmanager |
+| Grafana: overview, ingestion, retrieval and access, platform, and traces. One series per source for sync lag and drift, plus retrieval p95, empty-result rate by group, and auth failures. A deny is a log line, and the same `trace_id` opens the trace. Notebooks `00`–`30` edit HR, `02` and `14`–`16` edit the other sources, and `40`–`43` call the gateway. | Alertmanager |
 
 
 
@@ -56,8 +56,8 @@ Components
 | Documents, vectors, lexical search, authorization | Postgres with pgvector, full-text search, and row-level security.                                                                                                           |
 | Knowledge graph                                   | Neo4j, small typed ontology.                                                                                                                                                |
 | Messaging and objects                             | SQS FIFO per object, with a dead-letter queue, and S3, both on floci. Scheduler, when added, drives P1/P2 polls and reconciliation. P0 polling is in the connector process. |
-| Models                                            | OpenRouter when `OPENROUTER_API_KEY` is set. A local embedder and a deterministic extractor for offline runs.                                                               |
-| Observability                                     | Alloy collects metrics and container logs. Prometheus stores metrics, Loki stores logs, Grafana shows both. Traces are deferred.                                             |
+| Models                                            | OpenRouter when `OPENROUTER_API_KEY` is set. The chat page calls it through LangChain and falls back to the cited snippets. A local embedder and a deterministic extractor for offline runs. |
+| Observability                                     | Alloy collects metrics, container logs, and OTLP traces. Prometheus stores metrics, Loki stores logs, Tempo stores traces, and Grafana shows them. LangSmith is off unless `LANGSMITH_API_KEY` is set. |
 
 
 Decisions, and what was rejected:
@@ -115,7 +115,7 @@ make down
 These five steps are the acceptance test. The gateway returns cited chunks. It does not write the answer. `hash-v1` matches shared words, not meaning. Notebooks `41` and `43` run the HR steps.
 
 1. Demonstrable. `POST /v1/search` as `employee_eng` with "parental leave Germany" returns the Germany policy chunk, its version, and its sync time. Notebook `41`.
-2. Demonstrable. The same query as `outsider` returns an empty list. `kbs.audit_log` records the deny, and the gateway log line has `decision: deny`. Grafana's Loki datasource opens the other lines for that `request_id`. The empty-result rate for the `none` group moves. Notebook `41`.
+2. Demonstrable. The same query as `outsider` returns an empty list. `kbs.audit_log` records the deny, and the gateway log line has `decision: deny`. Open that search on KBS / Traces, then the deny log by `trace_id`. The empty-result rate for the `none` group moves. Notebook `41`.
 3. Demonstrable on the graph, not through the gateway. After ingestion, a Q3 deal whose ARR is 200,000 or more and whose epic is not released has a Neo4j path from the deal to that epic to the HR team that owns it. `find_related` still covers HR only: teammates, a team, and policies. Notebook `02` resets the three sources.
 4. Demonstrable for an HR policy. Notebook `43` creates a policy, closes its ACL, and deletes it. Search and `find_related` drop it. Deleting a deal is demonstrable in the snapshot, the chunks, and the graph. Notebook `14`. Search does not cover deals yet.
 5. Demonstrable at the worker. Stop the ingestion worker mid-batch and start it again. Messages retry or land in the dead-letter queue. Replaying them does not duplicate chunks or edges.
@@ -138,7 +138,7 @@ Contracts live in [infrastructure/config/sources](infrastructure/config/sources)
 | `_docs/02--architecture/`        | Architecture document (Deliverable 1).                                          |
 | `_docs/03--adrs/`                | Storage, observability, and embedding and chunk versioning.                     |
 | `infrastructure/config/sources/` | The four YAML contracts.                                                        |
-| `shared/`                        | Source contracts, registry gate, and JSON logging. The model is [shared/src/shared/contracts/source_contract.py](shared/src/shared/contracts/source_contract.py). |
+| `shared/`                        | Source contracts, registry gate, JSON logging, and the OpenTelemetry bootstrap. The model is [shared/src/shared/contracts/source_contract.py](shared/src/shared/contracts/source_contract.py). |
 | `backend/apis/`                  | `knowledge-api`, `mcp-server`, and `webhook-receiver`, each with its own image. |
 | `backend/connectors/`            | One process per source: `connector-hr`, `connector-engineering`, `connector-sales`, `connector-product`. |
 | `backend/workers/ingestion-worker/` | Queue consumer. Writes chunks and the graph. |
@@ -149,7 +149,7 @@ Contracts live in [infrastructure/config/sources](infrastructure/config/sources)
 | `frontend/`                      | Streamlit chat page `chat-ui`. Own image. Calls the REST API only. |
 | `notebooks/`                     | Jupyter notebooks that seed and edit HR (`00`–`30`), reset and edit the other three sources (`02`, `14`–`16`), and call the gateway (`40`–`43`). |
 | `infrastructure/`                | Compose projects, Terraform for floci, source contracts.                        |
-| `observability/`                 | Alloy and Loki config, Prometheus scrape config, and the Grafana dashboard.    |
+| `observability/`                 | Alloy, Loki, Tempo, Prometheus, five Grafana dashboards, and metric definitions. |
 | `tools/`                         | `scripts/dlq_replay.py`, used by `make dlq-replay`. Evaluation scripts are not written. |
 | `.github/workflows/`             | Contract gate and Compose config CI.                                            |
 

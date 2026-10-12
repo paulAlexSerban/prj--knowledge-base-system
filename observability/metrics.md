@@ -1,6 +1,6 @@
 # Metrics
 
-Alloy scrapes `gateway-api:8000`, `gateway-mcp:8001`, `connector-hr:9100`, `connector-engineering:9102`, `connector-sales:9103`, `connector-product:9104`, `ingestion-worker:9101`, and `webhook-receiver:8090`, and remote-writes to Prometheus. The four harnesses are scraped too. Prometheus itself scrapes Alloy and Loki. `up` is the scrape result for every target: 1 is up, 0 is down. Labels are the ones named below. Object ids, principals, native ACL lists, and chunk text are not labels.
+Alloy scrapes `gateway-api:8000`, `gateway-mcp:8001`, `connector-hr:9100`, `connector-engineering:9102`, `connector-sales:9103`, `connector-product:9104`, `ingestion-worker:9101`, and `webhook-receiver:8090`, and remote-writes to Prometheus. The four harnesses are scraped too. Jupyter, the chat page, pgAdmin, and the SQLite viewers are not. Prometheus scrapes itself, Alloy, Loki, and Tempo. `up` is the scrape result for every target: 1 is up, 0 is down. Labels are the ones named below. Object ids, principals, native ACL lists, and chunk text are not labels.
 
 `kbs_worker_up{worker="connector"}` stays 1 after the connector loads its contracts, including while it waits for Postgres or the bucket. `kbs_worker_up{worker="ingestion"}` stays 1 after the ingestion worker loads its contracts.
 
@@ -86,6 +86,10 @@ The API exposes these on `gateway-api:8000/metrics`. The MCP server exposes the 
 | `kbs_acl_recheck_seconds` | `source_id` | Time spent asking HR for the current policy ACL. |
 | `kbs_acl_recheck_failures_total` | `source_id` | A re-check that timed out or returned nothing usable. The search then returns no chunks. |
 
-A retrieval log line has `request_id`, `principal`, `decision` (`allow` or `deny`), `tool`, and `count`. It has no snippet. Grafana's Loki datasource links `request_id` to the other lines for that request. The deny panel is `{service=~".+"} | json | decision="deny"`.
+A retrieval log line has `request_id`, `principal`, `decision` (`allow` or `deny`), `tool`, and `count`. It has no snippet. `trace_id` and `span_id` are on the same line when a span is current, and they are not Loki labels. Grafana's Loki datasource links `request_id` to the other lines for that request and links `trace_id` to Tempo. The deny panel is `{service=~".+"} | json | decision="deny"`.
 
 `hash-v1` only returns a chunk that also matched full text. A vector-only neighbor is not an answer, so a query with no shared terms is an empty result.
+
+## Traces
+
+Traces are not Prometheus series. Each process exports OTLP to Alloy only when `OTEL_EXPORTER_OTLP_ENDPOINT` is set. Alloy forwards to Tempo. A change event carries `traceparent` as an SQS message attribute, and the worker continues that trace. Span attributes are `tool`, `surface`, `source_id`, `count`, `store`, `op`, `queue`, `event_type`, and `kind`. A principal, a query, an object id, and chunk text are not attributes. The traces board is `kbs-traces`. There is no service map.
