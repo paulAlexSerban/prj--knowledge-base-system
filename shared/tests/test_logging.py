@@ -34,9 +34,13 @@ def test_audit_line_keeps_decision_in_the_body(capsys) -> None:
     assert line["source_id"] == "hr"
     assert line["service"] == "gateway-api"
     assert line["trust_area"] == "access"
+    assert line["trace_id"] is None
+    assert line["span_id"] is None
     assert "request_id" not in LABEL_KEYS
     assert "principal" not in LABEL_KEYS
     assert "chunk_id" not in LABEL_KEYS
+    assert "trace_id" not in LABEL_KEYS
+    assert "span_id" not in LABEL_KEYS
     assert LABEL_KEYS == ("service", "trust_area", "level", "source_id")
 
 
@@ -62,6 +66,7 @@ def test_formatter_drops_excluded_fields(capsys) -> None:
             authorization="Bearer secret",
             openrouter_api_key="sk-test",
             aws_secret_access_key="aws-secret",
+            password="hunter2",
             retrieved_text="parental leave prose",
             chunk_text="more prose",
             snippet="wrapped prose",
@@ -86,6 +91,7 @@ def test_formatter_drops_excluded_fields(capsys) -> None:
         "authorization",
         "openrouter_api_key",
         "aws_secret_access_key",
+        "password",
         "retrieved_text",
         "chunk_text",
         "snippet",
@@ -99,6 +105,7 @@ def test_formatter_drops_excluded_fields(capsys) -> None:
         "Bearer secret",
         "sk-test",
         "aws-secret",
+        "hunter2",
         "111",
         "222",
         "333",
@@ -110,7 +117,18 @@ def test_alloy_does_not_label_principal_or_request() -> None:
     text = ALLOY_CONFIG.read_text()
     labeled = text.split("discovery.relabel", 1)[1].split("loki.write", 1)[0]
     labeled += text.split("stage.labels", 1)[1].split("}", 1)[0]
-    for forbidden in ("principal", "request_id", "chunk_id", "user_id"):
+    for forbidden in ("principal", "request_id", "chunk_id", "user_id", "trace_id", "span_id"):
         assert forbidden not in labeled
     for required in ("service", "trust_area", "level", "source_id"):
         assert required in labeled
+
+
+def test_metric_relabel_copies_service_and_trust_area() -> None:
+    text = ALLOY_CONFIG.read_text()
+    block = text.split('prometheus.relabel "kbs"', 1)[1]
+    assert 'target_label  = "service"' in block
+    assert 'replacement   = "access"' in block
+    assert 'replacement   = "sources"' in block
+    assert 'replacement   = "ingestion"' in block
+    for forbidden in ("trace_id", "span_id", "principal", "request_id"):
+        assert forbidden not in block

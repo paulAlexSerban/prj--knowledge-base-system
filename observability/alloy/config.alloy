@@ -68,18 +68,51 @@ prometheus.remote_write "local" {
   }
 }
 
+// job is the Compose service name. Copy it to service so metrics use the
+// same name as the Loki label. trust_area matches shared.logging.configure.
+// trace_id and span_id stay out of labels.
+prometheus.relabel "kbs" {
+  forward_to = [prometheus.remote_write.local.receiver]
+
+  rule {
+    source_labels = ["job"]
+    target_label  = "service"
+  }
+
+  rule {
+    source_labels = ["job"]
+    regex         = "gateway-api|gateway-mcp"
+    target_label  = "trust_area"
+    replacement   = "access"
+  }
+
+  rule {
+    source_labels = ["job"]
+    regex         = "webhook-receiver|harness-hr|harness-sales|harness-product|harness-engineering"
+    target_label  = "trust_area"
+    replacement   = "sources"
+  }
+
+  rule {
+    source_labels = ["job"]
+    regex         = "connector-hr|connector-sales|connector-product|connector-engineering|ingestion-worker"
+    target_label  = "trust_area"
+    replacement   = "ingestion"
+  }
+}
+
 prometheus.scrape "gateway_api" {
   targets         = [{__address__ = "gateway-api:8000"}]
   job_name        = "gateway-api"
   scrape_interval = "15s"
-  forward_to      = [prometheus.remote_write.local.receiver]
+  forward_to      = [prometheus.relabel.kbs.receiver]
 }
 
 prometheus.scrape "gateway_mcp" {
   targets         = [{__address__ = "gateway-mcp:8001"}]
   job_name        = "gateway-mcp"
   scrape_interval = "15s"
-  forward_to      = [prometheus.remote_write.local.receiver]
+  forward_to      = [prometheus.relabel.kbs.receiver]
 }
 
 // Connector metrics are defined in observability/metrics.md.
@@ -87,63 +120,63 @@ prometheus.scrape "connector_hr" {
   targets         = [{__address__ = "connector-hr:9100"}]
   job_name        = "connector-hr"
   scrape_interval = "15s"
-  forward_to      = [prometheus.remote_write.local.receiver]
+  forward_to      = [prometheus.relabel.kbs.receiver]
 }
 
 prometheus.scrape "connector_engineering" {
   targets         = [{__address__ = "connector-engineering:9102"}]
   job_name        = "connector-engineering"
   scrape_interval = "15s"
-  forward_to      = [prometheus.remote_write.local.receiver]
+  forward_to      = [prometheus.relabel.kbs.receiver]
 }
 
 prometheus.scrape "connector_sales" {
   targets         = [{__address__ = "connector-sales:9103"}]
   job_name        = "connector-sales"
   scrape_interval = "15s"
-  forward_to      = [prometheus.remote_write.local.receiver]
+  forward_to      = [prometheus.relabel.kbs.receiver]
 }
 
 prometheus.scrape "connector_product" {
   targets         = [{__address__ = "connector-product:9104"}]
   job_name        = "connector-product"
   scrape_interval = "15s"
-  forward_to      = [prometheus.remote_write.local.receiver]
+  forward_to      = [prometheus.relabel.kbs.receiver]
 }
 
 prometheus.scrape "ingestion_worker" {
   targets         = [{__address__ = "ingestion-worker:9101"}]
   job_name        = "ingestion-worker"
   scrape_interval = "15s"
-  forward_to      = [prometheus.remote_write.local.receiver]
+  forward_to      = [prometheus.relabel.kbs.receiver]
 }
 
 prometheus.scrape "webhook_receiver" {
   targets         = [{__address__ = "webhook-receiver:8090"}]
   job_name        = "webhook-receiver"
   scrape_interval = "15s"
-  forward_to      = [prometheus.remote_write.local.receiver]
+  forward_to      = [prometheus.relabel.kbs.receiver]
 }
 
 prometheus.scrape "harness_hr" {
   targets         = [{__address__ = "harness-hr:8080"}]
   job_name        = "harness-hr"
   scrape_interval = "15s"
-  forward_to      = [prometheus.remote_write.local.receiver]
+  forward_to      = [prometheus.relabel.kbs.receiver]
 }
 
 prometheus.scrape "harness_sales" {
   targets         = [{__address__ = "harness-sales:8080"}]
   job_name        = "harness-sales"
   scrape_interval = "15s"
-  forward_to      = [prometheus.remote_write.local.receiver]
+  forward_to      = [prometheus.relabel.kbs.receiver]
 }
 
 prometheus.scrape "harness_product" {
   targets         = [{__address__ = "harness-product:8080"}]
   job_name        = "harness-product"
   scrape_interval = "15s"
-  forward_to      = [prometheus.remote_write.local.receiver]
+  forward_to      = [prometheus.relabel.kbs.receiver]
 }
 
 // jupyter publishes no /metrics endpoint and is intentionally not scraped.
@@ -152,5 +185,5 @@ prometheus.scrape "harness_engineering" {
   targets         = [{__address__ = "harness-engineering:8080"}]
   job_name        = "harness-engineering"
   scrape_interval = "15s"
-  forward_to      = [prometheus.remote_write.local.receiver]
+  forward_to      = [prometheus.relabel.kbs.receiver]
 }

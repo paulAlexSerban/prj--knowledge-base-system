@@ -1,8 +1,9 @@
 """JSON logs on stdout.
 
 Loki labels are service, trust_area, level, and source_id. request_id,
-principal, chunk_id, and decision stay in the line. Retrieved text and the
-fields the gateway must not ingest are dropped before the line is written.
+principal, chunk_id, decision, trace_id, and span_id stay in the line.
+trace_id and span_id are null until a span is current. Retrieved text and
+the fields the gateway must not ingest are dropped before the line is written.
 """
 
 import json
@@ -24,6 +25,7 @@ DROPPED_KEYS = frozenset(
         "authorization",
         "openrouter_api_key",
         "aws_secret_access_key",
+        "password",
         "retrieved_text",
         "chunk_text",
         "snippet",
@@ -63,6 +65,9 @@ class JsonFormatter(logging.Formatter):
         extra = getattr(record, "kbs", None)
         if isinstance(extra, dict):
             payload.update(drop_excluded(extra))
+        # Filled from the current span once tracing is on. Not labels.
+        payload["trace_id"] = None
+        payload["span_id"] = None
         return json.dumps(drop_excluded(payload), default=str)
 
 
