@@ -11,10 +11,14 @@ FORBIDDEN = ("salary", "compensation", "ssn", "national_id")
 EXPECTED = [
     "00-seed-hr.ipynb",
     "01-inspect-hr.ipynb",
+    "02-seed-sales-product-eng.ipynb",
     "10-policy-create-read.ipynb",
     "11-policy-update.ipynb",
     "12-policy-acl-change.ipynb",
     "13-policy-delete.ipynb",
+    "14-sales-mutate.ipynb",
+    "15-engineering-mutate.ipynb",
+    "16-product-mutate.ipynb",
     "20-person-create-read.ipynb",
     "21-person-update.ipynb",
     "22-person-acl-and-delete.ipynb",
@@ -100,6 +104,21 @@ def test_crud_notebooks_call_admin_and_read_snapshots():
         assert "raw/hr/" in text
         for needle in needles:
             assert needle in text, name
+
+
+def test_source_notebooks_reset_and_mutate():
+    seed = cell_text(load_notebook("02-seed-sales-product-eng.ipynb"))
+    assert "/admin/reset" in seed
+    assert "40" in seed and "25" in seed and "12" in seed
+    assert "SEED_COUNT" not in seed
+    sales = cell_text(load_notebook("14-sales-mutate.ipynb"))
+    assert "/admin/deals" in sales and "raw/sales/deal/" in sales
+    assert "commission_rate" in sales
+    engineering = cell_text(load_notebook("15-engineering-mutate.ipynb"))
+    assert "/admin/epics" in engineering and "/acl" in engineering
+    product = cell_text(load_notebook("16-product-mutate.ipynb"))
+    assert "/admin/specs" in product and "product_org" in product
+    assert "422" in product
 
 
 def test_forbidden_names_stay_out_of_the_notebooks():
