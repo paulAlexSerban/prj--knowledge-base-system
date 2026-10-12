@@ -2,6 +2,8 @@
 
 HR writes Person -BELONGS_TO-> Team and a Policy node. A Deal -DEPENDS_ON-> Epic
 edge is written when either side is seen, and dropped when either side is deleted.
+An Epic -OWNED_BY-> Team edge uses the HR team key. A team is removed only when
+nothing belongs to it and nothing is owned by it.
 Each node stores acl_groups, acl_departments, min_clearance, and acl_rules.
 """
 
@@ -36,7 +38,8 @@ SET p.source_id = $source_id, p.title = $title, p.version = $version,
 DEAL = """
 MERGE (d:Deal {id: $id})
 SET d.source_id = $source_id, d.version = $version, d.account_id = $account_id,
-    d.epic_id = $epic_id, d.acl_groups = $groups, d.acl_departments = $departments,
+    d.epic_id = $epic_id, d.arr = $arr, d.quarter = $quarter, d.stage = $stage,
+    d.product_key = $product_key, d.acl_groups = $groups, d.acl_departments = $departments,
     d.min_clearance = $min_clearance, d.acl_rules = $rules
 """
 
@@ -50,9 +53,24 @@ MERGE (d)-[:DEPENDS_ON]->(e)
 EPIC = """
 MERGE (e:Epic {id: $id})
 SET e.source_id = $source_id, e.title = $title, e.status = $status, e.version = $version,
+    e.team = $team, e.product_key = $product_key,
     e.acl_groups = $groups, e.acl_departments = $departments,
     e.min_clearance = $min_clearance, e.acl_rules = $rules
+WITH e
+OPTIONAL MATCH (e)-[old:OWNED_BY]->(:Team)
+DELETE old
 """
+
+# Teams are HR objects. A stub created from an epic keeps that source so the
+# later person write merges the same node.
+LINK_OWNER = """
+MATCH (e:Epic {id: $id})
+MERGE (t:Team {id: $team})
+ON CREATE SET t.source_id = $team_source
+MERGE (e)-[:OWNED_BY]->(t)
+"""
+
+TEAM_SOURCE = "hr"
 
 LINK_DEALS = """
 MATCH (e:Epic {id: $id})
@@ -69,7 +87,7 @@ DETACH DELETE n
 
 ORPHAN_TEAMS = """
 MATCH (t:Team)
-WHERE NOT ()-[:BELONGS_TO]->(t)
+WHERE NOT ()-[:BELONGS_TO]->(t) AND NOT ()-[:OWNED_BY]->(t)
 DETACH DELETE t
 """
 
@@ -139,16 +157,25 @@ class GraphWriter:
                 **common,
                 account_id=str(record.get("account_id") or ""),
                 epic_id=epic_id,
+                arr=_arr(record.get("arr")),
+                quarter=str(record.get("quarter") or ""),
+                stage=str(record.get("stage") or ""),
+                product_key=str(record.get("product_key") or ""),
             )
             if epic_id:
                 self._run(LINK_EPIC, id=object_id, epic_id=epic_id, source_id=source_id)
         elif object_type == "epic":
+            team = str(record.get("team") or "")
             self._run(
                 EPIC,
                 **common,
                 title=str(record.get("title") or title),
                 status=str(record.get("status") or ""),
+                team=team,
+                product_key=str(record.get("product_key") or ""),
             )
+            if team:
+                self._run(LINK_OWNER, id=object_id, team=team, team_source=TEAM_SOURCE)
             self._run(LINK_DEALS, id=object_id)
 
     def set_acl(self, source_id: str, object_id: str, acl: AclView) -> None:
@@ -172,6 +199,12 @@ class GraphWriter:
     def _one(self, query: str, **params: object):
         records, _, _ = self.driver.execute_query(query, **params)
         return records[0] if records else None
+
+
+def _arr(value: object) -> int | None:
+    if value is None or value == "":
+        return None
+    return int(value)
 
 
 def _acl_params(acl: AclView) -> dict[str, object]:
