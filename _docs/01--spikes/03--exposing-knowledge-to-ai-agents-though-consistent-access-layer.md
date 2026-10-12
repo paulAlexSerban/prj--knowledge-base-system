@@ -21,12 +21,12 @@ One service layer. Two adapters. Agents and the demo chat client never hold cred
 
 The MCP tool description is the interface an agent uses to decide when to call. Descriptions name what the tool returns, what it refuses to do, and that results are already filtered to the caller.
 
-| MCP tool | REST | Behavior |
-| -------- | ---- | -------- |
-| `search_knowledge` | `POST /v1/search` | Hybrid or graph-routed retrieval for the caller's identity. Returns at most one chunk per object, with chunk id, snippet, source, version, sync time, and score. |
-| `get_document` | `GET /v1/documents/{id}` | One authorized document or chunk, with provenance. |
-| `find_related` | `POST /v1/graph/related` | Bounded traversal from a known entity. Returns the path, not an open Cypher console. |
-| `list_sources` | `GET /v1/sources` | Source id, owner, freshness tier, last successful sync. No document bodies. |
+| MCP tool           | REST                     | Behavior                                                                                                                                                         |
+| ------------------ | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `search_knowledge` | `POST /v1/search`        | Hybrid or graph-routed retrieval for the caller's identity. Returns at most one chunk per object, with chunk id, snippet, source, version, sync time, and score. |
+| `get_document`     | `GET /v1/documents/{id}` | One authorized document or chunk, with provenance.                                                                                                               |
+| `find_related`     | `POST /v1/graph/related` | Bounded traversal from a known entity. Returns the path, not an open Cypher console.                                                                             |
+| `list_sources`     | `GET /v1/sources`        | Source id, owner, freshness tier, last successful sync. No document bodies.                                                                                      |
 
 There is no write tool. Retrieved text cannot change permissions or trigger an action.
 
@@ -39,7 +39,7 @@ A mock identity provider signs JWTs. Claims used for authorization: subject, gro
 Hybrid enforcement, in this order:
 
 1. Coarse pre-filter in the index. SQL filters on group overlap, clearance, and department. An empty `acl_departments` list means any department, which is how a rule written `department: "*"` is stored. A non-empty list still has to match. Region is not an HR predicate. Cypher filters on `acl_groups`, `acl_departments`, and `min_clearance`. Neo4j Community has no roles, so the gateway and the worker share the `neo4j` user. A read-only session and the template are the coarse graph check. That shared credential is an accepted POC risk.
-2. Over-fetch. The store limit counts chunks, so search asks for four times the caller's limit, applies the fine-grained check, keeps the first chunk of each object, then truncates to the caller's limit. A policy with more chunks than that window can still crowd out other objects. Empty-result rate is measured per permission group, not only globally ([ADR 0002](../03--adrs/0002-observability.md)). The graph templates apply their limit before the per-rule check.
+2. Over-fetch. The store limit counts chunks, so search asks for three times the caller's limit, applies the fine-grained check, keeps the first chunk of each object, then truncates to the caller's limit. A policy with more chunks than that window can still crowd out other objects. Empty-result rate is measured per permission group, not only globally ([ADR 0010](../03--adrs/0010-dashboards-as-code.md)). The graph templates apply their limit before the per-rule check.
 3. Fine-grained post-check against the ACL attributes stored on the chunk or the graph node. One rule has to match group, department, and clearance together. A mix of two rules does not.
 4. Postgres row-level security as defense in depth, so a query that forgets the predicate still cannot read another principal's rows. The policy requires one `acl_rules` element to match, not the coarse columns alone. The application role sets the principal's claims as session settings that the policy reads.
 
@@ -63,10 +63,10 @@ HR policy hits call the harness `GET /policies/{id}/acl` before they are returne
 
 ### Permission staleness
 
-| Sensitivity on the source contract | Behavior |
-| ---------------------------------- | -------- |
-| High (HR) | ACL-change events use the highest-priority queue (spike 04). Policy search re-checks `GET /policies/{id}/acl` on the harness. That time is `kbs_acl_recheck_seconds`. It is also inside the search histogram, because that is the time the caller waits. |
-| Medium and low (Sales, Engineering, Product) | The indexed ACL is authoritative inside the source's freshness window. The window is written on the contract. |
+| Sensitivity on the source contract           | Behavior                                                                                                                                                                                                                                                 |
+| -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| High (HR)                                    | ACL-change events use the highest-priority queue (spike 04). Policy search re-checks `GET /policies/{id}/acl` on the harness. That time is `kbs_acl_recheck_seconds`. It is also inside the search histogram, because that is the time the caller waits. |
+| Medium and low (Sales, Engineering, Product) | The indexed ACL is authoritative inside the source's freshness window. The window is written on the contract.                                                                                                                                            |
 
 ### Prompt injection and provenance
 
@@ -74,7 +74,7 @@ Retrieved content is data. The service wraps snippets between `<<<UNTRUSTED_CONT
 
 ### Versioning
 
-The public HTTP API is `/v1`. Index metadata records `embedding_model` and `chunker_version` (ADR 0003). MCP tool schemas live next to the service layer so the two adapters cannot drift.
+The public HTTP API is `/v1`. Index metadata records `embedding_model` and `chunker_version` ([ADR 0006](../03--adrs/0006-chunk-versioning.md)). MCP tool schemas live next to the service layer so the two adapters cannot drift.
 
 ## Why
 
@@ -85,14 +85,14 @@ The public HTTP API is `/v1`. Index metadata records `embedding_model` and `chun
 
 ## Alternatives rejected
 
-| Alternative | Why it was rejected for the POC |
-| ----------- | ------------------------------- |
-| Post-filter only | Starves restrictive principals and reports a false "nothing found". |
-| Pre-filter only, with no audit and no row-level security | Works until a code path bypasses the filter. Defense in depth is cheap in Postgres and expensive to retrofit after an incident. |
-| Per-agent direct access to the vector store | Breaks the single contract, makes revocation per consumer impossible, and lets a prompt skip authorization. |
-| MCP as the authorization boundary | The protocol does not define the principal or the policy. Treating "the client is MCP" as "the call is allowed" would be a broken access story. |
-| Open Cypher or SQL from the agent | Flexible, and incompatible with authorization and with stable tool descriptions. Parameterized templates only. |
-| Live ACL check on every source for every query | Correct for high sensitivity, and it spends the latency budget and the source rate limit on policy documents that do not need it. The split above is the explicit decision. |
+| Alternative                                              | Why it was rejected for the POC                                                                                                                                             |
+| -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Post-filter only                                         | Starves restrictive principals and reports a false "nothing found".                                                                                                         |
+| Pre-filter only, with no audit and no row-level security | Works until a code path bypasses the filter. Defense in depth is cheap in Postgres and expensive to retrofit after an incident.                                             |
+| Per-agent direct access to the vector store              | Breaks the single contract, makes revocation per consumer impossible, and lets a prompt skip authorization.                                                                 |
+| MCP as the authorization boundary                        | The protocol does not define the principal or the policy. Treating "the client is MCP" as "the call is allowed" would be a broken access story.                             |
+| Open Cypher or SQL from the agent                        | Flexible, and incompatible with authorization and with stable tool descriptions. Parameterized templates only.                                                              |
+| Live ACL check on every source for every query           | Correct for high sensitivity, and it spends the latency budget and the source rate limit on policy documents that do not need it. The split above is the explicit decision. |
 
 ## Trade-offs and risks
 

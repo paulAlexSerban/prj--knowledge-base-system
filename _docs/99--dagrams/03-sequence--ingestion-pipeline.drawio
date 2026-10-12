@@ -1,0 +1,175 @@
+<mxfile host="65bd71144e">
+    <diagram id="ingest-seq" name="Ingestion">
+        <mxGraphModel dx="1440" dy="993" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1560" pageHeight="1400" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="bg" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#000000;strokeColor=none;fontFamily=Courier New;" parent="1" vertex="1">
+                    <mxGeometry width="1560" height="1400" as="geometry"/>
+                </mxCell>
+                <mxCell id="title" value="Ingestion pipeline" style="text;html=1;align=center;fontStyle=1;fontSize=18;fontFamily=Courier New;fontColor=#FFFFFF;" parent="1" vertex="1">
+                    <mxGeometry x="430" y="16" width="700" height="36" as="geometry"/>
+                </mxCell>
+                <mxCell id="frame-delete" value="delete" style="rounded=0;dashed=1;dashPattern=8 4;fillColor=none;strokeColor=#AAAAAA;fontColor=#FFFFFF;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;fontFamily=Courier New;fontSize=13;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="24" y="740" width="1510" height="280" as="geometry"/>
+                </mxCell>
+                <mxCell id="frame-fail" value="graph write failed" style="rounded=0;dashed=1;dashPattern=8 4;fillColor=none;strokeColor=#AAAAAA;fontColor=#FFFFFF;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;fontFamily=Courier New;fontSize=13;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="24" y="1040" width="1510" height="220" as="geometry"/>
+                </mxCell>
+                <mxCell id="a0" value="Harness" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;fontFamily=Courier New;fontSize=13;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="64" width="150" height="52" as="geometry"/>
+                </mxCell>
+                <mxCell id="a1" value="Connector" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1061B0;strokeColor=#0B4884;fontColor=#FFFFFF;fontFamily=Courier New;fontSize=13;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="255" y="64" width="150" height="52" as="geometry"/>
+                </mxCell>
+                <mxCell id="a2" value="S3" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1061B0;strokeColor=#0B4884;fontColor=#FFFFFF;fontFamily=Courier New;fontSize=13;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="470" y="64" width="150" height="52" as="geometry"/>
+                </mxCell>
+                <mxCell id="a3" value="SQS" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1061B0;strokeColor=#0B4884;fontColor=#FFFFFF;fontFamily=Courier New;fontSize=13;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="685" y="64" width="150" height="52" as="geometry"/>
+                </mxCell>
+                <mxCell id="a4" value="Worker" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1061B0;strokeColor=#0B4884;fontColor=#FFFFFF;fontFamily=Courier New;fontSize=13;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="900" y="64" width="150" height="52" as="geometry"/>
+                </mxCell>
+                <mxCell id="a5" value="Postgres" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1061B0;strokeColor=#0B4884;fontColor=#FFFFFF;fontFamily=Courier New;fontSize=13;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="1115" y="64" width="150" height="52" as="geometry"/>
+                </mxCell>
+                <mxCell id="a6" value="Neo4j" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1061B0;strokeColor=#0B4884;fontColor=#FFFFFF;fontFamily=Courier New;fontSize=13;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="1330" y="64" width="150" height="52" as="geometry"/>
+                </mxCell>
+                <mxCell id="l0" style="endArrow=none;dashed=1;strokeColor=#666666;html=1;fontFamily=Courier New;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="115" y="116" as="sourcePoint"/>
+                        <mxPoint x="115" y="1280" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="l1" style="endArrow=none;dashed=1;strokeColor=#666666;html=1;fontFamily=Courier New;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="330" y="116" as="sourcePoint"/>
+                        <mxPoint x="330" y="1280" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="l2" style="endArrow=none;dashed=1;strokeColor=#666666;html=1;fontFamily=Courier New;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="545" y="116" as="sourcePoint"/>
+                        <mxPoint x="545" y="1280" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="l3" style="endArrow=none;dashed=1;strokeColor=#666666;html=1;fontFamily=Courier New;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="760" y="116" as="sourcePoint"/>
+                        <mxPoint x="760" y="1280" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="l4" style="endArrow=none;dashed=1;strokeColor=#666666;html=1;fontFamily=Courier New;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="975" y="116" as="sourcePoint"/>
+                        <mxPoint x="975" y="1280" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="l5" style="endArrow=none;dashed=1;strokeColor=#666666;html=1;fontFamily=Courier New;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="1190" y="116" as="sourcePoint"/>
+                        <mxPoint x="1190" y="1280" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="l6" style="endArrow=none;dashed=1;strokeColor=#666666;html=1;fontFamily=Courier New;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="1405" y="116" as="sourcePoint"/>
+                        <mxPoint x="1405" y="1280" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="m1" value="1. list_changes, &lt;br&gt;fetch, get_acl" style="endArrow=block;endFill=1;html=1;strokeColor=#FFFFFF;fontColor=#FFFFFF;fontFamily=Courier New;fontSize=11;labelBackgroundColor=#000000;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="330" y="180" as="sourcePoint"/>
+                        <mxPoint x="115" y="180" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="m2" value="2. put snapshot; &lt;br&gt;skip when the hash matches" style="endArrow=block;endFill=1;html=1;strokeColor=#FFFFFF;fontColor=#FFFFFF;fontFamily=Courier New;fontSize=11;labelBackgroundColor=#000000;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="330" y="250" as="sourcePoint"/>
+                        <mxPoint x="545" y="250" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="m3" value="3. change event with an S3 pointer" style="endArrow=block;endFill=1;html=1;strokeColor=#FFFFFF;fontColor=#FFFFFF;fontFamily=Courier New;fontSize=11;labelBackgroundColor=#000000;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="330" y="320" as="sourcePoint"/>
+                        <mxPoint x="760" y="320" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="m4" value="4. receive; &lt;br&gt;drain P0, then P1, then P2" style="endArrow=block;endFill=1;html=1;strokeColor=#FFFFFF;fontColor=#FFFFFF;fontFamily=Courier New;fontSize=11;labelBackgroundColor=#000000;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="975" y="390" as="sourcePoint"/>
+                        <mxPoint x="760" y="390" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="m5" value="5. get the snapshot" style="endArrow=block;endFill=1;html=1;strokeColor=#FFFFFF;fontColor=#FFFFFF;fontFamily=Courier New;fontSize=11;labelBackgroundColor=#000000;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="975" y="460" as="sourcePoint"/>
+                        <mxPoint x="545" y="460" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="m6" value="6. tombstone check, chunk, embed or skip when the hash matches" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#000000;strokeColor=#FFFFFF;fontColor=#FFFFFF;fontFamily=Courier New;fontSize=11;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="800" y="500" width="350" height="44" as="geometry"/>
+                </mxCell>
+                <mxCell id="m7" value="7. commit chunks, &lt;br&gt;vector, full-text, ACL" style="endArrow=block;endFill=1;html=1;strokeColor=#FFFFFF;fontColor=#FFFFFF;fontFamily=Courier New;fontSize=11;labelBackgroundColor=#000000;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="975" y="590" as="sourcePoint"/>
+                        <mxPoint x="1190" y="590" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="m8" value="8. merge nodes and edges" style="endArrow=block;endFill=1;html=1;strokeColor=#FFFFFF;fontColor=#FFFFFF;fontFamily=Courier New;fontSize=11;labelBackgroundColor=#000000;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="975" y="660" as="sourcePoint"/>
+                        <mxPoint x="1405" y="660" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="m9" value="9. delete the message" style="endArrow=block;endFill=1;html=1;strokeColor=#FFFFFF;fontColor=#FFFFFF;fontFamily=Courier New;fontSize=11;labelBackgroundColor=#000000;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="975" y="720" as="sourcePoint"/>
+                        <mxPoint x="760" y="720" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="d1" value="delete every version; &lt;br&gt;head confirms the key is gone" style="endArrow=block;endFill=1;html=1;strokeColor=#FFFFFF;fontColor=#FFFFFF;fontFamily=Courier New;fontSize=11;labelBackgroundColor=#000000;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="330" y="800" as="sourcePoint"/>
+                        <mxPoint x="545" y="800" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="d2" value="delete event, no pointer; &lt;br&gt;then drop source_objects" style="endArrow=block;endFill=1;html=1;strokeColor=#FFFFFF;fontColor=#FFFFFF;fontFamily=Courier New;fontSize=11;labelBackgroundColor=#000000;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="330" y="860" as="sourcePoint"/>
+                        <mxPoint x="760" y="860" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="d3" value="tombstone, &lt;br&gt;hard-delete chunks, &lt;br&gt;count is zero" style="endArrow=block;endFill=1;html=1;strokeColor=#FFFFFF;fontColor=#FFFFFF;fontFamily=Courier New;fontSize=11;labelBackgroundColor=#000000;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="975" y="920" as="sourcePoint"/>
+                        <mxPoint x="1190" y="920" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="d4" value="delete owned nodes, count is zero" style="endArrow=block;endFill=1;html=1;strokeColor=#FFFFFF;fontColor=#FFFFFF;fontFamily=Courier New;fontSize=11;labelBackgroundColor=#000000;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="975" y="980" as="sourcePoint"/>
+                        <mxPoint x="1405" y="980" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="f1" value="write fails; &lt;br&gt;the message stays in flight" style="endArrow=block;endFill=1;html=1;strokeColor=#FFFFFF;fontColor=#FFFFFF;fontFamily=Courier New;fontSize=11;labelBackgroundColor=#000000;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="975" y="1110" as="sourcePoint"/>
+                        <mxPoint x="1405" y="1110" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="f2" value="receive count &lt;br&gt;greater than 5: &lt;br&gt;copy to the DLQ, &lt;br&gt;then delete it &lt;br&gt;from the tier queue" style="endArrow=block;endFill=1;html=1;strokeColor=#FFFFFF;fontColor=#FFFFFF;fontFamily=Courier New;fontSize=11;labelBackgroundColor=#000000;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="975" y="1190" as="sourcePoint"/>
+                        <mxPoint x="760" y="1190" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="note" value="The contract gate runs when the connector starts, not on each object. Nothing publishes to P2. Reconciliation is a worker timer, not a queue message. &lt;br&gt;A failed graph write waits out the 60 second visibility timeout and is received again. A matching content hash still writes the graph." style="text;html=1;align=left;fontSize=12;fontFamily=Courier New;fontColor=#FFFFFF;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="1300" width="1460" height="50" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>

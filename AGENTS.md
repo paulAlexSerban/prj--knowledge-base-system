@@ -8,10 +8,11 @@ This repository is a POC knowledge gateway: ingest four department sources, keep
 
 | Path | Owns |
 | ---- | ---- |
-| `_docs/00--project-brief/` | Scope, assumptions, demo script, C4 diagrams (drawio and PNG). |
+| `_docs/00--project-brief/` | Scope, assumptions, demo script. |
 | `_docs/01--spikes/` | Ingestion, knowledge representation, access, synchronization. |
 | `_docs/02--architecture/` | Architecture write-up. Fill the outline; do not add sections the assignment did not ask for. |
-| `_docs/03--adrs/` | Storage, observability, embedding and chunk versioning. |
+| `_docs/03--adrs/` | One decision per ADR. The index is `_docs/03--adrs/README.md`. |
+| `_docs/99--dagrams/` | C4 diagrams, the end-to-end data flow, and the sequence diagrams (drawio and PNG). |
 | `shared/` | Source contracts, the start-up registry gate, JSON logging, and the OpenTelemetry bootstrap. Every process depends on it. |
 | `infrastructure/config/sources/` | One YAML contract per source. |
 | `backend/apis/knowledge-api/` | REST gateway. Own image. |
@@ -81,7 +82,7 @@ Stay on the POC: four sources, the two demo questions, hybrid search, a small on
 
 ## Docs and diagrams
 
-Write in plain sentences. No emojis. No mermaid in docs. C4 diagrams are drawio files plus a PNG export in `_docs/00--project-brief/`, using the same black canvas, Helvetica labels, solid white arrows, and blue `#1061B0` containers as the existing diagrams. Link files with relative paths.
+Write in plain sentences. No emojis. No mermaid in docs. Diagrams are drawio files plus a PNG export in `_docs/99--dagrams/`. Match the files already there: black canvas, Courier New labels, white arrows, and blue containers (`#1061B0` on the data-flow boxes, the C4 stencil blue on the context diagrams). Link files with relative paths.
 
 ## Secrets and local files
 

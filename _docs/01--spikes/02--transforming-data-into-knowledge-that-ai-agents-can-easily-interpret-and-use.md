@@ -6,12 +6,12 @@ Status: decision for the POC. Production scale is called out and is not built.
 
 Agents fail in four different ways, and each one is a different subsystem:
 
-| Failure | Where it is fixed |
-| ------- | ----------------- |
-| The fact was never ingested, or was ingested too late | Ingestion and sync (spikes 01 and 04) |
-| The fact is indexed, and retrieval misses it because the query and the passage use different words, or the fact is buried in a long document | Indexing and query understanding (this spike) |
-| The right passage is retrieved and misread, because it says "the new policy" without naming which policy or when it took effect | Context: metadata, version, and relationships (this spike) |
-| The answer uses information the requester may not see | Authorization at retrieval time (spike 03). This is a security failure, not a quality failure. |
+| Failure                                                                                                                                      | Where it is fixed                                                                              |
+| -------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| The fact was never ingested, or was ingested too late                                                                                        | Ingestion and sync (spikes 01 and 04)                                                          |
+| The fact is indexed, and retrieval misses it because the query and the passage use different words, or the fact is buried in a long document | Indexing and query understanding (this spike)                                                  |
+| The right passage is retrieved and misread, because it says "the new policy" without naming which policy or when it took effect              | Context: metadata, version, and relationships (this spike)                                     |
+| The answer uses information the requester may not see                                                                                        | Authorization at retrieval time (spike 03). This is a security failure, not a quality failure. |
 
 Questions also split in two. Semantic questions ("What have we said about data residency in enterprise contracts?") fit similarity search. Relational questions ("Which high-ARR Q3 deals depend on unreleased engineering epics?") need joins and filters. Similarity search answers the second kind badly, and a graph answers the first kind badly, because most organizational prose does not survive being reduced to triples.
 
@@ -21,17 +21,17 @@ Keep the source document as the unit of truth. Everything else is a derived inde
 
 ### Hybrid RAG, in Postgres
 
-- Structure-aware chunks. Markdown splits on headings. PDF text is split into paragraphs, because the HR renderer drops heading marks. Records render as one chunk per row. Each chunk stores source id, section path, a short contextual header (document title plus heading path), version, timestamp, ACL attributes, `embedding_model`, and `chunker_version`. See [ADR 0003](../03--adrs/0003-embedding-and-chunk-versioning.md).
+- Structure-aware chunks. Markdown splits on headings. PDF text is split into paragraphs, because the HR renderer drops heading marks. Records render as one chunk per row. Each chunk stores source id, section path, a short contextual header (document title plus heading path), version, timestamp, ACL attributes, `embedding_model`, and `chunker_version`. See [ADR 0006](../03--adrs/0006-chunk-versioning.md) and [ADR 0007](../03--adrs/0007-chunker-registry.md).
 - Dense retrieval with pgvector, plus lexical retrieval with Postgres full-text search. Dense retrieval misses exact identifiers (deal ids, epic keys, policy names). Lexical retrieval catches them.
 - Reciprocal rank fusion merges the two ranked lists in application code. Fusion does not require calibrating the two score scales against each other.
-- Raw blobs live in S3. Postgres holds the chunk text, metadata, and both indexes. See [ADR 0001](../03--adrs/0001-storage.md).
+- Raw blobs live in S3. Postgres holds the chunk text, metadata, and both indexes. See [ADR 0001](../03--adrs/0001-postgres-hybrid-index.md) and [ADR 0004](../03--adrs/0004-s3-snapshots.md).
 
 ### Graph, in Neo4j, small on purpose
 
 Ontology for the demo question and the policy question only:
 
-| Nodes | Edges |
-| ----- | ----- |
+| Nodes                            | Edges                                  |
+| -------------------------------- | -------------------------------------- |
 | Person, Team, Deal, Epic, Policy | `BELONGS_TO`, `DEPENDS_ON`, `OWNED_BY` |
 
 Population rules:
@@ -46,11 +46,11 @@ The graph writer is built. HR records write `Person -BELONGS_TO-> Team` and a `P
 
 The service layer classifies the request:
 
-| Class | Authority | What runs |
-| ----- | --------- | --------- |
-| Semantic | Chunk text | Hybrid search, fused, then authorized |
-| Relational | Graph | Parameterized Cypher over the typed ontology, then the linked chunks for wording |
-| Hybrid | Graph for the path, chunks for the prose | Graph traversal to find the entities, hybrid search restricted to those entities' chunks |
+| Class      | Authority                                | What runs                                                                                |
+| ---------- | ---------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Semantic   | Chunk text                               | Hybrid search, fused, then authorized                                                    |
+| Relational | Graph                                    | Parameterized Cypher over the typed ontology, then the linked chunks for wording         |
+| Hybrid     | Graph for the path, chunks for the prose | Graph traversal to find the entities, hybrid search restricted to those entities' chunks |
 
 Authority is code, not a prompt. Factual lookups on structured attributes trust the graph and the relational rows. Explanatory questions trust the document text, and the graph only locates it.
 
@@ -74,15 +74,15 @@ Retrieval metrics and answer faithfulness are tracked separately. Faithfulness f
 
 ## Alternatives rejected
 
-| Alternative | Why it was rejected for the POC |
-| ----------- | ------------------------------- |
-| Vector search only | Fails the roadmap question. "Depends on" is an edge, not a paraphrase. |
-| Graph only, including LLM extraction over all prose | Policy nuance does not survive as triples, and extracted triples that are plausible and wrong get worse when traversed. |
-| Stuff the corpus into the prompt | Reasonable for a handful of static policies that fit a context window. It does not meet authorization, citation, or the 10-million-object assumption, and it hides freshness. |
-| Fine-tuning | Changes style and format. It does not keep knowledge current, and it cannot enforce per-user authorization. |
-| Cross-encoder reranker in the POC | Extra latency against the 250 ms budget, and no measured precision gap yet. Added later if `eval` shows one. |
-| Community summaries and global GraphRAG | Useful for corpus-level themes. The demo questions are entity lookups and one multi-hop path. Summaries would add a batch job without serving the script. |
-| Fuzzy entity resolution | The hardest part of a real graph, and dishonest to fake with a demo that already shares keys. Called out as a production-path risk in the brief. |
+| Alternative                                         | Why it was rejected for the POC                                                                                                                                               |
+| --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Vector search only                                  | Fails the roadmap question. "Depends on" is an edge, not a paraphrase.                                                                                                        |
+| Graph only, including LLM extraction over all prose | Policy nuance does not survive as triples, and extracted triples that are plausible and wrong get worse when traversed.                                                       |
+| Stuff the corpus into the prompt                    | Reasonable for a handful of static policies that fit a context window. It does not meet authorization, citation, or the 10-million-object assumption, and it hides freshness. |
+| Fine-tuning                                         | Changes style and format. It does not keep knowledge current, and it cannot enforce per-user authorization.                                                                   |
+| Cross-encoder reranker in the POC                   | Extra latency against the 250 ms budget, and no measured precision gap yet. Added later if `eval` shows one.                                                                  |
+| Community summaries and global GraphRAG             | Useful for corpus-level themes. The demo questions are entity lookups and one multi-hop path. Summaries would add a batch job without serving the script.                     |
+| Fuzzy entity resolution                             | The hardest part of a real graph, and dishonest to fake with a demo that already shares keys. Called out as a production-path risk in the brief.                              |
 
 ## Trade-offs and risks
 
@@ -95,7 +95,7 @@ Retrieval metrics and answer faithfulness are tracked separately. Faithfulness f
 
 - Add a reranker only when recall@k is healthy and precision is not.
 - Add entity resolution when a real source pair does not share keys, with a human-review queue for low-confidence merges.
-- Dual-write during embedding-model migrations, and retire the old index on a published date ([ADR 0003](../03--adrs/0003-embedding-and-chunk-versioning.md)).
+- Dual-write during embedding-model migrations, and retire the old index on a published date ([ADR 0006](../03--adrs/0006-chunk-versioning.md)).
 - Query rewriting for conversational follow-ups, once a chat client exists. The POC questions are standalone.
 
 ## Open TODOs

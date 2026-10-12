@@ -9,7 +9,7 @@ This repository is a proof of concept for that gateway. The design is written do
 
 | Built | Production path, not built |
 | ----- | -------------------------- |
-| Project brief, spikes, ADRs, the architecture document, four C4 diagrams, and one end-to-end data-flow diagram. | Query router. Question 2 is one fixed graph template, `roadmap_deals`. |
+| Project brief, spikes, ADRs, the architecture document, four C4 diagrams, one end-to-end data-flow diagram, and two sequence diagrams (ingestion, and the knowledge-store read path). | Query router. Question 2 is one fixed graph template, `roadmap_deals`. |
 | Source-contract model, four YAML contracts, validator, tests, and CI. Sales, Product, Engineering, and HR harnesses and connectors. | OIDC in place of the shared-secret JWT. A principal that can hold more than one department. |
 | `make setup`: preflight, `.env`, build, start, health wait, seed, and a smoke test. `make seed`, `make demo`, `make eval`, `make reindex`. | Loki and Tempo on object storage. Alertmanager. |
 | Compose for the harness, gateway, ingestion, store, floci, Jupyter, pgAdmin, SQLite viewers, and observability. Terraform runs in a one-shot container against floci: three tier queues, the product hook queue, their dead-letter queues, and one snapshot bucket. `make dlq-replay`. | A deployed agent runtime. Agents are two notebooks and one chat page. |
@@ -63,10 +63,10 @@ Components
 Decisions, and what was rejected:
 
 - Connectors implement one interface. Each source has an owner, a freshness tier, and an ACL mapping. Generic ELT and live federated query were rejected. [Spike 01](_docs/01--spikes/01--handling-data-from-distributed-sources-w-diff-formats-access-methods-n-ownership.md).
-- Hybrid search (pgvector plus full-text, merged with reciprocal rank fusion) answers prose. The graph answers multi-hop questions. A reranker waits for a measured precision gap. [Spike 02](_docs/01--spikes/02--transforming-data-into-knowledge-that-ai-agents-can-easily-interpret-and-use.md), [ADR 0001](_docs/03--adrs/0001-storage.md).
+- Hybrid search (pgvector plus full-text, merged with reciprocal rank fusion) answers prose. The graph answers multi-hop questions. A reranker waits for a measured precision gap. [Spike 02](_docs/01--spikes/02--transforming-data-into-knowledge-that-ai-agents-can-easily-interpret-and-use.md), [ADR 0001](_docs/03--adrs/0001-postgres-hybrid-index.md), [ADR 0002](_docs/03--adrs/0002-neo4j-graph.md), [ADR 0008](_docs/03--adrs/0008-hybrid-retrieval.md).
 - Agents never hold store credentials. Authorization is a coarse pre-filter, a fine-grained check, and Postgres row-level security, with an audit row per result. [Spike 03](_docs/01--spikes/03--exposing-knowledge-to-ai-agents-though-consistent-access-layer.md).
 - Ingestion is a stream of create, update, delete, and ACL events. Deletes are hard deletes plus a reconciliation sweep. SQS is enough at the stated volume; Kafka is a production path. [Spike 04](_docs/01--spikes/04--self-maintaing-over-time-refelcting-additions-modifications-n-deletions-in-the-source-systems-without-manual-intervention.md).
-- Chunks record `embedding_model` and `chunker_version`. [ADR 0003](_docs/03--adrs/0003-embedding-and-chunk-versioning.md). Sync lag, dead-letter depth, and empty-result rate by permission group are the dashboard. [ADR 0002](_docs/03--adrs/0002-observability.md).
+- Chunks record `embedding_model` and `chunker_version`. [ADR 0005](_docs/03--adrs/0005-embedding-model.md), [ADR 0006](_docs/03--adrs/0006-chunk-versioning.md). Sync lag, dead-letter depth, and empty-result rate by permission group are the dashboard. [ADR 0009](_docs/03--adrs/0009-observability-stack.md), [ADR 0010](_docs/03--adrs/0010-dashboards-as-code.md).
 
 
 
@@ -141,10 +141,11 @@ Contracts live in [infrastructure/config/sources](infrastructure/config/sources)
 
 | Path                             | Role                                                                            |
 | -------------------------------- | ------------------------------------------------------------------------------- |
-| `_docs/00--project-brief/`       | Brief and C4 diagrams.                                                          |
+| `_docs/00--project-brief/`       | Brief, scope, and the demo script.                                              |
 | `_docs/01--spikes/`              | Decisions for ingestion, knowledge representation, access, and synchronization. |
 | `_docs/02--architecture/`        | Architecture document (Deliverable 1).                                          |
-| `_docs/03--adrs/`                | Storage, observability, and embedding and chunk versioning.                     |
+| `_docs/99--dagrams/`             | C4 diagrams, the end-to-end data flow, and the two sequence diagrams.           |
+| `_docs/03--adrs/`                | One ADR per decision. Index in [the ADR readme](_docs/03--adrs/README.md).      |
 | `infrastructure/config/sources/` | The four YAML contracts.                                                        |
 | `shared/`                        | Source contracts, registry gate, JSON logging, and the OpenTelemetry bootstrap. The model is [shared/src/shared/contracts/source_contract.py](shared/src/shared/contracts/source_contract.py). |
 | `backend/apis/`                  | `knowledge-api`, `mcp-server`, and `webhook-receiver`, each with its own image. |
@@ -209,7 +210,5 @@ Latency is measured from the host through the REST API on a laptop that also run
 - [Spike 03: agent access](_docs/01--spikes/03--exposing-knowledge-to-ai-agents-though-consistent-access-layer.md)
 - [Spike 04: staying current](_docs/01--spikes/04--self-maintaing-over-time-refelcting-additions-modifications-n-deletions-in-the-source-systems-without-manual-intervention.md)
 - [Architecture document](_docs/02--architecture/01--architecture-document.md)
-- [ADR 0001: storage](_docs/03--adrs/0001-storage.md)
-- [ADR 0002: observability](_docs/03--adrs/0002-observability.md)
-- [ADR 0003: embedding and chunk versioning](_docs/03--adrs/0003-embedding-and-chunk-versioning.md)
+- [ADRs](_docs/03--adrs/README.md)
 

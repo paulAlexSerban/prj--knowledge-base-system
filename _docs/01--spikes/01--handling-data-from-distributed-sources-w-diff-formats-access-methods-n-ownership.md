@@ -16,53 +16,53 @@ Build a connector service-provider interface and a registry of per-source data c
 
 Connector interface:
 
-| Method | Responsibility |
-| ------ | -------------- |
-| `discover` | List the object types this source exposes and the capability flags it supports. |
-| `list_changes` | Return a page of creates, updates, and deletes since a cursor, timestamp, or snapshot id. |
-| `fetch` | Return the current body and metadata for one object. |
-| `get_acl` | Return the source's native permission, already mapped toward the platform attribute set. |
-| `normalize` | Emit the platform document: stable source id, version, content hash, text or record payload, and ACL attributes. |
+| Method         | Responsibility                                                                                                   |
+| -------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `discover`     | List the object types this source exposes and the capability flags it supports.                                  |
+| `list_changes` | Return a page of creates, updates, and deletes since a cursor, timestamp, or snapshot id.                        |
+| `fetch`        | Return the current body and metadata for one object.                                                             |
+| `get_acl`      | Return the source's native permission, already mapped toward the platform attribute set.                         |
+| `normalize`    | Emit the platform document: stable source id, version, content hash, text or record payload, and ACL attributes. |
 
 Capability flags on each contract: `webhook`, `cursor_feed`, `updated_since`, `snapshot_diff`. A connector implements the cheapest flag the source actually has. The four demo sources are chosen so each flag is exercised once:
 
-| Source | Shape | Change signal | Sensitivity |
-| ------ | ----- | ------------- | ----------- |
-| HR | Markdown and PDF policies, plus a SQLite people directory | Poll, no webhook | High. ACL re-checked at read time. |
-| Sales | SQLite deals. Account fields sit on the deal. There is no account object. | Cursor-based change feed, including deletes | Medium. Team scope. |
-| Product | Markdown specs on disk | Webhook pointer, then a fetch | Low. Bounded sync window. |
-| Engineering | Jira-like epics in SQLite | `updated_since` listing | Medium. Project membership. |
+| Source      | Shape                                                                     | Change signal                               | Sensitivity                        |
+| ----------- | ------------------------------------------------------------------------- | ------------------------------------------- | ---------------------------------- |
+| HR          | Markdown and PDF policies, plus a SQLite people directory                 | Poll, no webhook                            | High. ACL re-checked at read time. |
+| Sales       | SQLite deals. Account fields sit on the deal. There is no account object. | Cursor-based change feed, including deletes | Medium. Team scope.                |
+| Product     | Markdown specs on disk                                                    | Webhook pointer, then a fetch               | Low. Bounded sync window.          |
+| Engineering | Jira-like epics in SQLite                                                 | `updated_since` listing                     | Medium. Project membership.        |
 
 Sales does not model an account. Nothing in the demo question groups or filters by an account id that is not already a field on the deal. Product specs stay prose. The webhook is a pointer, not the document: the harness posts `{source_id, object_id, event_type}`, the receiver puts that on `kbs-product-hooks` (FIFO, with a dead-letter queue, deduplication off so two edits both arrive), and `connector-product` fetches the markdown. A second pointer for an unchanged spec is a no-op. `/ids` recovers a hook that never arrived.
 
-Each source ships a YAML contract in [infrastructure/config/sources](../../infrastructure/config/sources). Attributes are attached to the document at ingestion. Retrieval evaluates them as a policy decision. The audit log records which attributes justified showing a chunk to a user. See [ADR 0001](../03--adrs/0001-storage.md) and [spike 03](03--exposing-knowledge-to-ai-agents-though-consistent-access-layer.md).
+Each source ships a YAML contract in [infrastructure/config/sources](../../infrastructure/config/sources). Attributes are attached to the document at ingestion. Retrieval evaluates them as a policy decision. The audit log records which attributes justified showing a chunk to a user. See [ADR 0017](../03--adrs/0017-source-contracts.md), [ADR 0018](../03--adrs/0018-authorization.md), and [spike 03](03--exposing-knowledge-to-ai-agents-though-consistent-access-layer.md).
 
 ### Container view
 
 Connector workers sit against the four harness services. The harness is outside the gateway. Downstream containers are inside the boundary and drawn grey because this view does not open them. Blue boxes are the ingestion containers.
 
-![Connector containers](../00--project-brief/01-c4-l2--container-connectors.png)
+![Connector containers](../99--dagrams/01-c4-l2--container-connectors.png)
 
-Source: [01-c4-l2--container-connectors.drawio](../00--project-brief/01-c4-l2--container-connectors.drawio).
+Source: [01-c4-l2--container-connectors.drawio](../99--dagrams/01-c4-l2--container-connectors.drawio).
 
 ### Contract fields
 
 The Pydantic model in [shared/src/shared/contracts/source_contract.py](../../shared/src/shared/contracts/source_contract.py) is the source of truth. JSON Schema is generated next to it. `make contracts-check` validates the four YAML files, runs the registration tests, and fails if the committed schema drifted. GitHub Actions runs that target on changes under `shared/` and `infrastructure/config/sources`. A process calls `shared.registry.load_registry` and refuses to start when the registry is invalid.
 
-| Field | Rule |
-| ----- | ---- |
-| `owner.team`, `owner.contact` | Required. A connector with no owner does not register. |
-| `freshness_tier` | `P0`, `P1`, or `P2`. Required. |
-| `freshness_target_seconds` | At most 30 / 300 / 86400 for P0 / P1 / P2. |
-| `capabilities` | At least one of `webhook`, `cursor_feed`, `updated_since`, `snapshot_diff`. P0 cannot be `snapshot_diff` alone. |
-| `acl_mapping` | At least one rule. Each rule requires `group`, `clearance`, and `department`. `department: "*"` means every department. `region` is optional and is not an access predicate. |
-| `sensitivity` | `high` requires `acl_recheck_at_read: true`. |
-| `in_scope_fields` | Required, and must not include `salary`, `compensation`, `ssn`, or `national_id`. |
-| `excluded_fields` | Disjoint from `in_scope_fields`. |
+| Field                         | Rule                                                                                                                                                                         |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `owner.team`, `owner.contact` | Required. A connector with no owner does not register.                                                                                                                       |
+| `freshness_tier`              | `P0`, `P1`, or `P2`. Required.                                                                                                                                               |
+| `freshness_target_seconds`    | At most 30 / 300 / 86400 for P0 / P1 / P2.                                                                                                                                   |
+| `capabilities`                | At least one of `webhook`, `cursor_feed`, `updated_since`, `snapshot_diff`. P0 cannot be `snapshot_diff` alone.                                                              |
+| `acl_mapping`                 | At least one rule. Each rule requires `group`, `clearance`, and `department`. `department: "*"` means every department. `region` is optional and is not an access predicate. |
+| `sensitivity`                 | `high` requires `acl_recheck_at_read: true`.                                                                                                                                 |
+| `in_scope_fields`             | Required, and must not include `salary`, `compensation`, `ssn`, or `national_id`.                                                                                            |
+| `excluded_fields`             | Disjoint from `in_scope_fields`.                                                                                                                                             |
 
-Chunking is format-aware and registered per source type (markdown by heading, PDF as extracted paragraphs, records as one chunk per row plus a short textual rendering). The HR PDF renderer drops heading marks, so sections are not recovered from those files. A single fixed-size splitter is not used. Chunks carry source, section path, version, timestamp, ACL attributes, `embedding_model`, and `chunker_version`. See [ADR 0003](../03--adrs/0003-embedding-and-chunk-versioning.md).
+Chunking is format-aware and registered per source type (markdown by heading, PDF as extracted paragraphs, records as one chunk per row plus a short textual rendering). The HR PDF renderer drops heading marks, so sections are not recovered from those files. A single fixed-size splitter is not used. Chunks carry source, section path, version, timestamp, ACL attributes, `embedding_model`, and `chunker_version`. See [ADR 0006](../03--adrs/0006-chunk-versioning.md) and [ADR 0007](../03--adrs/0007-chunker-registry.md).
 
-Ingestion health is a first-class metric: sync recency per source, failed syncs, and document drift (source count versus indexed count). Stale data fails silently otherwise. See [ADR 0002](../03--adrs/0002-observability.md).
+Ingestion health is a first-class metric: sync recency per source, failed syncs, and document drift (source count versus indexed count). Stale data fails silently otherwise. See [ADR 0009](../03--adrs/0009-observability-stack.md).
 
 ## Why
 
@@ -73,12 +73,12 @@ Ingestion health is a first-class metric: sync recency per source, failed syncs,
 
 ## Alternatives rejected
 
-| Alternative | Why it was rejected for the POC |
-| ----------- | ------------------------------- |
-| Airbyte or Fivetran style ELT | Solves extract-and-load into a warehouse. It does not own ACL normalization, delete tombstones, or per-source freshness contracts, which are the actual problem. Adopting it would hide the design the assignment is grading. |
-| Federated query at read time | Leaves data in the source and queries live. Attractive for freshness, and wrong for agents: latency, rate limits, and partial failure become the user's query. Indexing with a measured lag is the better contract. A live ACL re-check remains for high-sensitivity sources only. |
-| One universal chunker | Fixed token windows cut tables, headings, and code. Retrieval quality drops in a way that looks like a model problem. Format-aware chunkers cost a small registry and avoid that. |
-| Ingest every available field, including compensation and national identifiers | Technically possible and a poor risk trade. Those fields are out of the contract. See the brief. |
+| Alternative                                                                   | Why it was rejected for the POC                                                                                                                                                                                                                                                    |
+| ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Airbyte or Fivetran style ELT                                                 | Solves extract-and-load into a warehouse. It does not own ACL normalization, delete tombstones, or per-source freshness contracts, which are the actual problem. Adopting it would hide the design the assignment is grading.                                                      |
+| Federated query at read time                                                  | Leaves data in the source and queries live. Attractive for freshness, and wrong for agents: latency, rate limits, and partial failure become the user's query. Indexing with a measured lag is the better contract. A live ACL re-check remains for high-sensitivity sources only. |
+| One universal chunker                                                         | Fixed token windows cut tables, headings, and code. Retrieval quality drops in a way that looks like a model problem. Format-aware chunkers cost a small registry and avoid that.                                                                                                  |
+| Ingest every available field, including compensation and national identifiers | Technically possible and a poor risk trade. Those fields are out of the contract. See the brief.                                                                                                                                                                                   |
 
 ## Trade-offs and risks
 

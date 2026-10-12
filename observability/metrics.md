@@ -2,6 +2,8 @@
 
 Alloy scrapes `gateway-api:8000`, `gateway-mcp:8001`, `connector-hr:9100`, `connector-engineering:9102`, `connector-sales:9103`, `connector-product:9104`, `ingestion-worker:9101`, and `webhook-receiver:8090`, and remote-writes to Prometheus. The four harnesses are scraped too. Jupyter, the chat page, pgAdmin, and the SQLite viewers are not. Prometheus scrapes itself, Alloy, Loki, and Tempo. `up` is the scrape result for every target: 1 is up, 0 is down. Labels are the ones named below. Object ids, principals, native ACL lists, and chunk text are not labels.
 
+An earlier single overview board mixed counters with gauges and used one lag threshold for every source. Those panels were split and corrected. The metric names did not change.
+
 `kbs_worker_up{worker="connector"}` stays 1 after the connector loads its contracts, including while it waits for Postgres or the bucket. `kbs_worker_up{worker="ingestion"}` stays 1 after the ingestion worker loads its contracts.
 
 The overview SLO row reads four recording rules. `kbs:hr_snapshot_lag_p95_seconds` turns red at 30 seconds. `kbs:search_p95_seconds` turns red at 0.25 seconds and covers both surfaces. `kbs:dlq_messages` turns red when any dead-letter message is visible. `kbs:delete_verification_failures_5m` turns red on any failure in the last five minutes. Sales, product, and engineering stay on the ingestion board, where yellow is 30 seconds and red is 300 seconds. Prometheus keeps 15 days of local data.

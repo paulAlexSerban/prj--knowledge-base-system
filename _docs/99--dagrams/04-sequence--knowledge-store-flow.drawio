@@ -1,0 +1,142 @@
+<mxfile host="65bd71144e">
+    <diagram id="store-seq" name="Knowledge store read">
+        <mxGraphModel dx="1728" dy="1191" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1520" pageHeight="1320" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="bg" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#000000;strokeColor=none;" parent="1" vertex="1">
+                    <mxGeometry width="1520" height="1320" as="geometry"/>
+                </mxCell>
+                <mxCell id="title" value="Knowledge store read path" style="text;html=1;align=center;fontStyle=1;fontSize=18;fontFamily=Courier New;fontColor=#FFFFFF;" parent="1" vertex="1">
+                    <mxGeometry x="360" y="16" width="800" height="36" as="geometry"/>
+                </mxCell>
+                <mxCell id="frame-search" value="search" style="rounded=0;dashed=1;dashPattern=8 4;fillColor=none;strokeColor=#AAAAAA;fontColor=#FFFFFF;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;fontFamily=Courier New;fontSize=13;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="20" y="360" width="1480" height="400" as="geometry"/>
+                </mxCell>
+                <mxCell id="frame-graph" value="find_related" style="rounded=0;dashed=1;dashPattern=8 4;fillColor=none;strokeColor=#AAAAAA;fontColor=#FFFFFF;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;fontFamily=Courier New;fontSize=13;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="20" y="790" width="1480" height="340" as="geometry"/>
+                </mxCell>
+                <mxCell id="a0" value="Caller" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;fontFamily=Courier New;fontSize=13;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="30" y="64" width="170" height="52" as="geometry"/>
+                </mxCell>
+                <mxCell id="a1" value="API or MCP" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1061B0;strokeColor=#0B4884;fontColor=#FFFFFF;fontFamily=Courier New;fontSize=13;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="275" y="64" width="170" height="52" as="geometry"/>
+                </mxCell>
+                <mxCell id="a2" value="gateway-core" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1061B0;strokeColor=#0B4884;fontColor=#FFFFFF;fontFamily=Courier New;fontSize=13;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="520" y="64" width="170" height="52" as="geometry"/>
+                </mxCell>
+                <mxCell id="a3" value="Postgres" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1061B0;strokeColor=#0B4884;fontColor=#FFFFFF;fontFamily=Courier New;fontSize=13;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="765" y="64" width="170" height="52" as="geometry"/>
+                </mxCell>
+                <mxCell id="a4" value="Neo4j" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1061B0;strokeColor=#0B4884;fontColor=#FFFFFF;fontFamily=Courier New;fontSize=13;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="1010" y="64" width="170" height="52" as="geometry"/>
+                </mxCell>
+                <mxCell id="a5" value="HR harness" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;fontFamily=Courier New;fontSize=13;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="1255" y="64" width="170" height="52" as="geometry"/>
+                </mxCell>
+                <mxCell id="l0" style="endArrow=none;dashed=1;strokeColor=#666666;html=1;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="115" y="116" as="sourcePoint"/>
+                        <mxPoint x="115" y="1160" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="l1" style="endArrow=none;dashed=1;strokeColor=#666666;html=1;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="360" y="116" as="sourcePoint"/>
+                        <mxPoint x="360" y="1160" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="l2" style="endArrow=none;dashed=1;strokeColor=#666666;html=1;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="605" y="116" as="sourcePoint"/>
+                        <mxPoint x="605" y="1160" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="l3" style="endArrow=none;dashed=1;strokeColor=#666666;html=1;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="850" y="116" as="sourcePoint"/>
+                        <mxPoint x="850" y="1160" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="l4" style="endArrow=none;dashed=1;strokeColor=#666666;html=1;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="1095" y="116" as="sourcePoint"/>
+                        <mxPoint x="1095" y="1160" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="l5" style="endArrow=none;dashed=1;strokeColor=#666666;html=1;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="1340" y="116" as="sourcePoint"/>
+                        <mxPoint x="1340" y="1160" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="m1" value="1. bearer token; &lt;br&gt;search or find_related" style="endArrow=block;endFill=1;html=1;strokeColor=#FFFFFF;fontColor=#FFFFFF;fontFamily=Courier New;fontSize=11;labelBackgroundColor=#000000;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="115" y="190" as="sourcePoint"/>
+                        <mxPoint x="360" y="190" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="m2" value="2. the same call" style="endArrow=block;endFill=1;html=1;strokeColor=#FFFFFF;fontColor=#FFFFFF;fontFamily=Courier New;fontSize=11;labelBackgroundColor=#000000;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="360" y="260" as="sourcePoint"/>
+                        <mxPoint x="605" y="260" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="m3" value="3. validate HS256; build the principal (groups, clearance, department)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#000000;strokeColor=#FFFFFF;fontColor=#FFFFFF;fontFamily=Courier New;fontSize=11;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="470" y="290" width="400" height="44" as="geometry"/>
+                </mxCell>
+                <mxCell id="s1" value="4. SQL pre-filter, &lt;br&gt;row-level security, &lt;br&gt;vector and full-text, &lt;br&gt;limit times 3" style="endArrow=block;endFill=1;html=1;strokeColor=#FFFFFF;fontColor=#FFFFFF;fontFamily=Courier New;fontSize=11;labelBackgroundColor=#000000;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="605" y="430" as="sourcePoint"/>
+                        <mxPoint x="850" y="430" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="s2" value="5. RRF k=60; distance floor 0.40; one rule must match; one chunk per object" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#000000;strokeColor=#FFFFFF;fontColor=#FFFFFF;fontFamily=Courier New;fontSize=11;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="430" y="470" width="480" height="44" as="geometry"/>
+                </mxCell>
+                <mxCell id="s3" value="6. HR policy only: &lt;br&gt;GET /policies/{id}/acl. &lt;br&gt;A timeout or a bad body returns nothing." style="endArrow=block;endFill=1;html=1;strokeColor=#FFFFFF;fontColor=#FFFFFF;fontFamily=Courier New;fontSize=11;labelBackgroundColor=#000000;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="605" y="560" as="sourcePoint"/>
+                        <mxPoint x="1340" y="560" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="s4" value="7. insert an audit row. &lt;br&gt;gateway_ro cannot read it." style="endArrow=block;endFill=1;html=1;strokeColor=#FFFFFF;fontColor=#FFFFFF;fontFamily=Courier New;fontSize=11;labelBackgroundColor=#000000;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="605" y="640" as="sourcePoint"/>
+                        <mxPoint x="850" y="640" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="s5" value="8. snippet wrapped as untrusted content" style="endArrow=block;endFill=1;html=1;strokeColor=#FFFFFF;fontColor=#FFFFFF;fontFamily=Courier New;fontSize=11;labelBackgroundColor=#000000;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="605" y="710" as="sourcePoint"/>
+                        <mxPoint x="115" y="710" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="g1" value="9. parameterized template; read-only session" style="endArrow=block;endFill=1;html=1;strokeColor=#FFFFFF;fontColor=#FFFFFF;fontFamily=Courier New;fontSize=11;labelBackgroundColor=#000000;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="605" y="860" as="sourcePoint"/>
+                        <mxPoint x="1095" y="860" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="g2" value="10. one acl_rules element must match. No harness call." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#000000;strokeColor=#FFFFFF;fontColor=#FFFFFF;fontFamily=Courier New;fontSize=11;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="450" y="900" width="420" height="44" as="geometry"/>
+                </mxCell>
+                <mxCell id="g3" value="11. audit row" style="endArrow=block;endFill=1;html=1;strokeColor=#FFFFFF;fontColor=#FFFFFF;fontFamily=Courier New;fontSize=11;labelBackgroundColor=#000000;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="605" y="990" as="sourcePoint"/>
+                        <mxPoint x="850" y="990" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="g4" value="12. the path" style="endArrow=block;endFill=1;html=1;strokeColor=#FFFFFF;fontColor=#FFFFFF;fontFamily=Courier New;fontSize=11;labelBackgroundColor=#000000;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="605" y="1060" as="sourcePoint"/>
+                        <mxPoint x="115" y="1060" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="note" value="REST list_sources is public. MCP requires a bearer token on every tool, including list_sources. There is no write tool and no open Cypher. &lt;br&gt;People records are not re-checked. Sales, Engineering, and Product trust the indexed ACL inside the freshness window." style="text;html=1;align=left;fontSize=12;fontFamily=Courier New;fontColor=#FFFFFF;" parent="1" vertex="1">
+                    <mxGeometry x="30" y="1180" width="1460" height="70" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>

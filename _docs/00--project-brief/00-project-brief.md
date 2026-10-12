@@ -117,9 +117,9 @@ Finance and other departments beyond the four. Real OAuth against Google, Notion
 | Language and HTTP                                | Python, FastAPI. The Knowledge API and the MCP server are thin adapters over one service layer.                                                                       |
 | Metadata, vectors, lexical search, authorization | Postgres: source registry, ACL attributes, sync state, content hashes, pgvector, full-text search, row-level security.                                                |
 | Knowledge graph                                  | Neo4j.                                                                                                                                                                |
-| Messaging                                        | SQS on floci, FIFO per source key so updates for one object stay ordered, plus a dead-letter queue.                                                                   |
+| Messaging                                        | SQS FIFO on floci, one queue per tier. The message group is one object, so updates for that object stay ordered. A dead-letter queue per queue.                                   |
 | Object storage                                   | S3 on floci for raw snapshots and document blobs.                                                                                                                     |
-| Scheduling                                       | P0 poll loop inside the connector worker. EventBridge Scheduler, one-minute minimum, for P1/P2 polls and reconciliation.                                              |
+| Scheduling                                       | P0 poll loop inside the connector (10 seconds). P1 polls in process (60 seconds). Reconciliation is a worker timer. EventBridge Scheduler is the production path for P1/P2 and is not wired. |
 | Workers                                          | Connector workers (extract, detect change, emit). Ingestion workers (normalize, chunk, embed, upsert vectors and graph, tombstone deletes).                           |
 | Models                                           | OpenRouter for chat when a key is set. The running embedder is local `fastembed-bge-small-v1`. `hash-v1` is the test default. The constrained extractor is not built. |
 | Identity                                         | Dev-only HS256 JWTs. Claims are subject, groups, clearance, and department.                                                                                           |
@@ -129,7 +129,7 @@ Finance and other departments beyond the four. Real OAuth against Google, Notion
 
 ![Container Diagram](../99--dagrams/00-c4-l2--container-diagram--knowledge-base-system.png)
 
-![Component Diagram](../99--dagrams/00-c4-l3--component-diagram--kowledge-base-system.png)
+![Component Diagram](../99--dagrams/00-c4-l3--component-diagram--knowledge-base-system.png)
 
 ## Demo script
 
@@ -156,10 +156,11 @@ The demo is the acceptance test. Each step is observable in the API response, th
 
 | Path                               | Role                                                                                                                                                                                                      |
 | ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `_docs/00--project-brief/`         | This brief, the C4 system-context diagram, and the [C4 container diagram](01-c4-l2--container-connectors.png) for connector workers, and the [end-to-end data-flow diagram](02-end-to-end-data-flow.png). |
+| `_docs/00--project-brief/`         | This brief.                                                                                                                                                                                                                           |
 | `_docs/01--spikes/`                | Decision records for ingestion, knowledge representation, access, and synchronization.                                                                                                                    |
 | `_docs/02--architecture/`          | Architecture document. Deliverable 1, written from this brief, the spikes, and the ADRs.                                                                                                                  |
-| `_docs/03--adrs/`                  | Short ADRs for storage, observability, and embedding/chunk versioning.                                                                                                                                    |
+| `_docs/03--adrs/`                  | One short ADR per decision. The index is [the ADR readme](../03--adrs/README.md).                                                                                                                         |
+| `_docs/99--dagrams/`               | Drawio and PNG. C4 views, the end-to-end flow, the [ingestion sequence](../99--dagrams/03-sequence--ingestion-pipeline.drawio), and the [knowledge-store read sequence](../99--dagrams/04-sequence--knowledge-store-flow.drawio). |
 | `backend/apis/knowledge-api`       | REST gateway. Its own image.                                                                                                                                                                              |
 | `backend/apis/mcp-server`          | MCP gateway. Its own image.                                                                                                                                                                               |
 | `backend/apis/webhook-receiver`    | Product webhook receiver. Its own image. It enqueues a pointer. The production path is API Gateway plus Lambda, and that function is not built.                                                           |

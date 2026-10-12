@@ -10,12 +10,12 @@
                 <mxCell id="9" style="edgeStyle=none;html=1;dashed=1;startArrow=classic;startFill=1;strokeWidth=2;strokeColor=#FFFFFF;fontFamily=Courier New;" parent="1" source="2" target="3" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
-                <mxCell id="10" value="queries via&lt;br style=&quot;font-size: 13px;&quot;&gt;MCP ot REST" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];labelBackgroundColor=#000000;fontColor=#FFFFFF;fontFamily=Courier New;fontSize=13;" parent="9" vertex="1" connectable="0">
+                <mxCell id="10" value="queries via&lt;br style=&quot;font-size: 13px;&quot;&gt;MCP or REST" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];labelBackgroundColor=#000000;fontColor=#FFFFFF;fontFamily=Courier New;fontSize=13;" parent="9" vertex="1" connectable="0">
                     <mxGeometry x="-0.0072" relative="1" as="geometry">
                         <mxPoint as="offset"/>
                     </mxGeometry>
                 </mxCell>
-                <object placeholders="1" c4Name="AI Agents" c4Type="External System" c4Description="HR Chatbot Assistent&#10;Roadmap Agent" label="&lt;font style=&quot;font-size: 16px&quot;&gt;&lt;b&gt;%c4Name%&lt;/b&gt;&lt;/font&gt;&lt;div&gt;[%c4Type%]&lt;/div&gt;&lt;br&gt;&lt;div&gt;&lt;font style=&quot;font-size: 11px&quot;&gt;&lt;font&gt;%c4Description%&lt;/font&gt;&lt;/font&gt;&lt;/div&gt;" id="2">
+                <object placeholders="1" c4Name="AI Agents" c4Type="External System" c4Description="HR Chatbot Assistant&#10;Roadmap Agent" label="&lt;font style=&quot;font-size: 16px&quot;&gt;&lt;b&gt;%c4Name%&lt;/b&gt;&lt;/font&gt;&lt;div&gt;[%c4Type%]&lt;/div&gt;&lt;br&gt;&lt;div&gt;&lt;font style=&quot;font-size: 11px&quot;&gt;&lt;font&gt;%c4Description%&lt;/font&gt;&lt;/font&gt;&lt;/div&gt;" id="2">
                     <mxCell style="rounded=1;whiteSpace=wrap;html=1;labelBackgroundColor=none;fillColor=#f5f5f5;align=center;arcSize=10;strokeColor=#666666;metaEdit=1;resizable=0;points=[[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0.25,0],[1,0.5,0],[1,0.75,0],[0.75,1,0],[0.5,1,0],[0.25,1,0],[0,0.75,0],[0,0.5,0],[0,0.25,0]];strokeWidth=1;fillStyle=solid;fontColor=#333333;fontFamily=Courier New;" parent="1" vertex="1">
                         <mxGeometry x="80" y="280" width="240" height="120" as="geometry"/>
                     </mxCell>
@@ -33,7 +33,7 @@
                         <mxGeometry x="520" y="280" width="240" height="120" as="geometry"/>
                     </mxCell>
                 </object>
-                <object placeholders="1" c4Name="Source Systems" c4Type="External System" c4Description="HR (wiki, policies)&#10;Sales (CRM)&#10;Jira, Confluence, SharePoint, Drive" label="&lt;font style=&quot;font-size: 16px&quot;&gt;&lt;b&gt;%c4Name%&lt;/b&gt;&lt;/font&gt;&lt;div&gt;[%c4Type%]&lt;/div&gt;&lt;br&gt;&lt;div&gt;&lt;font style=&quot;font-size: 11px&quot;&gt;&lt;font&gt;%c4Description%&lt;/font&gt;&lt;/font&gt;&lt;/div&gt;" id="5">
+                <object placeholders="1" c4Name="Source Systems" c4Type="External System" c4Description="Demo harness&#10;HR, Sales, Product, Engineering" label="&lt;font style=&quot;font-size: 16px&quot;&gt;&lt;b&gt;%c4Name%&lt;/b&gt;&lt;/font&gt;&lt;div&gt;[%c4Type%]&lt;/div&gt;&lt;br&gt;&lt;div&gt;&lt;font style=&quot;font-size: 11px&quot;&gt;&lt;font&gt;%c4Description%&lt;/font&gt;&lt;/font&gt;&lt;/div&gt;" id="5">
                     <mxCell style="rounded=1;whiteSpace=wrap;html=1;labelBackgroundColor=none;fillColor=#f5f5f5;align=center;arcSize=10;strokeColor=#666666;metaEdit=1;resizable=0;points=[[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0.25,0],[1,0.5,0],[1,0.75,0],[0.75,1,0],[0.5,1,0],[0.25,1,0],[0,0.75,0],[0,0.5,0],[0,0.25,0]];strokeWidth=1;fillStyle=solid;fontColor=#333333;fontFamily=Courier New;" parent="1" vertex="1">
                         <mxGeometry x="960" y="280" width="240" height="120" as="geometry"/>
                     </mxCell>

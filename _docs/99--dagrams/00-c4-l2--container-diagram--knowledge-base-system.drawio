@@ -12,12 +12,12 @@
                         <mxPoint x="560" y="340" as="targetPoint"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="4" value="queries via&lt;br style=&quot;font-size: 12px;&quot;&gt;MCP ot REST" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];labelBackgroundColor=#000000;fontColor=#FFFFFF;fontFamily=Courier New;fontSize=12;" parent="3" vertex="1" connectable="0">
+                <mxCell id="4" value="queries via&lt;br style=&quot;font-size: 12px;&quot;&gt;MCP or REST" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];labelBackgroundColor=#000000;fontColor=#FFFFFF;fontFamily=Courier New;fontSize=12;" parent="3" vertex="1" connectable="0">
                     <mxGeometry x="-0.0072" relative="1" as="geometry">
                         <mxPoint as="offset"/>
                     </mxGeometry>
                 </mxCell>
-                <object placeholders="1" c4Name="AI Agents" c4Type="External System" c4Description="HR Chatbot Assistent&#10;Roadmap Agent" label="&lt;font style=&quot;font-size: 16px&quot;&gt;&lt;b&gt;%c4Name%&lt;/b&gt;&lt;/font&gt;&lt;div&gt;[%c4Type%]&lt;/div&gt;&lt;br&gt;&lt;div&gt;&lt;font style=&quot;font-size: 11px&quot;&gt;&lt;font&gt;%c4Description%&lt;/font&gt;&lt;/font&gt;&lt;/div&gt;" id="5">
+                <object placeholders="1" c4Name="AI Agents" c4Type="External System" c4Description="HR Chatbot Assistant&#10;Roadmap Agent" label="&lt;font style=&quot;font-size: 16px&quot;&gt;&lt;b&gt;%c4Name%&lt;/b&gt;&lt;/font&gt;&lt;div&gt;[%c4Type%]&lt;/div&gt;&lt;br&gt;&lt;div&gt;&lt;font style=&quot;font-size: 11px&quot;&gt;&lt;font&gt;%c4Description%&lt;/font&gt;&lt;/font&gt;&lt;/div&gt;" id="5">
                     <mxCell style="rounded=1;whiteSpace=wrap;html=1;labelBackgroundColor=none;fillColor=#f5f5f5;align=center;arcSize=10;strokeColor=#666666;metaEdit=1;resizable=0;points=[[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0.25,0],[1,0.5,0],[1,0.75,0],[0.75,1,0],[0.5,1,0],[0.25,1,0],[0,0.75,0],[0,0.5,0],[0,0.25,0]];strokeWidth=1;fillStyle=solid;fontColor=#333333;fontFamily=Courier New;" parent="1" vertex="1">
                         <mxGeometry x="80" y="280" width="240" height="120" as="geometry"/>
                     </mxCell>
@@ -32,12 +32,12 @@
                         <mxPoint as="offset"/>
                     </mxGeometry>
                 </mxCell>
-                <object placeholders="1" c4Name="Source Systems" c4Type="External System" c4Description="HR (wiki, policies)&#10;Sales (CRM)&#10;Jira, Confluence, SharePoint, Drive" label="&lt;font style=&quot;font-size: 16px&quot;&gt;&lt;b&gt;%c4Name%&lt;/b&gt;&lt;/font&gt;&lt;div&gt;[%c4Type%]&lt;/div&gt;&lt;br&gt;&lt;div&gt;&lt;font style=&quot;font-size: 11px&quot;&gt;&lt;font&gt;%c4Description%&lt;/font&gt;&lt;/font&gt;&lt;/div&gt;" id="9">
+                <object placeholders="1" c4Name="Source Systems" c4Type="External System" c4Description="Demo harness&#10;HR, Sales, Product, Engineering" label="&lt;font style=&quot;font-size: 16px&quot;&gt;&lt;b&gt;%c4Name%&lt;/b&gt;&lt;/font&gt;&lt;div&gt;[%c4Type%]&lt;/div&gt;&lt;br&gt;&lt;div&gt;&lt;font style=&quot;font-size: 11px&quot;&gt;&lt;font&gt;%c4Description%&lt;/font&gt;&lt;/font&gt;&lt;/div&gt;" id="9">
                     <mxCell style="rounded=1;whiteSpace=wrap;html=1;labelBackgroundColor=none;fillColor=#f5f5f5;align=center;arcSize=10;strokeColor=#666666;metaEdit=1;resizable=0;points=[[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0.25,0],[1,0.5,0],[1,0.75,0],[0.75,1,0],[0.5,1,0],[0.25,1,0],[0,0.75,0],[0,0.5,0],[0,0.25,0]];strokeWidth=1;fillStyle=solid;fontColor=#333333;fontFamily=Courier New;" parent="1" vertex="1">
                         <mxGeometry x="80" y="520" width="240" height="120" as="geometry"/>
                     </mxCell>
                 </object>
-                <mxCell id="11" value="Container Diagram diagram for Knowledge Base System POC" style="text;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;fontStyle=1;fontSize=18;fontFamily=Courier New;fontColor=#FFFFFF;" parent="1" vertex="1">
+                <mxCell id="11" value="Container diagram for the Knowledge Base System" style="text;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;fontStyle=1;fontSize=18;fontFamily=Courier New;fontColor=#FFFFFF;" parent="1" vertex="1">
                     <mxGeometry x="505" y="160" width="620" height="40" as="geometry"/>
                 </mxCell>
                 <mxCell id="15" style="edgeStyle=orthogonalEdgeStyle;html=1;entryX=0;entryY=0.25;entryDx=0;entryDy=0;entryPerimeter=0;strokeWidth=2;exitX=1;exitY=0.5;exitDx=0;exitDy=0;exitPerimeter=0;fontFamily=Courier New;fontColor=#FFFFFF;strokeColor=#FFFFFF;" parent="1" source="17" target="20" edge="1">
@@ -46,7 +46,7 @@
                         <mxPoint x="960" y="420" as="targetPoint"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="23" value="reads ACLs and&lt;br style=&quot;font-size: 12px;&quot;&gt;retrives knowledge" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontFamily=Courier New;fontSize=12;labelBackgroundColor=#000000;fontColor=#FFFFFF;" parent="15" vertex="1" connectable="0">
+                <mxCell id="23" value="reads ACLs and&lt;br style=&quot;font-size: 12px;&quot;&gt;retrieves knowledge" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontFamily=Courier New;fontSize=12;labelBackgroundColor=#000000;fontColor=#FFFFFF;" parent="15" vertex="1" connectable="0">
                     <mxGeometry x="-0.16" y="-1" relative="1" as="geometry">
                         <mxPoint y="25" as="offset"/>
                     </mxGeometry>
@@ -62,12 +62,12 @@
                         <mxPoint x="1" y="-45" as="offset"/>
                     </mxGeometry>
                 </mxCell>
-                <object placeholders="1" c4Name="Knowledge Gateway" c4Type="Access Layer" c4Description="Expose knwoledge to AI Agents and enforece ACLs." label="&lt;font style=&quot;font-size: 16px&quot;&gt;&lt;b&gt;%c4Name%&lt;/b&gt;&lt;/font&gt;&lt;div&gt;[%c4Type%]&lt;/div&gt;&lt;br&gt;&lt;div&gt;&lt;font style=&quot;font-size: 11px&quot;&gt;&lt;font color=&quot;#cccccc&quot;&gt;%c4Description%&lt;/font&gt;&lt;/font&gt;&lt;/div&gt;" id="17">
+                <object placeholders="1" c4Name="Knowledge Gateway" c4Type="Access Layer" c4Description="Expose knowledge to agents and enforce ACLs." label="&lt;font style=&quot;font-size: 16px&quot;&gt;&lt;b&gt;%c4Name%&lt;/b&gt;&lt;/font&gt;&lt;div&gt;[%c4Type%]&lt;/div&gt;&lt;br&gt;&lt;div&gt;&lt;font style=&quot;font-size: 11px&quot;&gt;&lt;font color=&quot;#cccccc&quot;&gt;%c4Description%&lt;/font&gt;&lt;/font&gt;&lt;/div&gt;" id="17">
                     <mxCell style="rounded=1;whiteSpace=wrap;html=1;labelBackgroundColor=none;fillColor=#1061B0;fontColor=#ffffff;align=center;arcSize=10;strokeColor=#0D5091;metaEdit=1;resizable=0;points=[[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0.25,0],[1,0.5,0],[1,0.75,0],[0.75,1,0],[0.5,1,0],[0.25,1,0],[0,0.75,0],[0,0.5,0],[0,0.25,0]];fontFamily=Courier New;fillStyle=solid;" parent="1" vertex="1">
                         <mxGeometry x="490" y="280" width="240" height="120" as="geometry"/>
                     </mxCell>
                 </object>
-                <object placeholders="1" c4Name="Ingestion Pipeline" c4Type="Knowledge Processor" c4Description="Provides connectors, handles priorities, build embeds and populates storage" label="&lt;font style=&quot;font-size: 16px&quot;&gt;&lt;b&gt;%c4Name%&lt;/b&gt;&lt;/font&gt;&lt;div&gt;[%c4Type%]&lt;/div&gt;&lt;br&gt;&lt;div&gt;&lt;font style=&quot;font-size: 11px&quot;&gt;&lt;font color=&quot;#cccccc&quot;&gt;%c4Description%&lt;/font&gt;&lt;/font&gt;&lt;/div&gt;" id="18">
+                <object placeholders="1" c4Name="Ingestion Pipeline" c4Type="Knowledge Processor" c4Description="Connectors, tier queues, chunking, embeddings, and store writes." label="&lt;font style=&quot;font-size: 16px&quot;&gt;&lt;b&gt;%c4Name%&lt;/b&gt;&lt;/font&gt;&lt;div&gt;[%c4Type%]&lt;/div&gt;&lt;br&gt;&lt;div&gt;&lt;font style=&quot;font-size: 11px&quot;&gt;&lt;font color=&quot;#cccccc&quot;&gt;%c4Description%&lt;/font&gt;&lt;/font&gt;&lt;/div&gt;" id="18">
                     <mxCell style="rounded=1;whiteSpace=wrap;html=1;labelBackgroundColor=none;fillColor=#1061B0;fontColor=#ffffff;align=center;arcSize=10;strokeColor=#0D5091;metaEdit=1;resizable=0;points=[[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0.25,0],[1,0.5,0],[1,0.75,0],[0.75,1,0],[0.5,1,0],[0.25,1,0],[0,0.75,0],[0,0.5,0],[0,0.25,0]];fontFamily=Courier New;fillStyle=solid;" parent="1" vertex="1">
                         <mxGeometry x="490" y="520" width="240" height="120" as="geometry"/>
                     </mxCell>
@@ -94,7 +94,7 @@
                         <mxPoint x="18" y="-10" as="offset"/>
                     </mxGeometry>
                 </mxCell>
-                <object placeholders="1" c4Name="Knwoledge Base System" c4Type="ContainerScopeBoundary" c4Application="High Level Shape" label="&lt;font style=&quot;font-size: 16px&quot;&gt;&lt;b&gt;&lt;div style=&quot;text-align: left&quot;&gt;%c4Name%&lt;/div&gt;&lt;/b&gt;&lt;/font&gt;&lt;div style=&quot;text-align: left&quot;&gt;[%c4Application%]&lt;/div&gt;" id="24">
+                <object placeholders="1" c4Name="Knowledge Base System" c4Type="ContainerScopeBoundary" c4Application="High Level Shape" label="&lt;font style=&quot;font-size: 16px&quot;&gt;&lt;b&gt;&lt;div style=&quot;text-align: left&quot;&gt;%c4Name%&lt;/div&gt;&lt;/b&gt;&lt;/font&gt;&lt;div style=&quot;text-align: left&quot;&gt;[%c4Application%]&lt;/div&gt;" id="24">
                     <mxCell style="rounded=1;fontSize=11;whiteSpace=wrap;html=1;dashed=1;arcSize=20;fillColor=none;strokeColor=#666666;fontColor=#FFFFFF;labelBackgroundColor=none;align=left;verticalAlign=bottom;labelBorderColor=none;spacingTop=0;spacing=10;dashPattern=8 4;metaEdit=1;rotatable=0;perimeter=rectanglePerimeter;labelPadding=0;allowArrows=0;connectable=0;expand=0;recursiveResize=0;editable=1;pointerEvents=0;absoluteArcSize=1;points=[[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0.25,0],[1,0.5,0],[1,0.75,0],[0.75,1,0],[0.5,1,0],[0.25,1,0],[0,0.75,0],[0,0.5,0],[0,0.25,0]];fontFamily=Courier New;strokeWidth=2;" parent="1" vertex="1">
                         <mxGeometry x="470" y="260" width="690" height="460" as="geometry"/>
                     </mxCell>

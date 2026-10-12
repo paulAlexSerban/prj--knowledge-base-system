@@ -4,7 +4,7 @@ hash-v1 is deterministic and needs no download. It does not put similar
 sentences near each other; lexical search still finds exact terms. It is the
 default for tests and offline runs. The fastembed model (bge-small, ONNX, CPU)
 is the semantic path and is selected with EMBEDDER=fastembed; the images bake
-the model file in at build time. Mixing the two in one index is an ADR 0003
+the model file in at build time. Mixing the two in one index is an ADR 0006
 rebuild (`make reindex`), so config picks one name and every query filters to it.
 """
 

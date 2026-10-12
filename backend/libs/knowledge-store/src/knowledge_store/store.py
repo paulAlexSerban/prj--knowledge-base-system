@@ -147,7 +147,7 @@ class KnowledgeStore:
 
         New chunks are written next to the old ones. Search filters to the active
         model, so readers never see a mix. The old rows go last, so a failure
-        halfway leaves the previous index serving. ADR 0003.
+        halfway leaves the previous index serving. ADR 0006.
         """
         pending = self.chunks.missing(self.embedder.name)
         self.reconcile_index()

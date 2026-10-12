@@ -42,17 +42,17 @@ Message body: `source_id`, `object_id`, `event_type`, `version`, `content_hash`,
 
 Three queues, matching the freshness tiers in the brief:
 
-| Tier | Examples | Queue |
-| ---- | -------- | ----- |
-| P0 | HR policy body changes, any ACL change | Highest priority. Target under 30 seconds where the source can push or is polled that fast. |
-| P1 | Sales deals, engineering epics, product specs | Target under 5 minutes. |
-| P2 | Bulk backfill and the reconciliation sweep | Daily, or on demand. HR bulk load is `POST /admin/seed` from [notebooks/00-seed-hr.ipynb](../../notebooks/00-seed-hr.ipynb). `make seed` is not a target yet. |
+| Tier | Examples                                      | Queue                                                                                                                                                         |
+| ---- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P0   | HR policy body changes, any ACL change        | Highest priority. Target under 30 seconds where the source can push or is polled that fast.                                                                   |
+| P1   | Sales deals, engineering epics, product specs | Target under 5 minutes.                                                                                                                                       |
+| P2   | Bulk backfill and the reconciliation sweep    | Daily, or on demand. HR bulk load is `POST /admin/seed` from [notebooks/00-seed-hr.ipynb](../../notebooks/00-seed-hr.ipynb). `make seed` is not a target yet. |
 
 Workers drain P0 before P1 before P2. The POC runs one worker process with that order, which is enough at demo volume. Index reconciliation is not a P2 message. The worker runs it on a timer, default 60 seconds. Nothing publishes to the P2 queue yet. Scheduler is not wired.
 
 ### What is measured
 
-Per source: last successful sync, event lag, queue depth, dead-letter depth, embed calls skipped by hash, and delete verification failures. Event lag is `kbs_ingest_event_lag_seconds`, now minus that event's `occurred_at`, recorded when the worker finishes the message. SQS does not expose the age of the oldest message outside CloudWatch, so this is not oldest-message age. Queue depth comes from `GetQueueAttributes` in the worker. The publisher puts a W3C `traceparent` on the message, and the worker continues that trace, so one object change is one trace. Definitions live with the dashboards in [ADR 0002](../03--adrs/0002-observability.md).
+Per source: last successful sync, event lag, queue depth, dead-letter depth, embed calls skipped by hash, and delete verification failures. Event lag is `kbs_ingest_event_lag_seconds`, now minus that event's `occurred_at`, recorded when the worker finishes the message. SQS does not expose the age of the oldest message outside CloudWatch, so this is not oldest-message age. Queue depth comes from `GetQueueAttributes` in the worker. The publisher puts a W3C `traceparent` on the message, and the worker continues that trace, so one object change is one trace. Definitions live with the dashboards in [ADR 0009](../03--adrs/0009-observability-stack.md).
 
 ## Why
 
@@ -63,13 +63,13 @@ Per source: last successful sync, event lag, queue depth, dead-letter depth, emb
 
 ## Alternatives rejected
 
-| Alternative | Why it was rejected for the POC |
-| ----------- | ------------------------------- |
-| Kafka or Kinesis as the POC bus | Replay and high fan-out are real production needs. At about 1.2 events per second they are not the POC's need. SQS with a dead-letter queue is operable inside floci and still shows workers, retries, and ordering. Kafka remains the production path if a second consumer needs independent replay. |
-| Full reindex on a schedule | Re-embeds unchanged content or misses the freshness tier. Kept only as an explicit rebuild command when `chunker_version` or `embedding_model` changes (ADR 0003). |
-| Change-data-capture from the source databases | The platform does not own those databases, and a mock SQLite file is not evidence that CDC against HubSpot or Drive is available. Capability flags (spike 01) meet the source where it is. |
-| Soft-delete only | Hidden rows still surface through a missed filter, and the graph keeps traversable edges. Hard delete plus verification is the POC behavior. A legal hold, if one appears, belongs on the source contract as an exception. |
-| One queue for every tier | A bulk backfill then blocks a policy update. Separate queues are the smallest fix. |
+| Alternative                                   | Why it was rejected for the POC                                                                                                                                                                                                                                                                       |
+| --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Kafka or Kinesis as the POC bus               | Replay and high fan-out are real production needs. At about 1.2 events per second they are not the POC's need. SQS with a dead-letter queue is operable inside floci and still shows workers, retries, and ordering. Kafka remains the production path if a second consumer needs independent replay. |
+| Full reindex on a schedule                    | Re-embeds unchanged content or misses the freshness tier. Kept only as an explicit rebuild command when `chunker_version` or `embedding_model` changes ([ADR 0006](../03--adrs/0006-chunk-versioning.md)).                                                                                            |
+| Change-data-capture from the source databases | The platform does not own those databases, and a mock SQLite file is not evidence that CDC against HubSpot or Drive is available. Capability flags (spike 01) meet the source where it is.                                                                                                            |
+| Soft-delete only                              | Hidden rows still surface through a missed filter, and the graph keeps traversable edges. Hard delete plus verification is the POC behavior. A legal hold, if one appears, belongs on the source contract as an exception.                                                                            |
+| One queue for every tier                      | A bulk backfill then blocks a policy update. Separate queues are the smallest fix.                                                                                                                                                                                                                    |
 
 ## Trade-offs and risks
 
