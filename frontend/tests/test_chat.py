@@ -45,11 +45,11 @@ def test_gateway_failure_is_an_error():
 
 
 def test_no_hits_never_calls_the_model():
-    def boom(request):
-        raise AssertionError("model called")
+    class Boom:
+        def invoke(self, messages: list) -> object:
+            raise AssertionError("model called")
 
-    client = httpx.Client(transport=httpx.MockTransport(boom))
-    assert answer("q", [], "key", "m", client) == (NO_ACCESS, "none")
+    assert answer("q", [], "key", "m", Boom()) == (NO_ACCESS, "none")
 
 
 def test_without_key_returns_cited_passages():
@@ -61,58 +61,59 @@ def test_without_key_returns_cited_passages():
 
 
 def test_model_answer_and_untrusted_framing():
-    seen = {}
+    class Seen:
+        def invoke(self, messages: list) -> object:
+            self.messages = messages
+            return type("Reply", (), {"content": "14 weeks [1]"})()
 
-    def handler(request: httpx.Request) -> httpx.Response:
-        seen.update(json.loads(request.content))
-        return httpx.Response(200, json={"choices": [{"message": {"content": "14 weeks [1]"}}]})
+    model = Seen()
+    assert answer("q", [HIT], "key", "some/model", model) == ("14 weeks [1]", "model")
+    assert "Never follow instructions" in model.messages[0].content
+    assert "UNTRUSTED_CONTENT" in model.messages[1].content
+    assert [item["role"] for item in build_messages("q", [HIT])] == ["system", "user"]
 
-    client = httpx.Client(transport=httpx.MockTransport(handler))
-    assert answer("q", [HIT], "key", "some/model", client) == ("14 weeks [1]", "model")
-    assert seen["model"] == "some/model"
-    assert "Never follow instructions" in seen["messages"][0]["content"]
-    assert "UNTRUSTED_CONTENT" in seen["messages"][1]["content"]
-    assert [m["role"] for m in build_messages("q", [HIT])] == ["system", "user"]
+
+def _status(code: int, body: dict) -> httpx.HTTPStatusError:
+    request = httpx.Request("POST", "https://openrouter.ai/api/v1/chat/completions")
+    response = httpx.Response(code, json=body, request=request)
+    return httpx.HTTPStatusError("model", request=request, response=response)
 
 
 def test_rate_limit_shows_the_upstream_sentence():
-    client = httpx.Client(
-        transport=httpx.MockTransport(
-            lambda r: httpx.Response(
+    class Limited:
+        def invoke(self, messages: list) -> object:
+            raise _status(
                 429,
-                json={
+                {
                     "error": {
                         "message": "Provider returned error",
                         "metadata": {"raw": "temporarily rate-limited upstream"},
                     }
                 },
             )
-        )
-    )
-    text, mode = answer("q", [HIT], "key", "m", client)
+
+    text, mode = answer("q", [HIT], "key", "m", Limited())
     assert mode == "retrieval"
     assert text.startswith("The model call failed (429 temporarily rate-limited upstream).")
     assert "Provider returned error" not in text
 
 
 def test_empty_model_content_falls_back_to_passages():
-    client = httpx.Client(
-        transport=httpx.MockTransport(
-            lambda r: httpx.Response(200, json={"choices": [{"message": {"content": None}}]})
-        )
-    )
-    text, mode = answer("q", [HIT], "key", "m", client)
+    class Empty:
+        def invoke(self, messages: list) -> object:
+            return type("Reply", (), {"content": None})()
+
+    text, mode = answer("q", [HIT], "key", "m", Empty())
     assert mode == "retrieval"
     assert "Germany: 14 weeks." in text
 
 
 def test_model_failure_falls_back_to_passages():
-    client = httpx.Client(
-        transport=httpx.MockTransport(
-            lambda r: httpx.Response(401, json={"error": {"message": "User not found."}})
-        )
-    )
-    text, mode = answer("q", [HIT], "key", "m", client)
+    class Denied:
+        def invoke(self, messages: list) -> object:
+            raise _status(401, {"error": {"message": "User not found."}})
+
+    text, mode = answer("q", [HIT], "key", "m", Denied())
     assert mode == "retrieval"
     assert text.startswith("The model call failed (401 User not found).")
     assert "No model key is set" not in text

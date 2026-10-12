@@ -7,10 +7,13 @@ Each question is searched on its own. Query rewriting for follow-ups is not buil
 """
 
 import json
+import os
 
 import httpx
+from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_openai import ChatOpenAI
 
-OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+OPENROUTER_BASE = "https://openrouter.ai/api/v1"
 SNIPPET_START = "<<<UNTRUSTED_CONTENT"
 SNIPPET_END = "UNTRUSTED_CONTENT>>>"
 
@@ -86,22 +89,57 @@ def _provider_message(response: httpx.Response) -> str:
     return message
 
 
+def configure_langsmith() -> None:
+    """Turn LangSmith on only when a key is set. Offline runs stay untraced."""
+    if not os.environ.get("LANGSMITH_API_KEY", "").strip():
+        os.environ.pop("LANGSMITH_TRACING", None)
+        os.environ.pop("LANGCHAIN_TRACING_V2", None)
+        return
+    os.environ["LANGSMITH_TRACING"] = "true"
+    os.environ["LANGCHAIN_TRACING_V2"] = "true"
+    os.environ.setdefault("LANGCHAIN_PROJECT", "kbs")
+
+
+def _langchain_messages(question: str, hits: list[dict]) -> list[SystemMessage | HumanMessage]:
+    messages = build_messages(question, hits)
+    return [
+        SystemMessage(content=str(messages[0]["content"])),
+        HumanMessage(content=str(messages[1]["content"])),
+    ]
+
+
+def _text(content: object) -> str:
+    if isinstance(content, str):
+        return content
+    if not isinstance(content, list):
+        return ""
+    parts: list[str] = []
+    for block in content:
+        if isinstance(block, str):
+            parts.append(block)
+        elif isinstance(block, dict) and isinstance(block.get("text"), str):
+            parts.append(block["text"])
+    return "".join(parts)
+
+
 def model_answer(
     question: str,
     hits: list[dict],
     api_key: str,
     model: str,
-    client: httpx.Client | None = None,
+    llm: object | None = None,
 ) -> str:
-    http = client or httpx.Client(timeout=60)
-    response = http.post(
-        OPENROUTER_URL,
-        headers={"authorization": f"Bearer {api_key}"},
-        json={"model": model, "messages": build_messages(question, hits)},
+    configure_langsmith()
+    chat = llm or ChatOpenAI(
+        model=model,
+        api_key=api_key,
+        base_url=OPENROUTER_BASE,
+        timeout=60,
+        max_retries=0,
     )
-    response.raise_for_status()
-    content = response.json()["choices"][0]["message"].get("content")
-    if not isinstance(content, str) or not content.strip():
+    result = chat.invoke(_langchain_messages(question, hits))  # type: ignore[attr-defined]
+    content = _text(getattr(result, "content", ""))
+    if not content.strip():
         raise ValueError("empty model content")
     return content
 
@@ -111,15 +149,16 @@ def answer(
     hits: list[dict],
     api_key: str = "",
     model: str = "",
-    client: httpx.Client | None = None,
+    llm: object | None = None,
 ) -> tuple[str, str]:
     """Return (text, mode). Mode is none, model, or retrieval."""
+    configure_langsmith()
     if not hits:
         return NO_ACCESS, "none"
     if api_key and model:
         try:
-            return model_answer(question, hits, api_key, model, client), "model"
-        except (httpx.HTTPError, KeyError, IndexError, ValueError) as exc:
+            return model_answer(question, hits, api_key, model, llm), "model"
+        except Exception as exc:  # noqa: BLE001 - a failed model call falls back to snippets
             text = f"{_failure(exc)} These are the retrieved passages:\n\n{passages(hits)}"
             return text, "retrieval"
     return retrieval_only(hits), "retrieval"

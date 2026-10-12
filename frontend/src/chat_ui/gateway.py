@@ -7,6 +7,8 @@ user's OIDC token replaces the persona token.
 
 import httpx
 
+from shared.telemetry import trace_headers
+
 
 class GatewayError(Exception):
     """The gateway refused or could not answer."""
@@ -27,7 +29,7 @@ class Gateway:
         response = self._client.post(
             "/v1/search",
             json={"query": query, "limit": limit},
-            headers={"authorization": f"Bearer {bearer}"},
+            headers={"authorization": f"Bearer {bearer}", **trace_headers()},
         )
         if response.status_code != 200:
             raise GatewayError(f"search: HTTP {response.status_code}")

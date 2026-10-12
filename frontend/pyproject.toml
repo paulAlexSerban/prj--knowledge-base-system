@@ -5,6 +5,8 @@ description = "Streamlit chat page over the knowledge gateway."
 requires-python = ">=3.12"
 dependencies = [
   "httpx>=0.28.1",
+  "langchain-openai>=1.7.0",
+  "shared",
   "streamlit>=1.40",
 ]
 
@@ -14,3 +16,6 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.uv.sources]
+shared = { workspace = true }

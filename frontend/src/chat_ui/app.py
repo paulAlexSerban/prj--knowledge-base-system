@@ -6,6 +6,7 @@ import streamlit as st
 
 from chat_ui.answer import answer, citation, strip_markers
 from chat_ui.gateway import Gateway, GatewayError
+from shared.telemetry import init_telemetry, span
 
 PERSONAS = os.environ.get("CHAT_PERSONAS", "employee_eng,hr_admin,outsider").split(",")
 
@@ -23,6 +24,7 @@ def render_sources(hits: list[dict]) -> None:
 
 
 def main() -> None:
+    init_telemetry("chat-ui")
     st.set_page_config(page_title="Knowledge chat", page_icon=None)
     st.title("Knowledge chat")
 
@@ -53,16 +55,17 @@ def main() -> None:
 
     with st.chat_message("assistant"):
         try:
-            with st.spinner("Searching"):
-                result = gateway().search(persona, question)
-            hits = result["results"]
-            text, mode = answer(
-                question,
-                hits,
-                os.environ.get("OPENROUTER_API_KEY", ""),
-                os.environ.get("OPENROUTER_MODEL", ""),
-            )
-            caption = f"mode: {mode}, request id: {result['request_id']}"
+            with span("chat.turn", surface="rest"):
+                with st.spinner("Searching"):
+                    result = gateway().search(persona, question)
+                hits = result["results"]
+                text, mode = answer(
+                    question,
+                    hits,
+                    os.environ.get("OPENROUTER_API_KEY", ""),
+                    os.environ.get("OPENROUTER_MODEL", ""),
+                )
+                caption = f"mode: {mode}, request id: {result['request_id']}"
         except GatewayError as exc:
             hits, text, caption = [], f"The gateway could not answer ({exc}).", ""
         st.markdown(text)
