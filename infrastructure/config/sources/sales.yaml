@@ -31,3 +31,8 @@ acl_mapping:
       department: sales
       clearance: confidential
       group: sales_leadership
+  - native: roadmap_readers
+    attributes:
+      department: "*"
+      clearance: internal
+      group: roadmap

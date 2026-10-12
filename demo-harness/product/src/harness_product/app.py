@@ -71,7 +71,7 @@ def create_app(
         object_types=[
             {"name": "spec", "id_field": "spec_id", "shape": "document", "formats": ["markdown"]}
         ],
-        native_acls=["product_org"],
+        native_acls=["product_org", "roadmap_readers"],
         counts=store.counts,
         ids=store.ids,
         now=store.now,

@@ -61,9 +61,11 @@ def test_question_epics_are_unreleased(client):
     for epic_id in QUESTION_EPICS:
         assert by_id[epic_id]["status"] in {"planned", "in_progress"}
     assert by_id["epic-checkout-wallets"]["status"] == "released"
+    assert by_id["epic-checkout-retry"]["native_acl"] == ["project_member", "roadmap_readers"]
     assert by_id["epic-identity-sso"]["native_acl"] == ["eng_leadership"]
     assert by_id["epic-platform-cost"]["native_acl"] == ["eng_leadership"]
     assert by_id["epic-billing-usage"]["native_acl"] == ["eng_leadership"]
+    assert "roadmap_readers" in client.get("/discover").json()["native_acls"]
 
 
 def test_changes_page_a_shared_timestamp_without_loss(client):

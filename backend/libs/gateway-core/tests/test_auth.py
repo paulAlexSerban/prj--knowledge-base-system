@@ -14,6 +14,14 @@ def test_persona_token_round_trips() -> None:
     assert principal.department == "engineering"
 
 
+def test_product_lead_can_be_issued() -> None:
+    principal = principal_from_token(issue_token("product_lead", SECRET), SECRET)
+    assert principal.subject == "product-lead"
+    assert principal.groups == ("employees", "roadmap")
+    assert principal.clearance == "internal"
+    assert principal.department == "product"
+
+
 def test_outsider_has_no_groups() -> None:
     principal = principal_from_token(issue_token("outsider", SECRET), SECRET)
     assert principal.groups == ()

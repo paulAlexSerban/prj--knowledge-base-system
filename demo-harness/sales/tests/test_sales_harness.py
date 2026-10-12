@@ -67,8 +67,11 @@ def test_question_deals_are_high_arr_q3_on_unreleased_epics(harness):
     assert by_id["deal-coho-q2"]["quarter"] == "2026-Q2"
     assert by_id["deal-lucerne-q4"]["quarter"] == "2026-Q4"
     assert by_id["deal-graphic-q3"]["arr"] < HIGH_ARR
+    assert by_id["deal-northwind-q3"]["native_acl"] == ["account_team", "roadmap_readers"]
     assert by_id["deal-contoso-q3"]["native_acl"] == ["sales_leadership"]
     assert by_id["deal-tailspin-q3"]["native_acl"] == ["sales_leadership"]
+    assert by_id["deal-coho-q2"]["native_acl"] == ["sales_leadership"]
+    assert "roadmap_readers" in client.get("/discover").json()["native_acls"]
 
 
 def test_cursor_resumes_without_gaps_or_duplicates(harness):

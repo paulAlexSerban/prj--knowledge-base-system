@@ -4,11 +4,19 @@ from knowledge_store.acl import Principal, allows, map_acl
 from shared.contracts.validate import load_contracts
 
 
-def _hr():
+def _contract(source_id: str):
     from pathlib import Path
 
     root = Path(__file__).resolve().parents[4]
-    return next(item for item in load_contracts(root / "infrastructure/config/sources") if item.source_id == "hr")
+    return next(
+        item
+        for item in load_contracts(root / "infrastructure/config/sources")
+        if item.source_id == source_id
+    )
+
+
+def _hr():
+    return _contract("hr")
 
 
 def test_employee_mapping_is_coarse_and_exact() -> None:
@@ -36,6 +44,28 @@ def test_admin_mapping_stays_inside_people() -> None:
     assert allowed
     assert rule is not None
     assert rule["group"] == "hr_admins"
+
+
+def test_roadmap_readers_opens_any_department_and_unmapped_grants_nothing() -> None:
+    view = map_acl(["account_team", "roadmap_readers"], _contract("sales"))
+    assert view.departments == ()
+    assert "roadmap" in view.groups
+    lead = Principal("product-lead", ("employees", "roadmap"), "internal", "product")
+    allowed, rule = allows(view, lead)
+    assert allowed
+    assert rule is not None
+    assert rule["group"] == "roadmap"
+    engineer = Principal("employee-eng", ("employees",), "internal", "engineering")
+    assert allows(view, engineer) == (False, None)
+    closed = map_acl(["sales_leadership"], _contract("sales"))
+    assert allows(closed, lead) == (False, None)
+    epic = map_acl(["project_member", "roadmap_readers"], _contract("engineering"))
+    assert allows(epic, lead)[0]
+    assert allows(map_acl(["eng_leadership"], _contract("engineering")), lead) == (False, None)
+    unmapped = map_acl(["not-a-role"], _contract("sales"))
+    assert unmapped.groups == ()
+    assert unmapped.rules == ()
+    assert allows(unmapped, lead) == (False, None)
 
 
 def test_unmapped_native_acl_grants_nothing() -> None:

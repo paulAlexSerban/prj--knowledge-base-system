@@ -213,7 +213,7 @@ def specs() -> list[dict[str, object]]:
             "title": title,
             "product_key": product_key,
             "body": body,
-            "native_acl": ["product_org"],
+            "native_acl": ["product_org", "roadmap_readers"],
         }
         for spec_id, title, product_key, body in SPECS
     ]

@@ -202,6 +202,13 @@ _FILLER_EPICS = (
 )
 
 
+def _native(acl: str) -> list[str]:
+    """Leadership deals stay closed. Every other deal is also readable by roadmap."""
+    if acl == "sales_leadership":
+        return [acl]
+    return [acl, "roadmap_readers"]
+
+
 def _row(
     deal_id: str,
     account_id: str,
@@ -225,7 +232,7 @@ def _row(
         "owner_email": owner_email,
         "product_key": product_key,
         "epic_id": epic_id or None,
-        "native_acl": [acl],
+        "native_acl": _native(acl),
         "commission_rate": commission_rate,
     }
 

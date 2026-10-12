@@ -62,6 +62,12 @@ def test_registry_contracts_load() -> None:
     assert hr.acl_recheck_at_read is True
     employee = next(rule for rule in hr.acl_mapping if rule.native == "hr_employee")
     assert employee.attributes[PlatformAttribute.DEPARTMENT] == "*"
+    for source_id in ("sales", "engineering", "product"):
+        contract = next(item for item in contracts if item.source_id == source_id)
+        roadmap = next(rule for rule in contract.acl_mapping if rule.native == "roadmap_readers")
+        assert roadmap.attributes[PlatformAttribute.DEPARTMENT] == "*"
+        assert roadmap.attributes[PlatformAttribute.CLEARANCE] == "internal"
+        assert roadmap.attributes[PlatformAttribute.GROUP] == "roadmap"
 
 
 def test_committed_schema_matches_model() -> None:

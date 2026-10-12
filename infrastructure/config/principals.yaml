@@ -15,3 +15,8 @@ outsider:
   groups: []
   clearance: internal
   department: engineering
+product_lead:
+  subject: product-lead
+  groups: [employees, roadmap]
+  clearance: internal
+  department: product

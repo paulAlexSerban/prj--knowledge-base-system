@@ -28,3 +28,8 @@ acl_mapping:
       department: engineering
       clearance: confidential
       group: eng_leads
+  - native: roadmap_readers
+    attributes:
+      department: "*"
+      clearance: internal
+      group: roadmap

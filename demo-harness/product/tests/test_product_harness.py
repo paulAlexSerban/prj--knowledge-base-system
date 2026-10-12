@@ -69,7 +69,11 @@ def test_seed_loads_twelve_specs(harness):
     assert content.headers["content-type"].startswith("text/markdown")
     assert "## Decline retry" in content.text
     assert "epic-checkout-retry" in content.text
-    assert client.get("/specs/spec-checkout/acl").json()["native_acl"] == ["product_org"]
+    assert client.get("/specs/spec-checkout/acl").json()["native_acl"] == [
+        "product_org",
+        "roadmap_readers",
+    ]
+    assert "roadmap_readers" in client.get("/discover").json()["native_acls"]
 
 
 def test_edit_and_delete_post_a_webhook(harness):

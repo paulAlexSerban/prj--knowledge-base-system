@@ -22,3 +22,8 @@ acl_mapping:
       department: product
       clearance: internal
       group: product
+  - native: roadmap_readers
+    attributes:
+      department: "*"
+      clearance: internal
+      group: roadmap

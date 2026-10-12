@@ -1,7 +1,8 @@
 """Spec metadata in SQLite and the markdown body on disk.
 
-Version moves when the title or the body changes. The only native ACL is
-product_org, so an ACL call that repeats it does not move the version.
+Version moves when the title or the body changes. Native ACLs are
+product_org and roadmap_readers. Repeating the current ACL does not move
+the version.
 A lost content webhook is recovered because /ids shows the new version.
 """
 
@@ -23,7 +24,7 @@ from harness_common.db import (
 )
 
 Clock = Callable[[], datetime]
-NATIVE_ACLS = frozenset({"product_org"})
+NATIVE_ACLS = frozenset({"product_org", "roadmap_readers"})
 PRODUCT_KEYS = frozenset(
     {"checkout", "billing", "identity", "mobile", "analytics", "notifications"}
 )

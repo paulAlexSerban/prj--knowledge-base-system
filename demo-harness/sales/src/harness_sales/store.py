@@ -21,7 +21,7 @@ from harness_common.db import (
 )
 
 Clock = Callable[[], datetime]
-NATIVE_ACLS = frozenset({"account_team", "sales_leadership"})
+NATIVE_ACLS = frozenset({"account_team", "sales_leadership", "roadmap_readers"})
 STAGES = frozenset({"prospect", "qualified", "proposal", "negotiation", "won", "lost"})
 PRODUCT_KEYS = frozenset(
     {"checkout", "billing", "identity", "mobile", "analytics", "notifications"}
