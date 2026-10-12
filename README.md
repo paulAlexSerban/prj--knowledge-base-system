@@ -35,19 +35,19 @@ Assumptions, the requirements that were narrowed, and the in-scope list are in t
 
 System context: agents talk to the gateway, and the gateway reads department sources.
 
-System context
+![System Context](/_docs/99--dagrams/00-c4-l1--system-context.png)
 
 Containers: an access layer, an ingestion pipeline, and a knowledge store.
 
-Containers
+![Containers](/_docs/99--dagrams/00-c4-l2--container-diagram--knowledge-base-system.png)
 
 Connector containers: one worker per harness service, a validated contract, and a queue.
 
-Connector containers
+![Connector containers](/_docs/99--dagrams/01-c4-l2--container-connectors.png)
 
 Component view of the gateway:
 
-Components
+![Components](/_docs/99--dagrams/00-c4-l3--component-diagram--knowledge-base-system.png)
 
 
 | Concern                                           | Choice                                                                                                                                                                      |
