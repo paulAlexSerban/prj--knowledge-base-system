@@ -20,16 +20,16 @@ The POC proves this on four mocked sources and two questions:
 
 The discussion starts from the production set. The POC is sized to the second set and does not claim to have proven the first.
 
-| Topic | Production assumption | POC assumption |
-| ----- | --------------------- | -------------- |
-| Scale | About 2,000 employees, about 10 million objects across Sales, Product, Engineering, and HR. | Four mocked sources, a few hundred documents and records. |
-| Change volume | About 100,000 changes a day, about 1.2 per second on average. Bursts of 10 to 20 times are still within one queue and a small worker pool. The constraints are embedding cost, source rate limits, and delete correctness. | Same pipeline, demo volume. |
-| Freshness | HR policy and security: under 30 seconds. Jira and Confluence: under 5 minutes. Archives: daily. | Same three tiers as queue priority plus a sync-lag metric. Demonstrated locally, not load-tested. |
-| Security | Zero-trust, user-delegated access. Every query inherits the caller's identity and attributes. Agents hold no elevated privilege. | Mock identity provider signing JWTs with department, clearance, region, and group claims. |
-| Queries | Semantic search and multi-hop traversal. | The two demo questions. |
-| Latency | Under 250 ms p95 for retrieval, excluding model generation. | A design target with a metric, not a load-test result. |
-| Infrastructure | Not specified. | Docker Compose, [floci](https://floci.io) for SQS, S3, and EventBridge Scheduler, Terraform against floci. |
-| Models | Not specified. | Local `bge-small-en-v1.5` for embeddings. OpenRouter for chat when a key is set. A hash embedder and a deterministic extractor for offline runs and tests. |
+| Topic          | Production assumption                                                                                                                                                                                                      | POC assumption                                                                                                                                             |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Scale          | About 2,000 employees, about 10 million objects across Sales, Product, Engineering, and HR.                                                                                                                                | Four mocked sources, a few hundred documents and records.                                                                                                  |
+| Change volume  | About 100,000 changes a day, about 1.2 per second on average. Bursts of 10 to 20 times are still within one queue and a small worker pool. The constraints are embedding cost, source rate limits, and delete correctness. | Same pipeline, demo volume.                                                                                                                                |
+| Freshness      | HR policy and security: under 30 seconds. Jira and Confluence: under 5 minutes. Archives: daily.                                                                                                                           | Same three tiers as queue priority plus a sync-lag metric. Demonstrated locally, not load-tested.                                                          |
+| Security       | Zero-trust, user-delegated access. Every query inherits the caller's identity and attributes. Agents hold no elevated privilege.                                                                                           | Mock identity provider signing JWTs with department, clearance, region, and group claims.                                                                  |
+| Queries        | Semantic search and multi-hop traversal.                                                                                                                                                                                   | The two demo questions.                                                                                                                                    |
+| Latency        | Under 250 ms p95 for retrieval, excluding model generation.                                                                                                                                                                | A design target with a metric, not a load-test result.                                                                                                     |
+| Infrastructure | Not specified.                                                                                                                                                                                                             | Docker Compose, [floci](https://floci.io) for SQS, S3, and EventBridge Scheduler, Terraform against floci.                                                 |
+| Models         | Not specified.                                                                                                                                                                                                             | Local `bge-small-en-v1.5` for embeddings. OpenRouter for chat when a key is set. A hash embedder and a deterministic extractor for offline runs and tests. |
 
 Requirements I narrowed, and why:
 
@@ -47,32 +47,32 @@ The diagram above shows every component, the flow from source to agent, and the 
 
 ![Container diagram](../00--project-brief/00-c4-l2--container-diagram--knowledge-base-system.png)
 
-Further views (the end-to-end diagram source is [02-end-to-end-data-flow.drawio](../00--project-brief/02-end-to-end-data-flow.drawio)): [system context](../00--project-brief/00-c4-l1--system-context.png), [connector containers](../00--project-brief/01-c4-l2--container-connectors.png), and [components](../00--project-brief/00-c4-l3--component-diagram--kowledge-base-system.png). The harness (HR, Sales, Product, Engineering) is outside the gateway. Postgres, Neo4j, and S3 are on an internal network. The only agent ingress is the API and the MCP server. pgAdmin is a dev-only loopback bridge onto that network; the stores stay unpublished.
+Further views (the end-to-end diagram source is [02-end-to-end-data-flow.drawio](../00--project-brief/02-end-to-end-data-flow.drawio)): [system context](../99--dagrams//00-c4-l1--system-context.png), [connector containers](../99--dagrams/01-c4-l2--container-connectors.png), and [components](../99--dagrams/00-c4-l3--component-diagram--kowledge-base-system.png). The harness (HR, Sales, Product, Engineering) is outside the gateway. Postgres, Neo4j, and S3 are on an internal network. The only agent ingress is the API and the MCP server. pgAdmin is a dev-only loopback bridge onto that network; the stores stay unpublished.
 
 ### Components
 
-| Component | Role |
-| --------- | ---- |
-| Connector workers | `discover`, `list_changes`, `fetch`, `get_acl`, `normalize`. Emit change events. Never embed. |
-| Queues | SQS FIFO, one per freshness tier (P0, P1, P2), each with a dead-letter queue. Message group is source id plus object id. |
-| Object storage | S3. Raw payloads and document blobs. |
-| Ingestion workers | Chunk, embed, upsert Postgres and Neo4j, or apply a tombstone. |
-| Postgres | Authoritative for prose, lineage, ACL attributes, sync state, hashes, pgvector, full-text search. |
-| Neo4j | Derived graph index. |
-| Service layer | Query router, hybrid retrieval, graph traversal, authorization. |
-| API and MCP server | Thin adapters over the service layer. Validate the JWT. |
-| Observability | Alloy, Prometheus, Loki, Grafana. |
+| Component          | Role                                                                                                                     |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| Connector workers  | `discover`, `list_changes`, `fetch`, `get_acl`, `normalize`. Emit change events. Never embed.                            |
+| Queues             | SQS FIFO, one per freshness tier (P0, P1, P2), each with a dead-letter queue. Message group is source id plus object id. |
+| Object storage     | S3. Raw payloads and document blobs.                                                                                     |
+| Ingestion workers  | Chunk, embed, upsert Postgres and Neo4j, or apply a tombstone.                                                           |
+| Postgres           | Authoritative for prose, lineage, ACL attributes, sync state, hashes, pgvector, full-text search.                        |
+| Neo4j              | Derived graph index.                                                                                                     |
+| Service layer      | Query router, hybrid retrieval, graph traversal, authorization.                                                          |
+| API and MCP server | Thin adapters over the service layer. Validate the JWT.                                                                  |
+| Observability      | Alloy, Prometheus, Loki, Grafana.                                                                                        |
 
 ### Data flow from source to agent
 
-| Hop | Component | Transformation |
-| --- | --------- | -------------- |
-| 1 | Source | A record is created, edited, or deleted in its own schema. |
-| 2 | Connector worker | Detect the change, `fetch` the body, map the native permission with `get_acl`, `normalize` into a platform document (source id, version, content hash, payload, ACL attributes). Raw payload goes to S3. |
-| 3 | Queue | Event: source id, object id, event type, version or hash, `occurred_at`, S3 pointer. Ordered per object. |
-| 4 | Ingestion worker | Chunk with the format-aware splitter. Embed only if the content hash changed. |
-| 5 | Ingestion worker | Upsert chunk, vector, full-text, and ACL columns in Postgres, then merge the graph. A failed Neo4j write leaves the message unacknowledged. |
-| 6 | Service layer | Route the question, pre-filter, over-fetch, post-check, apply row-level security, audit. High-sensitivity sources re-check the ACL at the source. |
+| Hop | Component        | Transformation                                                                                                                                                                                           |
+| --- | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Source           | A record is created, edited, or deleted in its own schema.                                                                                                                                               |
+| 2   | Connector worker | Detect the change, `fetch` the body, map the native permission with `get_acl`, `normalize` into a platform document (source id, version, content hash, payload, ACL attributes). Raw payload goes to S3. |
+| 3   | Queue            | Event: source id, object id, event type, version or hash, `occurred_at`, S3 pointer. Ordered per object.                                                                                                 |
+| 4   | Ingestion worker | Chunk with the format-aware splitter. Embed only if the content hash changed.                                                                                                                            |
+| 5   | Ingestion worker | Upsert chunk, vector, full-text, and ACL columns in Postgres, then merge the graph. A failed Neo4j write leaves the message unacknowledged.                                                              |
+| 6   | Service layer    | Route the question, pre-filter, over-fetch, post-check, apply row-level security, audit. High-sensitivity sources re-check the ACL at the source.                                                        |
 
 Create, update, and delete walk the same path:
 
@@ -88,12 +88,12 @@ Source-specific complexity (auth, pagination, format quirks) stays inside a conn
 
 A connector uses the cheapest change signal its source really has. The four demo sources exercise each one:
 
-| Source | Shape | Change signal | Sensitivity |
-| ------ | ----- | ------------- | ----------- |
-| HR | Markdown and PDF policies, SQLite people directory | Poll | High. ACL re-checked at read time. |
-| Sales | SQLite CRM | Cursor change feed | Medium |
-| Product | Markdown specs | Webhook | Low. Bounded sync window. |
-| Engineering | Jira-like epics in SQLite | `updated_since` listing | Medium |
+| Source      | Shape                                              | Change signal           | Sensitivity                        |
+| ----------- | -------------------------------------------------- | ----------------------- | ---------------------------------- |
+| HR          | Markdown and PDF policies, SQLite people directory | Poll                    | High. ACL re-checked at read time. |
+| Sales       | SQLite CRM                                         | Cursor change feed      | Medium                             |
+| Product     | Markdown specs                                     | Webhook                 | Low. Bounded sync window.          |
+| Engineering | Jira-like epics in SQLite                          | `updated_since` listing | Medium                             |
 
 Chunking is format-aware (markdown by heading, PDF as extracted paragraphs, records as one chunk per row), never one fixed window. The HR PDF renderer drops heading marks, so the PDF chunker does not recover sections.
 
@@ -106,8 +106,8 @@ Similarity search answers semantic questions and fails relational ones. A graph 
 - Hybrid retrieval in Postgres: structure-aware chunks with a contextual header (title plus section path), pgvector dense search, full-text search for exact identifiers, merged with reciprocal rank fusion. Each chunk records `chunker_version` and `embedding_model`.
 - Graph in Neo4j, kept small:
 
-| Nodes | Edges |
-| ----- | ----- |
+| Nodes                                           | Edges                                            |
+| ----------------------------------------------- | ------------------------------------------------ |
 | Person, Team, Account, Deal, Epic, Spec, Policy | `OWNS`, `DEPENDS_ON`, `REFERENCES`, `BELONGS_TO` |
 
 - Edges from structured sources are extracted in code and are deterministic. The roadmap answer trusts only those. The writer builds `Person -BELONGS_TO-> Team` and a `Policy` node from HR. A deal depends on an epic, and an epic is owned by an HR team. Specs are not graph nodes. Edges extracted from specs would carry a confidence and a source span and would be supporting evidence only. That extractor is not built.
@@ -121,12 +121,12 @@ Detail: [spike 03](../01--spikes/03--exposing-knowledge-to-ai-agents-though-cons
 
 MCP gives every client the same tools. It does not authenticate the user or enforce access, so the server does both on every call.
 
-| MCP tool | REST | Behavior |
-| -------- | ---- | -------- |
-| `search_knowledge` | `POST /v1/search` | Hybrid or graph-routed retrieval for the caller. Returns at most one chunk per object, with chunk id, snippet, source, version, and sync time. |
-| `get_document` | `GET /v1/documents/{id}` | One authorized document or chunk with provenance. |
-| `find_related` | `POST /v1/graph/related` | Bounded traversal. Kinds are `teammates`, `team`, `policies`, and `roadmap_deals`. Returns the path. |
-| `list_sources` | `GET /v1/sources` | Owner, tier, last sync. No bodies. |
+| MCP tool           | REST                     | Behavior                                                                                                                                       |
+| ------------------ | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `search_knowledge` | `POST /v1/search`        | Hybrid or graph-routed retrieval for the caller. Returns at most one chunk per object, with chunk id, snippet, source, version, and sync time. |
+| `get_document`     | `GET /v1/documents/{id}` | One authorized document or chunk with provenance.                                                                                              |
+| `find_related`     | `POST /v1/graph/related` | Bounded traversal. Kinds are `teammates`, `team`, `policies`, and `roadmap_deals`. Returns the path.                                           |
+| `list_sources`     | `GET /v1/sources`        | Owner, tier, last sync. No bodies.                                                                                                             |
 
 There is no write tool and no open SQL or Cypher. The token's claims become the principal. Authorization runs in this order:
 
@@ -155,48 +155,48 @@ Detail: [spike 04](../01--spikes/04--self-maintaing-over-time-refelcting-additio
 
 ## Technology choices
 
-| Component | Choice | Why | Excluded, and why |
-| --------- | ------ | --- | ----------------- |
-| Service | Python, FastAPI, Pydantic | One service layer, two thin adapters. Contracts are typed and exported as JSON Schema. | Not evaluated in the spikes. |
-| Metadata, vectors, lexical, authorization | Postgres with pgvector, full-text, row-level security | The ACL pre-filter is a normal SQL predicate next to the vectors. One authorization implementation. | OpenSearch plus Neo4j plus Postgres: three query languages and three authorization models for a volume that does not need them. Dedicated vector DB: ACL, lineage, and RLS still need Postgres. |
-| Graph | Neo4j | The roadmap question is a short typed traversal, and the path is the explanation. | Recursive SQL over edge tables: viable in production if the ontology stays small. Revisit if Neo4j is the thing that fails in setup. |
-| Messaging | SQS FIFO on floci, queue per tier, DLQ per queue | Per-object order, at-least-once delivery, visible poison messages. | Kafka or Kinesis: justified when a second consumer needs replay, not at about 1.2 events per second. |
-| Objects | S3 on floci | Raw payloads and blobs. Postgres holds the pointer. | Not evaluated in the spikes. |
-| Scheduling | In-process loop for P0, EventBridge Scheduler for P1/P2 and reconciliation | Scheduler cannot fire faster than once a minute. | Scheduler for P0. Full reindex on a schedule: re-embeds unchanged content or misses the tier. |
-| Local AWS and IaC | floci, Terraform with endpoint overrides, run in a one-shot container | Real Terraform resources against an emulator. No host install, and throwaway state matches an in-memory emulator. | CloudWatch on floci: metrics and logs stay on Prometheus and Loki so they behave the same in Compose. |
-| Ingestion | Custom connectors on one interface | The graded problem is ACL normalization, tombstones, and freshness contracts. | Airbyte or Fivetran: load a warehouse, own none of those three. Federated query: puts latency and partial failure inside the user's query. CDC: the platform does not own source databases. |
-| Models | Embeddings: `BAAI/bge-small-en-v1.5` through fastembed, 384 dimensions, ONNX on CPU, baked into the images. Chat: OpenRouter through LangChain when a key is set. Notebooks `50` and `51` use LangChain agents that call MCP. `hash-v1` for tests and offline runs. | No key or network is needed at run time, model names are config, and tests pass without either. 384 dimensions keep the column and index unchanged if the model changes. | `multilingual-e5-small` (same width, 470 MB, the swap for multilingual policies), `bge-base` and `bge-large` (a migration with no measured gain here), `all-MiniLM-L6-v2` (weaker), OpenRouter embeddings (a network dependency inside ingestion), fine-tuning (does not keep knowledge current or enforce access), LangGraph for the chat page's single prompt. |
-| Identity | Mock IdP issuing JWTs | The claim contract is what the service enforces. | MCP as the authorization boundary. Per-agent store access. |
-| Retrieval extras | Reciprocal rank fusion only | No score calibration needed. The golden set measures recall at 5 of 1.00 and MRR of 0.95, so there is no gap to close. | Cross-encoder reranker and community-summary GraphRAG: no measured gap. Vector-only search: fails exact identifiers and the dependency question. |
-| Observability | Alloy, Prometheus, Loki, Tempo, Grafana ([ADR 0002](../03--adrs/0002-observability.md)) | Freshness and authorization are distributions, a deny is one log line, and one change is one trace across the queue. | Logs only. Direct Prometheus scraping with no collector. Jaeger beside Tempo. LangGraph for a single chat prompt. |
+| Component                                 | Choice                                                                                                                                                                                                                                                              | Why                                                                                                                                                                      | Excluded, and why                                                                                                                                                                                                                                                                                                                                                |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Service                                   | Python, FastAPI, Pydantic                                                                                                                                                                                                                                           | One service layer, two thin adapters. Contracts are typed and exported as JSON Schema.                                                                                   | Not evaluated in the spikes.                                                                                                                                                                                                                                                                                                                                     |
+| Metadata, vectors, lexical, authorization | Postgres with pgvector, full-text, row-level security                                                                                                                                                                                                               | The ACL pre-filter is a normal SQL predicate next to the vectors. One authorization implementation.                                                                      | OpenSearch plus Neo4j plus Postgres: three query languages and three authorization models for a volume that does not need them. Dedicated vector DB: ACL, lineage, and RLS still need Postgres.                                                                                                                                                                  |
+| Graph                                     | Neo4j                                                                                                                                                                                                                                                               | The roadmap question is a short typed traversal, and the path is the explanation.                                                                                        | Recursive SQL over edge tables: viable in production if the ontology stays small. Revisit if Neo4j is the thing that fails in setup.                                                                                                                                                                                                                             |
+| Messaging                                 | SQS FIFO on floci, queue per tier, DLQ per queue                                                                                                                                                                                                                    | Per-object order, at-least-once delivery, visible poison messages.                                                                                                       | Kafka or Kinesis: justified when a second consumer needs replay, not at about 1.2 events per second.                                                                                                                                                                                                                                                             |
+| Objects                                   | S3 on floci                                                                                                                                                                                                                                                         | Raw payloads and blobs. Postgres holds the pointer.                                                                                                                      | Not evaluated in the spikes.                                                                                                                                                                                                                                                                                                                                     |
+| Scheduling                                | In-process loop for P0, EventBridge Scheduler for P1/P2 and reconciliation                                                                                                                                                                                          | Scheduler cannot fire faster than once a minute.                                                                                                                         | Scheduler for P0. Full reindex on a schedule: re-embeds unchanged content or misses the tier.                                                                                                                                                                                                                                                                    |
+| Local AWS and IaC                         | floci, Terraform with endpoint overrides, run in a one-shot container                                                                                                                                                                                               | Real Terraform resources against an emulator. No host install, and throwaway state matches an in-memory emulator.                                                        | CloudWatch on floci: metrics and logs stay on Prometheus and Loki so they behave the same in Compose.                                                                                                                                                                                                                                                            |
+| Ingestion                                 | Custom connectors on one interface                                                                                                                                                                                                                                  | The graded problem is ACL normalization, tombstones, and freshness contracts.                                                                                            | Airbyte or Fivetran: load a warehouse, own none of those three. Federated query: puts latency and partial failure inside the user's query. CDC: the platform does not own source databases.                                                                                                                                                                      |
+| Models                                    | Embeddings: `BAAI/bge-small-en-v1.5` through fastembed, 384 dimensions, ONNX on CPU, baked into the images. Chat: OpenRouter through LangChain when a key is set. Notebooks `50` and `51` use LangChain agents that call MCP. `hash-v1` for tests and offline runs. | No key or network is needed at run time, model names are config, and tests pass without either. 384 dimensions keep the column and index unchanged if the model changes. | `multilingual-e5-small` (same width, 470 MB, the swap for multilingual policies), `bge-base` and `bge-large` (a migration with no measured gain here), `all-MiniLM-L6-v2` (weaker), OpenRouter embeddings (a network dependency inside ingestion), fine-tuning (does not keep knowledge current or enforce access), LangGraph for the chat page's single prompt. |
+| Identity                                  | Mock IdP issuing JWTs                                                                                                                                                                                                                                               | The claim contract is what the service enforces.                                                                                                                         | MCP as the authorization boundary. Per-agent store access.                                                                                                                                                                                                                                                                                                       |
+| Retrieval extras                          | Reciprocal rank fusion only                                                                                                                                                                                                                                         | No score calibration needed. The golden set measures recall at 5 of 1.00 and MRR of 0.95, so there is no gap to close.                                                   | Cross-encoder reranker and community-summary GraphRAG: no measured gap. Vector-only search: fails exact identifiers and the dependency question.                                                                                                                                                                                                                 |
+| Observability                             | Alloy, Prometheus, Loki, Tempo, Grafana ([ADR 0002](../03--adrs/0002-observability.md))                                                                                                                                                                             | Freshness and authorization are distributions, a deny is one log line, and one change is one trace across the queue.                                                     | Logs only. Direct Prometheus scraping with no collector. Jaeger beside Tempo. LangGraph for a single chat prompt.                                                                                                                                                                                                                                                |
 
 ### Production path on AWS
 
 Nothing here is built. It is how each local component maps, and where the POC choices were made so the move is a swap and not a redesign.
 
-| Local | AWS production path | What changes |
-| ----- | ------------------- | ------------ |
-| floci SQS FIFO and S3 | SQS FIFO and S3 | Endpoint overrides go away. The Terraform stays, with a real provider block, a remote state backend, and KMS and bucket policies. |
-| Postgres 18 with pgvector | Aurora PostgreSQL or RDS with the `vector` extension | Row-level security and the ACL columns carry over. Connection pooling must set the principal per transaction, not per session. |
-| Neo4j Community | Neo4j Aura, or self-managed on EC2. Neptune only if openCypher is enough | The templates are plain Cypher. Per-service roles replace the shared user. |
-| Compose services | ECS on Fargate, one service per image, an ALB in front of the gateway | Each image already has a healthcheck and a metrics port. Workers scale on queue depth. |
-| Webhook receiver container | API Gateway plus Lambda that enqueues the pointer | The receiver is a pure enqueue, so the Lambda is a port of about one file. |
-| In-process P0 poll, Scheduler for P1 and P2 | The same, with EventBridge Scheduler for P1, P2 and reconciliation | P0 stays in the connector because Scheduler cannot fire faster than a minute. |
-| HS256 JWT and `/dev/token` | Cognito or the company OIDC provider. API Gateway or the ALB validates, the gateway still builds the principal | `gateway_core.auth` is the only file that knows the signer. |
-| Alloy, Prometheus, Loki, Tempo, Grafana | The same Alloy with OTLP to Datadog or Grafana Cloud. CloudWatch only for AWS-service metrics | Instrumentation is OpenTelemetry and Prometheus metrics, so the backend is a collector setting. Dashboards would be rebuilt there. |
-| OpenRouter for chat | Bedrock or an AI gateway in front of the models | Model names are config. An AI gateway adds central key management, rate limits, and logging of prompts. It is not needed to prove the design. |
-| fastembed in the worker and gateway images | The same, or a shared embedding service if CPU cost matters | Changing the model is `make reindex`, whatever hosts it. |
+| Local                                       | AWS production path                                                                                            | What changes                                                                                                                                  |
+| ------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| floci SQS FIFO and S3                       | SQS FIFO and S3                                                                                                | Endpoint overrides go away. The Terraform stays, with a real provider block, a remote state backend, and KMS and bucket policies.             |
+| Postgres 18 with pgvector                   | Aurora PostgreSQL or RDS with the `vector` extension                                                           | Row-level security and the ACL columns carry over. Connection pooling must set the principal per transaction, not per session.                |
+| Neo4j Community                             | Neo4j Aura, or self-managed on EC2. Neptune only if openCypher is enough                                       | The templates are plain Cypher. Per-service roles replace the shared user.                                                                    |
+| Compose services                            | ECS on Fargate, one service per image, an ALB in front of the gateway                                          | Each image already has a healthcheck and a metrics port. Workers scale on queue depth.                                                        |
+| Webhook receiver container                  | API Gateway plus Lambda that enqueues the pointer                                                              | The receiver is a pure enqueue, so the Lambda is a port of about one file.                                                                    |
+| In-process P0 poll, Scheduler for P1 and P2 | The same, with EventBridge Scheduler for P1, P2 and reconciliation                                             | P0 stays in the connector because Scheduler cannot fire faster than a minute.                                                                 |
+| HS256 JWT and `/dev/token`                  | Cognito or the company OIDC provider. API Gateway or the ALB validates, the gateway still builds the principal | `gateway_core.auth` is the only file that knows the signer.                                                                                   |
+| Alloy, Prometheus, Loki, Tempo, Grafana     | The same Alloy with OTLP to Datadog or Grafana Cloud. CloudWatch only for AWS-service metrics                  | Instrumentation is OpenTelemetry and Prometheus metrics, so the backend is a collector setting. Dashboards would be rebuilt there.            |
+| OpenRouter for chat                         | Bedrock or an AI gateway in front of the models                                                                | Model names are config. An AI gateway adds central key management, rate limits, and logging of prompts. It is not needed to prove the design. |
+| fastembed in the worker and gateway images  | The same, or a shared embedding service if CPU cost matters                                                    | Changing the model is `make reindex`, whatever hosts it.                                                                                      |
 
 ## Trade-offs
 
-| Trade-off | Accepted cost | Where it shows |
-| --------- | ------------- | -------------- |
-| Freshness versus embedding cost | Real-time only for P0. Unchanged content skips embedding. | Skipped-embed metric, P0 lag. |
-| Two stores versus one | Postgres and Neo4j can diverge until the retry. | Delete verification, unacknowledged message. |
-| SQS versus a log | No cross-object order and no independent replay. | Dead-letter depth. |
-| Indexed ACL versus read-time check | HR pays a live call. Other sources are stale inside the window. | Latency split, window on the contract. |
-| Deterministic versus extracted edges | Extracted edges never decide the headline answer, so recall on spec links is lower. | Path versus supporting edges. |
-| 250 ms versus the HR re-check | The re-check can miss 250 ms. Search latency includes it. The harness call has its own histogram. | `kbs_retrieval_seconds` and `kbs_acl_recheck_seconds`. |
+| Trade-off                            | Accepted cost                                                                                     | Where it shows                                         |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| Freshness versus embedding cost      | Real-time only for P0. Unchanged content skips embedding.                                         | Skipped-embed metric, P0 lag.                          |
+| Two stores versus one                | Postgres and Neo4j can diverge until the retry.                                                   | Delete verification, unacknowledged message.           |
+| SQS versus a log                     | No cross-object order and no independent replay.                                                  | Dead-letter depth.                                     |
+| Indexed ACL versus read-time check   | HR pays a live call. Other sources are stale inside the window.                                   | Latency split, window on the contract.                 |
+| Deterministic versus extracted edges | Extracted edges never decide the headline answer, so recall on spec links is lower.               | Path versus supporting edges.                          |
+| 250 ms versus the HR re-check        | The re-check can miss 250 ms. Search latency includes it. The harness call has its own histogram. | `kbs_retrieval_seconds` and `kbs_acl_recheck_seconds`. |
 
 ### Requirements I would question, and shortcuts I took
 
@@ -209,46 +209,46 @@ Requirements I would question with the stakeholders before building more:
 
 Shortcuts in the POC, all deliberate and all visible in the code:
 
-| Shortcut | Why it is acceptable here | What replaces it |
-| -------- | ------------------------- | ---------------- |
-| HS256 JWT with a shared secret and a dev token endpoint | The claim contract is what is enforced | OIDC with the company IdP |
-| `roadmap_readers` rule with `department: "*"` | A principal has one department, and question 2 crosses departments | A principal that holds several departments |
-| One fixed graph template for question 2, no query router | The caller picks search or graph | The router in spike 02, justified by the golden set |
-| Shared `neo4j` user | Community edition has no roles | Per-service roles or a managed graph with IAM |
-| bge-small, English only, one similarity floor tuned on about 500 chunks | Fast on CPU, no network at run time | Re-measure on the real corpus; multilingual-e5 if needed |
-| Corpus is generated | Enough to show citations, boundaries, and a join | Real connectors will spend their time on pagination, tokens, and rate limits |
-| No Alertmanager | Dashboards carry the thresholds | Alerts routed to the contract owner |
+| Shortcut                                                                | Why it is acceptable here                                          | What replaces it                                                             |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
+| HS256 JWT with a shared secret and a dev token endpoint                 | The claim contract is what is enforced                             | OIDC with the company IdP                                                    |
+| `roadmap_readers` rule with `department: "*"`                           | A principal has one department, and question 2 crosses departments | A principal that holds several departments                                   |
+| One fixed graph template for question 2, no query router                | The caller picks search or graph                                   | The router in spike 02, justified by the golden set                          |
+| Shared `neo4j` user                                                     | Community edition has no roles                                     | Per-service roles or a managed graph with IAM                                |
+| bge-small, English only, one similarity floor tuned on about 500 chunks | Fast on CPU, no network at run time                                | Re-measure on the real corpus; multilingual-e5 if needed                     |
+| Corpus is generated                                                     | Enough to show citations, boundaries, and a join                   | Real connectors will spend their time on pagination, tokens, and rate limits |
+| No Alertmanager                                                         | Dashboards carry the thresholds                                    | Alerts routed to the contract owner                                          |
 
 ## Quality evaluation
 
 The golden set is built: 20 cases in `tools/eval/golden.yaml`, run by `make eval` on every change to chunking, the embedding model, prompts, or retrieval parameters. It adds a paraphrase category (queries sharing no word with the policy) and three graph cases to these four:
 
-| Category | Pass condition |
-| -------- | -------------- |
-| Known supporting chunk | In the retrieved set (recall@k, MRR). |
-| No answer in the corpus | The system abstains. |
-| Conflicting sources | Both versions are surfaced. |
-| Access boundary | Two principals on one pool. The unauthorized one gets an empty set. Security tests. |
+| Category                | Pass condition                                                                      |
+| ----------------------- | ----------------------------------------------------------------------------------- |
+| Known supporting chunk  | In the retrieved set (recall@k, MRR).                                               |
+| No answer in the corpus | The system abstains.                                                                |
+| Conflicting sources     | Both versions are surfaced.                                                         |
+| Access boundary         | Two principals on one pool. The unauthorized one gets an empty set. Security tests. |
 
 Faithfulness is a citation check: every claim maps to a returned chunk id. A model-graded judge is a production addition.
 
 Monitoring follows [ADR 0002](../03--adrs/0002-observability.md). Each connector emits snapshot lag, last success, and reconciliation drift. A cursor watermark is not a timestamp, so lag stays unset for that source. The product connector reports hook-queue depth, and the webhook receiver counts accepted and refused notices. The ingestion worker emits event lag, queue depth, dead-letter depth, embed calls, embeds skipped by hash, index drift, store write time, and dependency gauges. The gateway emits retrieval latency, empty-result rate by permission group (`hr_admins`, then `roadmap`, then `employees`, or `none`), auth failures, HTTP rate, and the HR ACL re-check. `roadmap_deals` is included in that empty rate, with source `sales` when a path is returned. Grafana charts those rows on the overview, ingestion, retrieval, and platform boards. The retrieval board has a question 2 row. A deny is a log line with `decision: deny`, opened from `request_id` or from `trace_id`. The dashboard does not query `kbs.audit_log`. One search or one object change is one Tempo trace. POC alerts are dashboard thresholds: P0 lag over 30 seconds, any dead-letter message, any delete verification failure. There is no Alertmanager. `make eval` calls the REST API as each persona and prints recall at 5, MRR, and p95 latency per run, and exits non-zero below the thresholds in the file. Measured on the seeded stack (about 500 chunks):
 
-| Run | recall at 5 | paraphrase recall at 5 | MRR | no answer | access | graph | p95 |
-| --- | ----------- | ---------------------- | --- | --------- | ------ | ----- | --- |
-| `hash-v1` plus full-text, fused | 0.50 | 0.20 | 0.50 | 1.00 | 1.00 | 1.00 | 167 ms |
-| bge-small plus full-text, fused | 1.00 | 1.00 | 0.95 | 1.00 | 1.00 | 1.00 | 216 ms |
+| Run                             | recall at 5 | paraphrase recall at 5 | MRR  | no answer | access | graph | p95    |
+| ------------------------------- | ----------- | ---------------------- | ---- | --------- | ------ | ----- | ------ |
+| `hash-v1` plus full-text, fused | 0.50        | 0.20                   | 0.50 | 1.00      | 1.00   | 1.00  | 167 ms |
+| bge-small plus full-text, fused | 1.00        | 1.00                   | 0.95 | 1.00      | 1.00   | 1.00  | 216 ms |
 
 The reranker question is answered by this table: there is no recall gap to close, so none was added. The corpus is small, the cases are written by the same person who wrote the corpus, and latency is a laptop running the whole stack through HTTP and a live HR ACL check. Treat the numbers as a regression gate, not as proof for 10 million objects. API tests also cover an access boundary and the roadmap path.
 
-| Symptom | Action |
-| ------- | ------ |
-| Dead-letter messages | Fix the cause, replay. The upsert key makes replay safe. |
-| Lag breach or a stalled connector | Proposed: stop that connector's intake and notify its contract owner. No such mechanism is built. |
-| Indexed ids exceed source ids | Run reconciliation. |
-| Recall drops after a chunker or model change | Roll back `chunker_version` or `embedding_model`. |
-| Empty-result rate rises for one group | Treat as an authorization defect first. Check the ACL mapping, the pre-filter, and the RLS settings. |
-| HR re-check errors | Fail closed. The search returns no chunks and the failure counter increments. |
+| Symptom                                      | Action                                                                                               |
+| -------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Dead-letter messages                         | Fix the cause, replay. The upsert key makes replay safe.                                             |
+| Lag breach or a stalled connector            | Proposed: stop that connector's intake and notify its contract owner. No such mechanism is built.    |
+| Indexed ids exceed source ids                | Run reconciliation.                                                                                  |
+| Recall drops after a chunker or model change | Roll back `chunker_version` or `embedding_model`.                                                    |
+| Empty-result rate rises for one group        | Treat as an authorization defect first. Check the ACL mapping, the pre-filter, and the RLS settings. |
+| HR re-check errors                           | Fail closed. The search returns no chunks and the failure counter increments.                        |
 
 ## Risks
 

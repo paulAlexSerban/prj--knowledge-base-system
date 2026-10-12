@@ -11,7 +11,7 @@ The company wants to build AI agents that automate process workflows across depa
 
 None of these agents exist yet. To build them reliably, agents need knowledge that is accurate, current, and authorized at the moment they act. Today there is no system that provides this.
 
-![System Context](00-c4-l1--system-context.png)
+![System Context](../99--dagrams/00-c4-l1--system-context.png)
 
 The POC implements one slice of that system: a knowledge gateway that ingests four department sources, keeps a hybrid index (vector plus knowledge graph) current from change events, and exposes the result to agents through one API and one MCP server. Production scale, additional departments, and a full agent product are documented as a production path and are not built.
 
@@ -51,28 +51,28 @@ Two sets of assumptions are stated separately. The interview discussion starts f
 
 ### Stated production assumptions
 
-| Topic | Assumption |
-| ----- | ---------- |
-| Scale | About 2,000 active employees and about 10 million objects (documents, records, emails, spreadsheets) across Sales, Product, Engineering, and People/HR. |
-| Change volume | About 100,000 creations, modifications, or deletions per day. |
-| Freshness | High-priority security and HR policy: propagation under 30 seconds. Operational content (Jira, Confluence): under 5 minutes. Bulk historical archives: batch sync every 24 hours. |
-| Security | Zero-trust, user-delegated access. Downstream agents hold no elevated privilege. Every query inherits the initiating user's identity, entitlement scopes, and access-control attributes. HR data that contains compensation or national identifiers is subject to attribute-based access control. |
-| Query types | Unstructured semantic search ("What is our parental leave policy in Germany?") and structured multi-hop traversal ("Which high-ARR Sales deals in Q3 depend on unreleased Engineering epics?"). |
-| Heterogeneity | Unstructured: HR policies (PDF/DOCX), product specs (Notion/Confluence), sales transcripts. Semi-structured: financial JSON APIs, engineering work items. Structured: sales CRM records, people directory. |
-| Latency | Unified retrieval under 250 ms p95, excluding language-model generation time. |
+| Topic         | Assumption                                                                                                                                                                                                                                                                                        |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Scale         | About 2,000 active employees and about 10 million objects (documents, records, emails, spreadsheets) across Sales, Product, Engineering, and People/HR.                                                                                                                                           |
+| Change volume | About 100,000 creations, modifications, or deletions per day.                                                                                                                                                                                                                                     |
+| Freshness     | High-priority security and HR policy: propagation under 30 seconds. Operational content (Jira, Confluence): under 5 minutes. Bulk historical archives: batch sync every 24 hours.                                                                                                                 |
+| Security      | Zero-trust, user-delegated access. Downstream agents hold no elevated privilege. Every query inherits the initiating user's identity, entitlement scopes, and access-control attributes. HR data that contains compensation or national identifiers is subject to attribute-based access control. |
+| Query types   | Unstructured semantic search ("What is our parental leave policy in Germany?") and structured multi-hop traversal ("Which high-ARR Sales deals in Q3 depend on unreleased Engineering epics?").                                                                                                   |
+| Heterogeneity | Unstructured: HR policies (PDF/DOCX), product specs (Notion/Confluence), sales transcripts. Semi-structured: financial JSON APIs, engineering work items. Structured: sales CRM records, people directory.                                                                                        |
+| Latency       | Unified retrieval under 250 ms p95, excluding language-model generation time.                                                                                                                                                                                                                     |
 
 Sanity check on volume. 100,000 events per day is about 1.2 events per second on average. Peak bursts of 10 to 20 times the average are still well inside a single queue and a small worker pool. The production constraint is embedding cost, rate limits on source APIs, and delete correctness, not raw throughput. A design that starts with Kafka, a dedicated vector cluster, and multi-region replication is solving a problem this volume does not have.
 
 ### POC scaling assumptions
 
-| Topic | POC assumption |
-| ----- | -------------- |
-| Sources | Four mocked department services: HR, Sales, Product, Engineering. |
-| Corpus | A few hundred documents and records, enough to show citations, permission boundaries, and a multi-hop graph question. |
-| Freshness | The same three tiers exist as queue priority and a measured sync-lag metric. The 30-second and 5-minute targets are demonstrated on the local stack. They are not load-tested. |
-| Identity | A dev endpoint signs HS256 JWTs. Claims are subject, groups, clearance, and department. Region is not a claim. This stands in for OIDC. |
+| Topic           | POC assumption                                                                                                                                                                                                                                  |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Sources         | Four mocked department services: HR, Sales, Product, Engineering.                                                                                                                                                                               |
+| Corpus          | A few hundred documents and records, enough to show citations, permission boundaries, and a multi-hop graph question.                                                                                                                           |
+| Freshness       | The same three tiers exist as queue priority and a measured sync-lag metric. The 30-second and 5-minute targets are demonstrated on the local stack. They are not load-tested.                                                                  |
+| Identity        | A dev endpoint signs HS256 JWTs. Claims are subject, groups, clearance, and department. Region is not a claim. This stands in for OIDC.                                                                                                         |
 | Language models | OpenRouter via `OPENROUTER_API_KEY` for chat, when a key is set. The running embedder is local `bge-small-en-v1.5` through fastembed, baked into the images. `hash-v1` is the offline and test default. The constrained extractor is not built. |
-| Infrastructure | Docker Compose plus [floci](https://floci.io) for AWS emulation (SQS, S3, EventBridge Scheduler). Terraform talks to floci endpoint overrides. |
+| Infrastructure  | Docker Compose plus [floci](https://floci.io) for AWS emulation (SQS, S3, EventBridge Scheduler). Terraform talks to floci endpoint overrides.                                                                                                  |
 
 ## Questioned requirements
 
@@ -112,24 +112,24 @@ Finance and other departments beyond the four. Real OAuth against Google, Notion
 
 ## Target stack
 
-| Concern | POC choice |
-| ------- | ---------- |
-| Language and HTTP | Python, FastAPI. The Knowledge API and the MCP server are thin adapters over one service layer. |
-| Metadata, vectors, lexical search, authorization | Postgres: source registry, ACL attributes, sync state, content hashes, pgvector, full-text search, row-level security. |
-| Knowledge graph | Neo4j. |
-| Messaging | SQS on floci, FIFO per source key so updates for one object stay ordered, plus a dead-letter queue. |
-| Object storage | S3 on floci for raw snapshots and document blobs. |
-| Scheduling | P0 poll loop inside the connector worker. EventBridge Scheduler, one-minute minimum, for P1/P2 polls and reconciliation. |
-| Workers | Connector workers (extract, detect change, emit). Ingestion workers (normalize, chunk, embed, upsert vectors and graph, tombstone deletes). |
-| Models | OpenRouter for chat when a key is set. The running embedder is local `fastembed-bge-small-v1`. `hash-v1` is the test default. The constrained extractor is not built. |
-| Identity | Dev-only HS256 JWTs. Claims are subject, groups, clearance, and department. |
-| Infra | Docker Compose. Terraform with floci endpoint overrides for queues and the snapshot bucket. |
-| Observability | Prometheus, Alloy, Loki, Tempo, and Grafana. One change or one search is one trace. |
+| Concern                                          | POC choice                                                                                                                                                            |
+| ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Language and HTTP                                | Python, FastAPI. The Knowledge API and the MCP server are thin adapters over one service layer.                                                                       |
+| Metadata, vectors, lexical search, authorization | Postgres: source registry, ACL attributes, sync state, content hashes, pgvector, full-text search, row-level security.                                                |
+| Knowledge graph                                  | Neo4j.                                                                                                                                                                |
+| Messaging                                        | SQS on floci, FIFO per source key so updates for one object stay ordered, plus a dead-letter queue.                                                                   |
+| Object storage                                   | S3 on floci for raw snapshots and document blobs.                                                                                                                     |
+| Scheduling                                       | P0 poll loop inside the connector worker. EventBridge Scheduler, one-minute minimum, for P1/P2 polls and reconciliation.                                              |
+| Workers                                          | Connector workers (extract, detect change, emit). Ingestion workers (normalize, chunk, embed, upsert vectors and graph, tombstone deletes).                           |
+| Models                                           | OpenRouter for chat when a key is set. The running embedder is local `fastembed-bge-small-v1`. `hash-v1` is the test default. The constrained extractor is not built. |
+| Identity                                         | Dev-only HS256 JWTs. Claims are subject, groups, clearance, and department.                                                                                           |
+| Infra                                            | Docker Compose. Terraform with floci endpoint overrides for queues and the snapshot bucket.                                                                           |
+| Observability                                    | Prometheus, Alloy, Loki, Tempo, and Grafana. One change or one search is one trace.                                                                                   |
 
 
-![Container Diagram](00-c4-l2--container-diagram--knowledge-base-system.png)
+![Container Diagram](../99--dagrams/00-c4-l2--container-diagram--knowledge-base-system.png)
 
-![Component Diagram](00-c4-l3--component-diagram--kowledge-base-system.png)
+![Component Diagram](../99--dagrams/00-c4-l3--component-diagram--kowledge-base-system.png)
 
 ## Demo script
 
@@ -154,28 +154,28 @@ The demo is the acceptance test. Each step is observable in the API response, th
 
 ## Repo layout
 
-| Path | Role |
-| ---- | ---- |
-| `_docs/00--project-brief/` | This brief, the C4 system-context diagram, and the [C4 container diagram](01-c4-l2--container-connectors.png) for connector workers, and the [end-to-end data-flow diagram](02-end-to-end-data-flow.png). |
-| `_docs/01--spikes/` | Decision records for ingestion, knowledge representation, access, and synchronization. |
-| `_docs/02--architecture/` | Architecture document. Deliverable 1, written from this brief, the spikes, and the ADRs. |
-| `_docs/03--adrs/` | Short ADRs for storage, observability, and embedding/chunk versioning. |
-| `backend/apis/knowledge-api` | REST gateway. Its own image. |
-| `backend/apis/mcp-server` | MCP gateway. Its own image. |
-| `backend/apis/webhook-receiver` | Product webhook receiver. Its own image. It enqueues a pointer. The production path is API Gateway plus Lambda, and that function is not built. |
-| `backend/connectors/` | One connector process per source. Each has its own image. |
-| `backend/workers/ingestion-worker` | Queue consumer. Its own image. Writes chunks and the graph. |
-| `backend/libs/connector-core` | Connector interface and snapshot sync. A library, not a service. |
-| `backend/libs/ingest-contract` | Change events, queue names, and the snapshot hash. A library, not a service. |
-| `backend/libs/knowledge-store` | Chunking, embeddings, Postgres chunks, and the Neo4j writer. A library, not a service. |
-| `backend/libs/gateway-core` | Retrieval, JWT checks, Neo4j read templates, and the tool text. A library, not a service. |
-| `database` | Postgres and Neo4j schema. |
-| `demo-harness/` | HR, Sales, Product, and Engineering mock services. |
-| `notebooks/` | Jupyter notebooks for the HR harness (`00`–`30`), the other three sources (`02`, `14`–`16`), the gateway (`40`–`44`), and two read-only LangChain agents (`50`, `51`). |
-| `infrastructure/` | Compose orchestration, Terraform provisioning, floci config, and `config/sources` YAML contracts. |
-| `observability` | Alloy, Loki, Prometheus, Tempo, five Grafana dashboards, and metric definitions. |
-| `shared` | Contracts, the registry gate, and logging. Source contracts in `shared/src/shared/contracts` are checked by `make contracts-check`. |
-| `tools` | `scripts/` (setup, seed, demo, dead-letter replay), `eval/` (golden set and runner). |
+| Path                               | Role                                                                                                                                                                                                      |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `_docs/00--project-brief/`         | This brief, the C4 system-context diagram, and the [C4 container diagram](01-c4-l2--container-connectors.png) for connector workers, and the [end-to-end data-flow diagram](02-end-to-end-data-flow.png). |
+| `_docs/01--spikes/`                | Decision records for ingestion, knowledge representation, access, and synchronization.                                                                                                                    |
+| `_docs/02--architecture/`          | Architecture document. Deliverable 1, written from this brief, the spikes, and the ADRs.                                                                                                                  |
+| `_docs/03--adrs/`                  | Short ADRs for storage, observability, and embedding/chunk versioning.                                                                                                                                    |
+| `backend/apis/knowledge-api`       | REST gateway. Its own image.                                                                                                                                                                              |
+| `backend/apis/mcp-server`          | MCP gateway. Its own image.                                                                                                                                                                               |
+| `backend/apis/webhook-receiver`    | Product webhook receiver. Its own image. It enqueues a pointer. The production path is API Gateway plus Lambda, and that function is not built.                                                           |
+| `backend/connectors/`              | One connector process per source. Each has its own image.                                                                                                                                                 |
+| `backend/workers/ingestion-worker` | Queue consumer. Its own image. Writes chunks and the graph.                                                                                                                                               |
+| `backend/libs/connector-core`      | Connector interface and snapshot sync. A library, not a service.                                                                                                                                          |
+| `backend/libs/ingest-contract`     | Change events, queue names, and the snapshot hash. A library, not a service.                                                                                                                              |
+| `backend/libs/knowledge-store`     | Chunking, embeddings, Postgres chunks, and the Neo4j writer. A library, not a service.                                                                                                                    |
+| `backend/libs/gateway-core`        | Retrieval, JWT checks, Neo4j read templates, and the tool text. A library, not a service.                                                                                                                 |
+| `database`                         | Postgres and Neo4j schema.                                                                                                                                                                                |
+| `demo-harness/`                    | HR, Sales, Product, and Engineering mock services.                                                                                                                                                        |
+| `notebooks/`                       | Jupyter notebooks for the HR harness (`00`–`30`), the other three sources (`02`, `14`–`16`), the gateway (`40`–`44`), and two read-only LangChain agents (`50`, `51`).                                    |
+| `infrastructure/`                  | Compose orchestration, Terraform provisioning, floci config, and `config/sources` YAML contracts.                                                                                                         |
+| `observability`                    | Alloy, Loki, Prometheus, Tempo, five Grafana dashboards, and metric definitions.                                                                                                                          |
+| `shared`                           | Contracts, the registry gate, and logging. Source contracts in `shared/src/shared/contracts` are checked by `make contracts-check`.                                                                       |
+| `tools`                            | `scripts/` (setup, seed, demo, dead-letter replay), `eval/` (golden set and runner).                                                                                                                      |
 
 ## Related decisions
 
