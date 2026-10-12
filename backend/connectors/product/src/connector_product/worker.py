@@ -8,12 +8,14 @@ import os
 import time
 
 import httpx
+from botocore.exceptions import BotoCoreError, ClientError
 
 from connector_core.runtime import prepare, sqs_client
 from connector_core.sync import Syncer
 from connector_product.apply import apply_notice
 from connector_product.client import ProductConnector
 from connector_product.queue import HookQueue
+from ingest_contract.hooks import HookNotice
 from shared.logging import log_event
 
 LOG = logging.getLogger("connector-product")
@@ -21,6 +23,23 @@ LOG = logging.getLogger("connector-product")
 
 def _client(base_url: str) -> ProductConnector:
     return ProductConnector(httpx.Client(base_url=base_url, timeout=30))
+
+
+def take_notices(hooks: HookQueue) -> list[tuple[HookNotice, str]] | None:
+    """Read one batch. None means the queue could not be reached, so the process stays up."""
+    try:
+        hooks.observe()
+        return hooks.receive()
+    except (BotoCoreError, ClientError, OSError) as exc:
+        log_event(
+            LOG,
+            "hook queue unreachable",
+            level=logging.WARNING,
+            source_id="product",
+            error=str(exc),
+        )
+        hooks.ready()
+        return None
 
 
 def main() -> None:
@@ -48,8 +67,11 @@ def main() -> None:
     reconcile_every = int(os.environ.get("RECONCILE_SECONDS", "60"))
     last = time.monotonic()
     while True:
-        hooks.observe()
-        for notice, handle in hooks.receive():
+        notices = take_notices(hooks)
+        if notices is None:
+            time.sleep(2)
+            continue
+        for notice, handle in notices:
             try:
                 report = apply_notice(
                     ready.connector,
@@ -70,7 +92,17 @@ def main() -> None:
                 )
                 continue
             if report.ok:
-                hooks.ack(handle)
+                try:
+                    hooks.ack(handle)
+                except (BotoCoreError, ClientError, OSError) as exc:
+                    log_event(
+                        LOG,
+                        "hook ack failed",
+                        level=logging.WARNING,
+                        source_id="product",
+                        object_id=notice.object_id,
+                        error=str(exc),
+                    )
             else:
                 log_event(
                     LOG,

@@ -189,6 +189,23 @@ def test_invalid_queue_body_is_not_returned(monkeypatch):
         assert depth == "1"
 
 
+def test_a_dead_hook_queue_does_not_crash_the_loop():
+    from botocore.exceptions import EndpointConnectionError
+
+    from connector_product.worker import take_notices
+
+    class Dead:
+        def get_queue_url(self, **kwargs):
+            raise EndpointConnectionError(endpoint_url="http://floci:4566/", error=OSError("down"))
+
+        def receive_message(self, **kwargs):
+            raise EndpointConnectionError(endpoint_url="http://floci:4566/", error=OSError("down"))
+
+    hooks = HookQueue(Dead())
+    hooks.url = "http://floci:4566/000000000000/kbs-product-hooks.fifo"
+    assert take_notices(hooks) is None
+
+
 def test_hook_depth_counts_visible_messages(monkeypatch):
     monkeypatch.delenv("AWS_ENDPOINT_URL", raising=False)
     with mock_aws():
