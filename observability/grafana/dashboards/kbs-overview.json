@@ -126,7 +126,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "histogram_quantile(0.95, sum by (le, source_id) (rate(kbs_snapshot_object_lag_seconds_bucket[5m])))",
+                        "expr": "histogram_quantile(0.95, sum by (le, source_id) (rate(kbs_snapshot_object_lag_seconds_bucket{source_id=~\"$source_id\"}[5m])))",
                         "legendFormat": "{{source_id}}"
                       },
                       "version": "v0"
@@ -210,7 +210,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "time() - kbs_connector_last_success_timestamp_seconds",
+                        "expr": "time() - kbs_connector_last_success_timestamp_seconds{source_id=~\"$source_id\"}",
                         "legendFormat": "{{source_id}}"
                       },
                       "version": "v0"
@@ -294,7 +294,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum by (source_id) (rate(kbs_snapshots_written_total[5m]))",
+                        "expr": "sum by (source_id) (rate(kbs_snapshots_written_total{source_id=~\"$source_id\"}[5m]))",
                         "legendFormat": "written {{source_id}}"
                       },
                       "version": "v0"
@@ -313,7 +313,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum by (source_id) (rate(kbs_snapshots_skipped_unchanged_total[5m]))",
+                        "expr": "sum by (source_id) (rate(kbs_snapshots_skipped_unchanged_total{source_id=~\"$source_id\"}[5m]))",
                         "legendFormat": "skipped {{source_id}}"
                       },
                       "version": "v0"
@@ -422,7 +422,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum by (source_id, stage) (rate(kbs_snapshot_errors_total[5m]))",
+                        "expr": "sum by (source_id, stage) (rate(kbs_snapshot_errors_total{source_id=~\"$source_id\"}[5m]))",
                         "legendFormat": "{{source_id}} {{stage}}"
                       },
                       "version": "v0"
@@ -534,7 +534,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "abs(kbs_reconcile_drift)",
+                        "expr": "abs(kbs_reconcile_drift{source_id=~\"$source_id\"})",
                         "legendFormat": "{{source_id}}"
                       },
                       "version": "v0"
@@ -613,7 +613,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum by (source_id, store) (increase(kbs_delete_verification_failures_total[$__range]))",
+                        "expr": "sum by (source_id, store) (increase(kbs_delete_verification_failures_total{source_id=~\"$source_id\"}[$__range]))",
                         "legendFormat": "{{source_id}} {{store}}"
                       },
                       "version": "v0"
@@ -838,7 +838,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "{service=~\".+\"} | json | level=\"error\"",
+                        "expr": "{service=~\"$service\"} | json | level=\"error\"",
                         "queryType": "range"
                       },
                       "version": "v0"
@@ -858,7 +858,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "{service=~\".+\"} | json | decision=\"deny\"",
+                        "expr": "{service=~\"$service\"} | json | decision=\"deny\"",
                         "queryType": "range"
                       },
                       "version": "v0"
@@ -1001,7 +1001,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "histogram_quantile(0.95, sum by (le, source_id) (rate(kbs_ingest_event_lag_seconds_bucket[5m])))",
+                        "expr": "histogram_quantile(0.95, sum by (le, source_id) (rate(kbs_ingest_event_lag_seconds_bucket{source_id=~\"$source_id\"}[5m])))",
                         "legendFormat": "event {{source_id}}"
                       },
                       "version": "v0"
@@ -1020,7 +1020,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "kbs_connector_watermark_lag_seconds",
+                        "expr": "kbs_connector_watermark_lag_seconds{source_id=~\"$source_id\"}",
                         "legendFormat": "watermark {{source_id}}"
                       },
                       "version": "v0"
@@ -1333,7 +1333,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum by (source_id) (rate(kbs_embed_skipped_unchanged_total[5m]))"
+                        "expr": "sum by (source_id) (rate(kbs_embed_skipped_unchanged_total{source_id=~\"$source_id\"}[5m]))"
                       },
                       "version": "v0"
                     },
@@ -1431,7 +1431,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "abs(kbs_index_drift)",
+                        "expr": "abs(kbs_index_drift{source_id=~\"$source_id\"})",
                         "legendFormat": "{{source_id}}"
                       },
                       "version": "v0"
@@ -1754,7 +1754,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "histogram_quantile(0.95, sum by (le, tool) (rate(kbs_retrieval_seconds_bucket[5m])))",
+                        "expr": "histogram_quantile(0.95, sum by (le, tool) (rate(kbs_retrieval_seconds_bucket{surface=~\"$surface\"}[5m])))",
                         "legendFormat": "{{tool}}"
                       },
                       "version": "v0"
@@ -1867,7 +1867,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum by (permission_group) (rate(kbs_retrieval_empty_total[5m])) / sum by (permission_group) (rate(kbs_retrieval_total[5m]))",
+                        "expr": "sum by (permission_group) (rate(kbs_retrieval_empty_total{permission_group=~\"$permission_group\"}[5m])) / sum by (permission_group) (rate(kbs_retrieval_total{permission_group=~\"$permission_group\"}[5m]))",
                         "legendFormat": "{{permission_group}}"
                       },
                       "version": "v0"
@@ -3072,6 +3072,115 @@
       "to": "now"
     },
     "title": "KBS overview",
-    "variables": []
+    "variables": [
+      {
+        "kind": "QueryVariable",
+        "spec": {
+          "name": "source_id",
+          "label": "Source",
+          "description": "Limit source series to one department. All keeps every source.",
+          "hide": "dontHide",
+          "refresh": "onDashboardLoad",
+          "skipUrlSync": false,
+          "current": {
+            "text": "All",
+            "value": "$__all"
+          },
+          "options": [],
+          "regex": "",
+          "sort": "alphabeticalAsc",
+          "multi": true,
+          "includeAll": true,
+          "allValue": ".*",
+          "allowCustomValue": false,
+          "query": {
+            "kind": "DataQuery",
+            "group": "prometheus",
+            "version": "v0",
+            "datasource": {
+              "name": "prometheus"
+            },
+            "spec": {
+              "query": "label_values(kbs_source_objects, source_id)",
+              "refId": "A"
+            }
+          }
+        }
+      },
+      {
+        "kind": "CustomVariable",
+        "spec": {
+          "name": "surface",
+          "label": "Surface",
+          "description": "REST or MCP. All keeps both.",
+          "query": "rest,mcp",
+          "current": {
+            "text": "All",
+            "value": "$__all"
+          },
+          "options": [],
+          "multi": true,
+          "includeAll": true,
+          "allValue": ".*",
+          "hide": "dontHide",
+          "skipUrlSync": false,
+          "allowCustomValue": false
+        }
+      },
+      {
+        "kind": "CustomVariable",
+        "spec": {
+          "name": "permission_group",
+          "label": "Permission group",
+          "description": "Highest-privilege group on the empty-result rate. All keeps every group.",
+          "query": "hr_admins,employees,none",
+          "current": {
+            "text": "All",
+            "value": "$__all"
+          },
+          "options": [],
+          "multi": true,
+          "includeAll": true,
+          "allValue": ".*",
+          "hide": "dontHide",
+          "skipUrlSync": false,
+          "allowCustomValue": false
+        }
+      },
+      {
+        "kind": "QueryVariable",
+        "spec": {
+          "name": "service",
+          "label": "Service",
+          "description": "Filters the error and deny log panel. All keeps every service.",
+          "hide": "dontHide",
+          "refresh": "onDashboardLoad",
+          "skipUrlSync": false,
+          "current": {
+            "text": "All",
+            "value": "$__all"
+          },
+          "options": [],
+          "regex": "",
+          "sort": "alphabeticalAsc",
+          "multi": true,
+          "includeAll": true,
+          "allValue": ".*",
+          "allowCustomValue": false,
+          "query": {
+            "kind": "DataQuery",
+            "group": "prometheus",
+            "version": "v0",
+            "datasource": {
+              "name": "prometheus"
+            },
+            "spec": {
+              "query": "label_values(up, job)",
+              "refId": "A"
+            }
+          }
+        }
+      }
+    ]
   }
 }
