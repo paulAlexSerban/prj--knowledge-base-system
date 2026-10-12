@@ -27,6 +27,7 @@ EXPECTED = [
     "41-gateway-search-abac.ipynb",
     "42-gateway-mcp.ipynb",
     "43-gateway-freshness.ipynb",
+    "44-roadmap-question.ipynb",
 ]
 CRUD = {
     "10-policy-create-read.ipynb": ("/admin/policies", "409", "422"),
@@ -155,6 +156,7 @@ def test_gateway_notebooks_stay_off_the_databases():
         "41-gateway-search-abac.ipynb": ("pol-parental-leave-de", "decision", "nb-deny"),
         "42-gateway-mcp.ipynb": ("search_knowledge", "mcp_tools", "pol-parental-leave-de"),
         "43-gateway-freshness.ipynb": ("pol-demo-gateway", "policies", "hr_policy_admin"),
+        "44-roadmap-question.ipynb": ("product_lead", "roadmap_deals", "employee_eng"),
     }
     for name, expected in needles.items():
         text = cell_text(load_notebook(name))

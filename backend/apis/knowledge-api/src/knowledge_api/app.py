@@ -47,9 +47,11 @@ class SearchBody(BaseModel):
 
 
 class RelatedBody(BaseModel):
-    kind: Literal["teammates", "team", "policies"]
+    kind: Literal["teammates", "team", "policies", "roadmap_deals"]
     entity_id: str | None = Field(default=None, max_length=200)
     limit: int = Field(default=20, ge=1, le=25)
+    quarter: str | None = Field(default=None, pattern=r"^\d{4}-Q[1-4]$")
+    min_arr: int | None = Field(default=None, ge=0)
 
 
 class TokenBody(BaseModel):
@@ -125,7 +127,13 @@ def create_app(service: GatewayService | None = None) -> FastAPI:
         _require_service(request)
         try:
             return request.app.state.service.find_related(
-                principal, body.kind, body.entity_id, body.limit, request.state.request_id
+                principal,
+                body.kind,
+                body.entity_id,
+                body.limit,
+                request.state.request_id,
+                quarter=body.quarter,
+                min_arr=body.min_arr,
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc

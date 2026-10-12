@@ -105,9 +105,11 @@ def build_server(service: GatewayService) -> MCPServer:
         kind: str,
         entity_id: str | None = None,
         limit: int = 20,
+        quarter: str | None = None,
+        min_arr: int | None = None,
         ctx: Context | None = None,
     ) -> dict[str, object]:
-        """Bounded graph path. kind is teammates, team, or policies."""
+        """Bounded graph path. kind is teammates, team, policies, or roadmap_deals."""
         principal = _caller()
         request_id = _request_id(ctx)
         bounded = max(1, min(limit, 25))
@@ -116,7 +118,14 @@ def build_server(service: GatewayService) -> MCPServer:
                 return await anyio.to_thread.run_sync(
                     _with_trace(
                         partial(
-                            service.find_related, principal, kind, entity_id, bounded, request_id
+                            service.find_related,
+                            principal,
+                            kind,
+                            entity_id,
+                            bounded,
+                            request_id,
+                            quarter,
+                            min_arr,
                         )
                     )
                 )

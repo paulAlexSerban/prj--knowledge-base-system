@@ -38,7 +38,8 @@ SET p.source_id = $source_id, p.title = $title, p.version = $version,
 DEAL = """
 MERGE (d:Deal {id: $id})
 SET d.source_id = $source_id, d.version = $version, d.account_id = $account_id,
-    d.epic_id = $epic_id, d.arr = $arr, d.quarter = $quarter, d.stage = $stage,
+    d.account_name = $account_name, d.epic_id = $epic_id, d.arr = $arr,
+    d.quarter = $quarter, d.stage = $stage,
     d.product_key = $product_key, d.acl_groups = $groups, d.acl_departments = $departments,
     d.min_clearance = $min_clearance, d.acl_rules = $rules
 """
@@ -164,6 +165,7 @@ class GraphWriter:
                 DEAL,
                 **common,
                 account_id=str(record.get("account_id") or ""),
+                account_name=str(record.get("account_name") or ""),
                 epic_id=epic_id,
                 arr=_arr(record.get("arr")),
                 quarter=str(record.get("quarter") or ""),

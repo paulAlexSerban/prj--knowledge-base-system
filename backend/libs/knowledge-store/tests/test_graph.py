@@ -36,6 +36,7 @@ def test_deal_and_epic_writes_pass_the_question_fields() -> None:
         "deal-northwind-q3",
         {
             "account_id": "northwind",
+            "account_name": "Northwind Traders",
             "epic_id": "epic-checkout-retry",
             "arr": 480_000,
             "quarter": "Q3",
@@ -52,6 +53,7 @@ def test_deal_and_epic_writes_pass_the_question_fields() -> None:
     assert deal["stage"] == "negotiation"
     assert deal["product_key"] == "checkout"
     assert deal["epic_id"] == "epic-checkout-retry"
+    assert deal["account_name"] == "Northwind Traders"
     graph.write(
         "engineering",
         "epic",

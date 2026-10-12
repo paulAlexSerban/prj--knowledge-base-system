@@ -466,6 +466,128 @@ def test_read_time_acl_failure_returns_nothing(api) -> None:
     assert RECHECK_FAILURES.labels(source_id="hr")._value.get() == before + 1
 
 
+def _seed_roadmap(driver) -> None:
+    driver.execute_query(
+        """
+        CREATE (t:Team {id: 'payments'})
+        CREATE (openEpic:Epic {
+            id: 'epic-checkout-retry', title: 'Retry', status: 'in_progress',
+            version: '1', source_id: 'engineering',
+            acl_groups: ['eng_project', 'roadmap'], acl_departments: [],
+            min_clearance: 1, acl_rules: $epic
+        })-[:OWNED_BY]->(t)
+        CREATE (done:Epic {
+            id: 'epic-checkout-wallets', title: 'Wallets', status: 'released',
+            version: '1', source_id: 'engineering',
+            acl_groups: ['roadmap'], acl_departments: [],
+            min_clearance: 1, acl_rules: $epic
+        })-[:OWNED_BY]->(t)
+        CREATE (:Deal {
+            id: 'deal-northwind-q3', account_name: 'Northwind Traders', arr: 480000,
+            quarter: '2026-Q3', version: '1', source_id: 'sales',
+            acl_groups: ['roadmap', 'sales_team'], acl_departments: [],
+            min_clearance: 1, acl_rules: $open
+        })-[:DEPENDS_ON]->(openEpic)
+        CREATE (:Deal {
+            id: 'deal-contoso-q3', account_name: 'Contoso', arr: 920000,
+            quarter: '2026-Q3', version: '1', source_id: 'sales',
+            acl_groups: ['sales_leadership'], acl_departments: ['sales'],
+            min_clearance: 2, acl_rules: $lead
+        })-[:DEPENDS_ON]->(openEpic)
+        CREATE (:Deal {
+            id: 'deal-woodgrove-q3', account_name: 'Woodgrove', arr: 700000,
+            quarter: '2026-Q3', version: '1', source_id: 'sales',
+            acl_groups: ['roadmap'], acl_departments: [],
+            min_clearance: 1, acl_rules: $open
+        })-[:DEPENDS_ON]->(done)
+        CREATE (:Deal {
+            id: 'deal-graphic-q3', account_name: 'Graphic', arr: 45000,
+            quarter: '2026-Q3', version: '1', source_id: 'sales',
+            acl_groups: ['roadmap'], acl_departments: [],
+            min_clearance: 1, acl_rules: $open
+        })-[:DEPENDS_ON]->(openEpic)
+        CREATE (:Deal {
+            id: 'deal-coho-q2', account_name: 'Coho', arr: 800000,
+            quarter: '2026-Q2', version: '1', source_id: 'sales',
+            acl_groups: ['roadmap'], acl_departments: [],
+            min_clearance: 1, acl_rules: $open
+        })-[:DEPENDS_ON]->(openEpic)
+        """,
+        open=json.dumps(
+            [
+                {"group": "sales_team", "department": "sales", "clearance": "internal"},
+                {"group": "roadmap", "department": "*", "clearance": "internal"},
+            ]
+        ),
+        epic=json.dumps(
+            [
+                {"group": "eng_project", "department": "engineering", "clearance": "internal"},
+                {"group": "roadmap", "department": "*", "clearance": "internal"},
+            ]
+        ),
+        lead=json.dumps(
+            [{"group": "sales_leadership", "department": "sales", "clearance": "confidential"}]
+        ),
+    )
+
+
+def _deal_ids(body: dict) -> set[str]:
+    found = set()
+    for path in body["paths"]:
+        for step in path["steps"]:
+            if step["type"] == "Deal":
+                found.add(step["id"])
+    return found
+
+
+def test_roadmap_deals_is_an_access_boundary(api) -> None:
+    http, admin = api
+    _seed_roadmap(http.app.state.service.graph.driver)
+    allowed = http.post(
+        "/v1/graph/related",
+        json={"kind": "roadmap_deals"},
+        headers={**_auth("product_lead"), "x-request-id": "roadmap-allow"},
+    )
+    assert allowed.status_code == 200
+    assert _deal_ids(allowed.json()) == {"deal-northwind-q3"}
+    hidden = {"deal-contoso-q3", "deal-woodgrove-q3", "deal-graphic-q3", "deal-coho-q2"}
+    assert _deal_ids(allowed.json()).isdisjoint(hidden)
+    engineer = http.post(
+        "/v1/graph/related",
+        json={"kind": "roadmap_deals"},
+        headers={**_auth("employee_eng"), "x-request-id": "roadmap-eng"},
+    )
+    outsider = http.post(
+        "/v1/graph/related",
+        json={"kind": "roadmap_deals"},
+        headers={**_auth("outsider"), "x-request-id": "roadmap-out"},
+    )
+    assert engineer.json()["paths"] == []
+    assert outsider.json()["paths"] == []
+    assert http.post(
+        "/v1/graph/related",
+        json={"kind": "roadmap_deals", "quarter": "Q3"},
+        headers=_auth("product_lead"),
+    ).status_code == 422
+    assert http.post(
+        "/v1/graph/related",
+        json={"kind": "roadmap_deals", "min_arr": -1},
+        headers=_auth("product_lead"),
+    ).status_code == 422
+    with admin.connect() as connection:
+        rows = connection.execute(
+            text(
+                """
+                SELECT decision, attributes->'rule'->>'group' AS grp
+                FROM audit_log WHERE request_id = 'roadmap-allow'
+                """
+            )
+        ).all()
+    assert rows
+    assert {row.decision for row in rows} == {"allow"}
+    assert {row.grp for row in rows} == {"roadmap"}
+
+
 def test_dev_token_issues_a_persona_and_stays_hidden(api, monkeypatch) -> None:
     http, _admin = api
     issued = http.post("/dev/token", json={"persona": "employee_eng"})

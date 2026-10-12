@@ -52,13 +52,18 @@ def _aws(service: str):
     )
 
 
-def _request(base: str, method: str, path: str, body: dict | None = None) -> dict:
+def _request(
+    base: str, method: str, path: str, body: dict | None = None, token: str | None = None
+) -> dict:
     data = None if body is None else json.dumps(body).encode()
+    headers = {"content-type": "application/json"}
+    if token:
+        headers["authorization"] = f"Bearer {token}"
     request = urllib.request.Request(
         f"{base}{path}",
         data=data,
         method=method,
-        headers={"content-type": "application/json"},
+        headers=headers,
     )
     with urllib.request.urlopen(request, timeout=60) as response:
         raw = response.read()
@@ -155,6 +160,22 @@ def _indexed() -> bool:
     return all(part in path for part in needed)
 
 
+API = os.environ.get("GATEWAY_API_URL", "http://127.0.0.1:8000")
+
+
+def _roadmap(persona: str) -> set[str]:
+    bearer = _request(API, "POST", "/dev/token", {"persona": persona})["token"]
+    body = _request(
+        API, "POST", "/v1/graph/related", {"kind": "roadmap_deals"}, token=bearer
+    )
+    found: set[str] = set()
+    for path in body["paths"]:
+        for step in path["steps"]:
+            if step["type"] == "Deal":
+                found.add(step["id"])
+    return found
+
+
 def _path() -> str:
     return _cypher(
         "MATCH (d:Deal {id: 'deal-northwind-q3'})-[:DEPENDS_ON]->"
@@ -173,6 +194,11 @@ def test_three_sources_reach_the_graph() -> None:
     try:
         _reset()
         _wait_until(_indexed, 240, "deal, epic, and spec indexed")
+        visible = _roadmap("product_lead")
+        assert DEAL in visible
+        assert "deal-contoso-q3" not in visible
+        assert "deal-woodgrove-q3" not in visible
+        assert _roadmap("employee_eng") == set()
         deal_text = _text("sales", DEAL)
         assert "commission_rate" not in deal_text
         assert "arr: 480000" in deal_text
@@ -186,6 +212,7 @@ def test_three_sources_reach_the_graph() -> None:
         _wait_until(
             lambda: "released" in _path() and _chunks("engineering", EPIC) == 1, 150, "status"
         )
+        _wait_until(lambda: DEAL not in _roadmap("product_lead"), 30, "released deal leaves the gateway")
 
         _request(
             HARNESS["engineering"],
@@ -202,11 +229,14 @@ def test_three_sources_reach_the_graph() -> None:
             "epic acl",
         )
 
+        _request(HARNESS["sales"], "DELETE", "/admin/deals/deal-alpine-q3")
         _request(HARNESS["sales"], "DELETE", "/admin/deals/deal-proseware-q3")
         _request(HARNESS["engineering"], "DELETE", "/admin/epics/epic-platform-cost")
         _wait_until(
             lambda: (
                 _chunks("sales", "deal-proseware-q3") == 0
+                and _chunks("sales", "deal-alpine-q3") == 0
+                and "deal-alpine-q3" not in _roadmap("product_lead")
                 and _chunks("engineering", "epic-platform-cost") == 0
                 and "payments" in _path()
             ),

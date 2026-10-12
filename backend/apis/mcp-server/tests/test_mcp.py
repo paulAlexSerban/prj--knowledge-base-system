@@ -1,5 +1,6 @@
 """MCP tools use the same service as REST. A missing token never reaches a tool."""
 
+import json
 from datetime import UTC, datetime
 
 import boto3
@@ -218,3 +219,42 @@ def test_two_personas_match_the_service(mcp) -> None:
         pass
     else:
         raise AssertionError("expected PermissionError")
+
+
+def test_roadmap_deals_matches_the_service(mcp) -> None:
+    server, service = mcp
+    service.graph.driver.execute_query(
+        """
+        CREATE (t:Team {id: 'payments'})
+        CREATE (e:Epic {
+            id: 'epic-checkout-retry', title: 'Retry', status: 'in_progress',
+            version: '1', source_id: 'engineering',
+            acl_groups: ['roadmap'], acl_departments: [],
+            min_clearance: 1, acl_rules: $rules
+        })-[:OWNED_BY]->(t)
+        CREATE (:Deal {
+            id: 'deal-northwind-q3', account_name: 'Northwind Traders', arr: 480000,
+            quarter: '2026-Q3', version: '1', source_id: 'sales',
+            acl_groups: ['roadmap'], acl_departments: [],
+            min_clearance: 1, acl_rules: $rules
+        })-[:DEPENDS_ON]->(e)
+        """,
+        rules=json.dumps([{"group": "roadmap", "department": "*", "clearance": "internal"}]),
+    )
+    tool = server._tool_manager.get_tool("find_related")
+    assert tool is not None
+    lead = _use("product_lead")
+    try:
+        found = _call(tool, kind="roadmap_deals")
+    finally:
+        auth_context_var.reset(lead)
+    assert found["kind"] == "roadmap_deals"
+    assert found["paths"][0]["steps"][0]["id"] == "deal-northwind-q3"
+    engineer = _use("employee_eng")
+    try:
+        hidden = _call(tool, kind="roadmap_deals")
+        rejected = _call(tool, kind="roadmap_deals", quarter="Q3")
+    finally:
+        auth_context_var.reset(engineer)
+    assert hidden["paths"] == []
+    assert rejected["error"] == "quarter"

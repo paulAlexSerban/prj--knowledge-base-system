@@ -17,8 +17,11 @@ GET_DOCUMENT = (
 )
 FIND_RELATED = (
     "Bounded graph lookup. kind is teammates (people who share a person's team), "
-    "team (people on a team), or policies (policies the caller may see; "
-    "an entity id asks about one policy). "
+    "team (people on a team), policies (policies the caller may see; "
+    "an entity id asks about one policy), or roadmap_deals "
+    "(high-ARR deals in one quarter that depend on an unreleased epic, "
+    "and the team that owns that epic). "
+    "quarter defaults to 2026-Q3 and min_arr to 200000. "
     "Returns the path. There is no open Cypher. Does not write."
 )
 LIST_SOURCES = (

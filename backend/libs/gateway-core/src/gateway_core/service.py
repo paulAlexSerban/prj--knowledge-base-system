@@ -84,14 +84,20 @@ class GatewayService:
         entity_id: str | None,
         limit: int,
         request_id: str,
+        quarter: str | None = None,
+        min_arr: int | None = None,
     ) -> dict[str, object]:
         with (
             span("retrieval", tool="find_related", surface=self.surface),
             RETRIEVAL_SECONDS.labels(tool="find_related", surface=self.surface).time(),
         ):
-            kind_label = kind if kind in {"teammates", "team", "policies"} else "other"
+            kind_label = (
+                kind if kind in {"teammates", "team", "policies", "roadmap_deals"} else "other"
+            )
             with span("graph.related", kind=kind_label):
-                accesses = self.graph.related(kind, principal, entity_id, limit)
+                accesses = self.graph.related(
+                    kind, principal, entity_id, limit, quarter=quarter, min_arr=min_arr
+                )
             with span("audit.write", count=len(accesses)):
                 self.store.chunks.record_decisions(
                     principal,
