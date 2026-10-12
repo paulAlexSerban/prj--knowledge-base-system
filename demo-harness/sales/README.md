@@ -1,6 +1,6 @@
 # Sales harness
 
-Service `harness-sales`, host port 8102, container port 8080. FastAPI and SQLite. Status: built.
+Service `harness-sales`, host port 8102, container port 8080. FastAPI and SQLAlchemy on SQLite. Status: built.
 
 The source stands in for a CRM. An empty database is seeded with 40 deals at `2026-01-15T09:00:00Z`. Account name and id sit on the deal. There is no account object. `epic_id` is the engineering epic the deal depends on, and it may be empty. Product keys match the engineering harness.
 

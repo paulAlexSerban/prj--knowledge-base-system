@@ -1,4 +1,4 @@
-"""Spec metadata in SQLite and the markdown body on disk.
+"""Spec metadata in SQLite and the markdown body on disk. SQLAlchemy owns every query.
 
 Version moves when the title or the body changes. Native ACLs are
 product_org and roadmap_readers. Repeating the current ACL does not move
@@ -11,6 +11,9 @@ import re
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
+
+from sqlalchemy import delete, func, select
+from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column
 
 from harness_common.db import (
     Conflict,
@@ -29,33 +32,38 @@ PRODUCT_KEYS = frozenset(
     {"checkout", "billing", "identity", "mobile", "analytics", "notifications"}
 )
 _SPEC_ID = re.compile(r"^spec-[a-z0-9-]{3,60}$")
-SCHEMA = """
-CREATE TABLE IF NOT EXISTS specs (
-    spec_id TEXT PRIMARY KEY,
-    title TEXT NOT NULL,
-    product_key TEXT NOT NULL,
-    file_name TEXT NOT NULL,
-    native_acl TEXT NOT NULL,
-    version INTEGER NOT NULL,
-    content_hash TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-);
-"""
+
+
+class Base(DeclarativeBase):
+    pass
+
+
+class Spec(Base):
+    __tablename__ = "specs"
+
+    spec_id: Mapped[str] = mapped_column(primary_key=True)
+    title: Mapped[str]
+    product_key: Mapped[str]
+    file_name: Mapped[str]
+    native_acl: Mapped[str]
+    version: Mapped[int]
+    content_hash: Mapped[str]
+    updated_at: Mapped[str]
 
 
 def _hash(body: str) -> str:
     return hashlib.sha256(body.encode("utf-8")).hexdigest()
 
 
-def record(row: object) -> dict[str, object]:
+def record(row: Spec) -> dict[str, object]:
     return {
-        "spec_id": row["spec_id"],
-        "title": row["title"],
-        "product_key": row["product_key"],
-        "native_acl": split_acl(row["native_acl"]),
-        "version": row["version"],
-        "content_hash": row["content_hash"],
-        "updated_at": row["updated_at"],
+        "spec_id": row.spec_id,
+        "title": row.title,
+        "product_key": row.product_key,
+        "native_acl": split_acl(row.native_acl),
+        "version": row.version,
+        "content_hash": row.content_hash,
+        "updated_at": row.updated_at,
     }
 
 
@@ -65,44 +73,40 @@ class Store:
         self.files_dir = Path(files_dir)
         self.files_dir.mkdir(parents=True, exist_ok=True)
         self.clock = clock
-        with self.db.session() as connection:
-            connection.executescript(SCHEMA)
+        Base.metadata.create_all(self.db.engine)
 
     def now(self) -> str:
         return format_ts(self.clock())
 
     def counts(self) -> dict[str, int]:
-        with self.db.session() as connection:
-            row = connection.execute("SELECT count(*) AS n FROM specs").fetchone()
-        return {"spec": int(row["n"])}
+        with self.db.session() as db:
+            total = db.scalar(select(func.count()).select_from(Spec)) or 0
+        return {"spec": int(total)}
 
     def is_empty(self) -> bool:
         return self.counts()["spec"] == 0
 
     def get(self, spec_id: str) -> dict[str, object]:
-        with self.db.session() as connection:
-            return record(self._row(connection, spec_id))
+        with self.db.session() as db:
+            return record(self._row(db, spec_id))
 
     def list_specs(self) -> list[dict[str, object]]:
-        with self.db.session() as connection:
-            rows = connection.execute("SELECT * FROM specs ORDER BY spec_id").fetchall()
-        return [record(row) for row in rows]
+        with self.db.session() as db:
+            rows = db.scalars(select(Spec).order_by(Spec.spec_id)).all()
+            return [record(row) for row in rows]
 
     def content(self, spec_id: str) -> tuple[bytes, str]:
-        with self.db.session() as connection:
-            row = self._row(connection, spec_id)
-            file_name = row["file_name"]
+        with self.db.session() as db:
+            file_name = self._row(db, spec_id).file_name
         path = self.files_dir / file_name
         if not path.is_file():
             raise NotFound(spec_id)
         return path.read_bytes(), "text/markdown; charset=utf-8"
 
     def ids(self) -> dict[str, list[dict[str, object]]]:
-        with self.db.session() as connection:
-            rows = connection.execute(
-                "SELECT spec_id, version FROM specs ORDER BY spec_id"
-            ).fetchall()
-        return {"spec": [{"id": row["spec_id"], "version": row["version"]} for row in rows]}
+        with self.db.session() as db:
+            rows = db.execute(select(Spec.spec_id, Spec.version).order_by(Spec.spec_id)).all()
+            return {"spec": [{"id": row.spec_id, "version": row.version} for row in rows]}
 
     def create(
         self,
@@ -119,77 +123,67 @@ class Store:
         acl = check_acl(list(native_acl), NATIVE_ACLS)
         stamp = at or self.now()
         file_name = f"{spec_id}.md"
-        with self.db.session() as connection:
-            found = connection.execute(
-                "SELECT 1 FROM specs WHERE spec_id = ?", (spec_id,)
-            ).fetchone()
-            if found is not None:
+        with self.db.session() as db:
+            if db.get(Spec, spec_id) is not None:
                 raise Conflict(spec_id)
             self._write(file_name, body)
-            connection.execute(
-                """
-                INSERT INTO specs (
-                    spec_id, title, product_key, file_name, native_acl,
-                    version, content_hash, updated_at
-                ) VALUES (?, ?, ?, ?, ?, 1, ?, ?)
-                """,
-                (spec_id, title.strip(), product_key, file_name, acl, _hash(body), stamp),
+            saved = Spec(
+                spec_id=spec_id,
+                title=title.strip(),
+                product_key=product_key,
+                file_name=file_name,
+                native_acl=acl,
+                version=1,
+                content_hash=_hash(body),
+                updated_at=stamp,
             )
-            saved = self._row(connection, spec_id)
-        return record(saved)
+            db.add(saved)
+            return record(saved)
 
     def edit(
         self, spec_id: str, body: str | None = None, title: str | None = None
     ) -> dict[str, object]:
-        with self.db.session() as connection:
-            row = self._row(connection, spec_id)
-            new_title = row["title"] if title is None else title
-            new_body = self._read(row["file_name"]) if body is None else body
-            self._check(new_title, row["product_key"], new_body)
+        with self.db.session() as db:
+            row = self._row(db, spec_id)
+            new_title = row.title if title is None else title
+            new_body = self._read(row.file_name) if body is None else body
+            self._check(new_title, row.product_key, new_body)
             new_title = new_title.strip()
-            if new_title == row["title"] and new_body == self._read(row["file_name"]):
+            if new_title == row.title and new_body == self._read(row.file_name):
                 return record(row)
-            self._write(row["file_name"], new_body)
-            connection.execute(
-                """
-                UPDATE specs
-                SET title = ?, version = ?, content_hash = ?, updated_at = ?
-                WHERE spec_id = ?
-                """,
-                (new_title, row["version"] + 1, _hash(new_body), self.now(), spec_id),
-            )
-            saved = self._row(connection, spec_id)
-        return record(saved)
+            self._write(row.file_name, new_body)
+            row.title = new_title
+            row.version += 1
+            row.content_hash = _hash(new_body)
+            row.updated_at = self.now()
+            return record(row)
 
     def set_acl(self, spec_id: str, native_acl: list[str]) -> dict[str, object]:
         acl = check_acl(list(native_acl), NATIVE_ACLS)
-        with self.db.session() as connection:
-            row = self._row(connection, spec_id)
-            if row["native_acl"] == acl:
+        with self.db.session() as db:
+            row = self._row(db, spec_id)
+            if row.native_acl == acl:
                 return record(row)
-            connection.execute(
-                """
-                UPDATE specs SET native_acl = ?, version = ?, updated_at = ? WHERE spec_id = ?
-                """,
-                (acl, row["version"] + 1, self.now(), spec_id),
-            )
-            saved = self._row(connection, spec_id)
-        return record(saved)
+            row.native_acl = acl
+            row.version += 1
+            row.updated_at = self.now()
+            return record(row)
 
     def delete(self, spec_id: str) -> None:
-        with self.db.session() as connection:
-            row = self._row(connection, spec_id)
-            connection.execute("DELETE FROM specs WHERE spec_id = ?", (spec_id,))
-            path = self.files_dir / row["file_name"]
+        with self.db.session() as db:
+            row = self._row(db, spec_id)
+            file_name = row.file_name
+            db.delete(row)
+        path = self.files_dir / file_name
         if path.is_file():
             path.unlink()
 
     def reset(self) -> None:
-        with self.db.session() as connection:
-            rows = connection.execute("SELECT file_name FROM specs").fetchall()
-            connection.execute("DELETE FROM specs")
-        for row in rows:
-            path = self.files_dir / row["file_name"]
+        with self.db.session() as db:
+            names = list(db.scalars(select(Spec.file_name)))
+            db.execute(delete(Spec))
+        for name in names:
+            path = self.files_dir / name
             if path.is_file():
                 path.unlink()
 
@@ -199,8 +193,9 @@ class Store:
     def _write(self, file_name: str, body: str) -> None:
         (self.files_dir / file_name).write_text(body, encoding="utf-8")
 
-    def _row(self, connection: object, spec_id: str):
-        row = connection.execute("SELECT * FROM specs WHERE spec_id = ?", (spec_id,)).fetchone()
+    @staticmethod
+    def _row(db: Session, spec_id: str) -> Spec:
+        row = db.get(Spec, spec_id)
         if row is None:
             raise NotFound(spec_id)
         return row

@@ -1,6 +1,6 @@
 # Engineering harness
 
-Service `harness-engineering`, host port 8104, container port 8080. FastAPI and SQLite. Status: built.
+Service `harness-engineering`, host port 8104, container port 8080. FastAPI and SQLAlchemy on SQLite. Status: built.
 
 The source stands in for a Jira-like epic tracker. An empty database is seeded with 25 curated epics at `2026-01-15T09:00:00Z`. Teams (`platform`, `payments`, `identity`, `data`, `product`) are the HR directory names. Product keys (`checkout`, `billing`, `identity`, `mobile`, `analytics`, `notifications`) are the keys Sales deals and Product specs reuse. Eight of the epics are unreleased and are the ones the Q3 high-ARR deals depend on.
 

@@ -3,7 +3,10 @@ name = "harness-product"
 version = "0.1.0"
 description = "Product harness. Markdown specs and a best-effort webhook."
 requires-python = ">=3.12"
-dependencies = ["harness-common"]
+dependencies = [
+  "harness-common",
+  "sqlalchemy>=2.1.4",
+]
 
 [tool.uv.sources]
 harness-common = { workspace = true }

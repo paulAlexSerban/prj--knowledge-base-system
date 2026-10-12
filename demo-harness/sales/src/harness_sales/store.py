@@ -1,6 +1,7 @@
-"""SQLite CRM. The change feed is a cursor log, including deletes.
+"""CRM deals in SQLite. SQLAlchemy owns every query.
 
-`commission_rate` is stored and never returned. Account fields live on the deal.
+The change feed is a cursor log, including deletes. `commission_rate` is stored
+and never returned. Account fields live on the deal.
 """
 
 import json
@@ -8,6 +9,10 @@ import re
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
+from typing import ClassVar
+
+from sqlalchemy import delete, func, select
+from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column
 
 from harness_common.db import (
     Conflict,
@@ -30,48 +35,57 @@ _DEAL_ID = re.compile(r"^deal-[a-z0-9-]{3,60}$")
 _ACCOUNT_ID = re.compile(r"^acc-[a-z0-9-]{3,40}$")
 _EPIC_ID = re.compile(r"^epic-[a-z0-9-]{3,60}$")
 _QUARTER = re.compile(r"^\d{4}-Q[1-4]$")
-SCHEMA = """
-CREATE TABLE IF NOT EXISTS deals (
-    deal_id TEXT PRIMARY KEY,
-    account_id TEXT NOT NULL,
-    account_name TEXT NOT NULL,
-    arr INTEGER NOT NULL,
-    quarter TEXT NOT NULL,
-    stage TEXT NOT NULL,
-    owner_email TEXT NOT NULL,
-    product_key TEXT NOT NULL,
-    epic_id TEXT,
-    native_acl TEXT NOT NULL,
-    commission_rate REAL NOT NULL,
-    version INTEGER NOT NULL,
-    updated_at TEXT NOT NULL
-);
-CREATE TABLE IF NOT EXISTS change_log (
-    seq INTEGER PRIMARY KEY AUTOINCREMENT,
-    op TEXT NOT NULL,
-    deal_id TEXT NOT NULL,
-    version INTEGER NOT NULL,
-    updated_at TEXT NOT NULL,
-    record_json TEXT NOT NULL
-);
-"""
 
 
-def public(row: object) -> dict[str, object]:
+class Base(DeclarativeBase):
+    pass
+
+
+class Deal(Base):
+    __tablename__ = "deals"
+
+    deal_id: Mapped[str] = mapped_column(primary_key=True)
+    account_id: Mapped[str]
+    account_name: Mapped[str]
+    arr: Mapped[int]
+    quarter: Mapped[str]
+    stage: Mapped[str]
+    owner_email: Mapped[str]
+    product_key: Mapped[str]
+    epic_id: Mapped[str | None]
+    native_acl: Mapped[str]
+    commission_rate: Mapped[float]
+    version: Mapped[int]
+    updated_at: Mapped[str]
+
+
+class ChangeLog(Base):
+    __tablename__ = "change_log"
+    __table_args__: ClassVar[dict[str, bool]] = {"sqlite_autoincrement": True}
+
+    seq: Mapped[int] = mapped_column(primary_key=True)
+    op: Mapped[str]
+    deal_id: Mapped[str]
+    version: Mapped[int]
+    updated_at: Mapped[str]
+    record_json: Mapped[str]
+
+
+def public(row: Deal) -> dict[str, object]:
     """The record a connector may snapshot. commission_rate is not here."""
     return {
-        "deal_id": row["deal_id"],
-        "account_id": row["account_id"],
-        "account_name": row["account_name"],
-        "arr": row["arr"],
-        "quarter": row["quarter"],
-        "stage": row["stage"],
-        "owner_email": row["owner_email"],
-        "product_key": row["product_key"],
-        "epic_id": row["epic_id"],
-        "native_acl": split_acl(row["native_acl"]),
-        "version": row["version"],
-        "updated_at": row["updated_at"],
+        "deal_id": row.deal_id,
+        "account_id": row.account_id,
+        "account_name": row.account_name,
+        "arr": row.arr,
+        "quarter": row.quarter,
+        "stage": row.stage,
+        "owner_email": row.owner_email,
+        "product_key": row.product_key,
+        "epic_id": row.epic_id,
+        "native_acl": split_acl(row.native_acl),
+        "version": row.version,
+        "updated_at": row.updated_at,
     }
 
 
@@ -92,57 +106,65 @@ def _epic(value: object) -> str | None:
     return text
 
 
+def _change(row: ChangeLog) -> dict[str, object]:
+    item: dict[str, object] = {
+        "op": row.op,
+        "object_type": "deal",
+        "id": row.deal_id,
+        "version": row.version,
+        "updated_at": row.updated_at,
+    }
+    if row.op == "upsert":
+        item["record"] = json.loads(row.record_json)
+    return item
+
+
 class Store:
     def __init__(self, db_path: str | Path, clock: Clock = utc_now) -> None:
         self.db = Database(db_path)
         self.clock = clock
-        with self.db.session() as connection:
-            connection.executescript(SCHEMA)
+        Base.metadata.create_all(self.db.engine)
 
     def now(self) -> str:
         return format_ts(self.clock())
 
     def counts(self) -> dict[str, int]:
-        with self.db.session() as connection:
-            row = connection.execute("SELECT count(*) AS n FROM deals").fetchone()
-        return {"deal": int(row["n"])}
+        with self.db.session() as db:
+            total = db.scalar(select(func.count()).select_from(Deal)) or 0
+        return {"deal": int(total)}
 
     def is_empty(self) -> bool:
         return self.counts()["deal"] == 0
 
     def get(self, deal_id: str) -> dict[str, object]:
-        with self.db.session() as connection:
-            row = self._row(connection, deal_id)
-            return public(row)
+        with self.db.session() as db:
+            return public(self._row(db, deal_id))
 
     def list_deals(self) -> list[dict[str, object]]:
-        with self.db.session() as connection:
-            rows = connection.execute("SELECT * FROM deals ORDER BY deal_id").fetchall()
-        return [public(row) for row in rows]
+        with self.db.session() as db:
+            rows = db.scalars(select(Deal).order_by(Deal.deal_id)).all()
+            return [public(row) for row in rows]
 
     def ids(self) -> dict[str, list[dict[str, object]]]:
-        with self.db.session() as connection:
-            rows = connection.execute(
-                "SELECT deal_id, version FROM deals ORDER BY deal_id"
-            ).fetchall()
-        return {"deal": [{"id": row["deal_id"], "version": row["version"]} for row in rows]}
+        with self.db.session() as db:
+            rows = db.execute(select(Deal.deal_id, Deal.version).order_by(Deal.deal_id)).all()
+            return {"deal": [{"id": row.deal_id, "version": row.version} for row in rows]}
 
     def changes(self, cursor: str | None, limit: int) -> tuple[list[dict[str, object]], str, bool]:
         if limit < 1:
             raise Invalid("limit must be at least 1")
         start = _cursor(cursor)
-        with self.db.session() as connection:
-            rows = connection.execute(
-                """
-                SELECT seq, op, deal_id, version, updated_at, record_json
-                FROM change_log WHERE seq > ? ORDER BY seq LIMIT ?
-                """,
-                (start, limit + 1),
-            ).fetchall()
-        more = len(rows) > limit
-        page = rows[:limit]
-        next_cursor = str(page[-1]["seq"]) if page else str(start)
-        return [_change(row) for row in page], next_cursor, more
+        with self.db.session() as db:
+            rows = db.scalars(
+                select(ChangeLog)
+                .where(ChangeLog.seq > start)
+                .order_by(ChangeLog.seq)
+                .limit(limit + 1)
+            ).all()
+            more = len(rows) > limit
+            page = rows[:limit]
+            next_cursor = str(page[-1].seq) if page else str(start)
+            return [_change(row) for row in page], next_cursor, more
 
     def create(
         self,
@@ -166,37 +188,27 @@ class Store:
         if commission_rate < 0:
             raise Invalid("commission_rate cannot be negative")
         stamp = at or self.now()
-        with self.db.session() as connection:
-            found = connection.execute(
-                "SELECT 1 FROM deals WHERE deal_id = ?", (deal_id,)
-            ).fetchone()
-            if found is not None:
+        with self.db.session() as db:
+            if db.get(Deal, deal_id) is not None:
                 raise Conflict(deal_id)
-            connection.execute(
-                """
-                INSERT INTO deals (
-                    deal_id, account_id, account_name, arr, quarter, stage, owner_email,
-                    product_key, epic_id, native_acl, commission_rate, version, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
-                """,
-                (
-                    deal_id,
-                    account_id,
-                    account_name.strip(),
-                    int(arr),
-                    quarter,
-                    stage,
-                    owner_email,
-                    product_key,
-                    epic,
-                    acl,
-                    float(commission_rate),
-                    stamp,
-                ),
+            saved = Deal(
+                deal_id=deal_id,
+                account_id=account_id,
+                account_name=account_name.strip(),
+                arr=int(arr),
+                quarter=quarter,
+                stage=stage,
+                owner_email=owner_email,
+                product_key=product_key,
+                epic_id=epic,
+                native_acl=acl,
+                commission_rate=float(commission_rate),
+                version=1,
+                updated_at=stamp,
             )
-            saved = self._row(connection, deal_id)
-            self._log(connection, "upsert", saved)
-        return public(saved)
+            db.add(saved)
+            self._log(db, "upsert", saved)
+            return public(saved)
 
     def update(self, deal_id: str, fields: dict[str, object]) -> dict[str, object]:
         unknown = set(fields) - {
@@ -210,109 +222,92 @@ class Store:
         }
         if unknown:
             raise Invalid(f"unknown fields: {sorted(unknown)}")
-        with self.db.session() as connection:
-            row = self._row(connection, deal_id)
-            account_name = str(fields.get("account_name", row["account_name"]))
-            arr = int(fields["arr"]) if "arr" in fields else int(row["arr"])
-            quarter = str(fields.get("quarter", row["quarter"]))
-            stage = str(fields.get("stage", row["stage"]))
-            owner_email = str(fields.get("owner_email", row["owner_email"]))
-            product_key = str(fields.get("product_key", row["product_key"]))
-            epic = _epic(fields["epic_id"]) if "epic_id" in fields else row["epic_id"]
+        with self.db.session() as db:
+            row = self._row(db, deal_id)
+            account_name = str(fields.get("account_name", row.account_name))
+            arr = int(fields["arr"]) if "arr" in fields else int(row.arr)
+            quarter = str(fields.get("quarter", row.quarter))
+            stage = str(fields.get("stage", row.stage))
+            owner_email = str(fields.get("owner_email", row.owner_email))
+            product_key = str(fields.get("product_key", row.product_key))
+            epic = _epic(fields["epic_id"]) if "epic_id" in fields else row.epic_id
             self._check(account_name, arr, quarter, stage, owner_email, product_key)
             account_name = account_name.strip()
             if (
-                account_name == row["account_name"]
-                and arr == row["arr"]
-                and quarter == row["quarter"]
-                and stage == row["stage"]
-                and owner_email == row["owner_email"]
-                and product_key == row["product_key"]
-                and epic == row["epic_id"]
+                account_name == row.account_name
+                and arr == row.arr
+                and quarter == row.quarter
+                and stage == row.stage
+                and owner_email == row.owner_email
+                and product_key == row.product_key
+                and epic == row.epic_id
             ):
                 return public(row)
-            stamp = self.now()
-            connection.execute(
-                """
-                UPDATE deals
-                SET account_name = ?, arr = ?, quarter = ?, stage = ?, owner_email = ?,
-                    product_key = ?, epic_id = ?, version = ?, updated_at = ?
-                WHERE deal_id = ?
-                """,
-                (
-                    account_name,
-                    arr,
-                    quarter,
-                    stage,
-                    owner_email,
-                    product_key,
-                    epic,
-                    row["version"] + 1,
-                    stamp,
-                    deal_id,
-                ),
-            )
-            saved = self._row(connection, deal_id)
-            self._log(connection, "upsert", saved)
-        return public(saved)
+            row.account_name = account_name
+            row.arr = arr
+            row.quarter = quarter
+            row.stage = stage
+            row.owner_email = owner_email
+            row.product_key = product_key
+            row.epic_id = epic
+            row.version += 1
+            row.updated_at = self.now()
+            self._log(db, "upsert", row)
+            return public(row)
 
     def set_acl(self, deal_id: str, native_acl: list[str]) -> dict[str, object]:
         acl = check_acl(list(native_acl), NATIVE_ACLS)
-        with self.db.session() as connection:
-            row = self._row(connection, deal_id)
-            if row["native_acl"] == acl:
+        with self.db.session() as db:
+            row = self._row(db, deal_id)
+            if row.native_acl == acl:
                 return public(row)
-            connection.execute(
-                "UPDATE deals SET native_acl = ?, updated_at = ? WHERE deal_id = ?",
-                (acl, self.now(), deal_id),
-            )
-            saved = self._row(connection, deal_id)
-            self._log(connection, "upsert", saved)
-        return public(saved)
+            row.native_acl = acl
+            row.updated_at = self.now()
+            self._log(db, "upsert", row)
+            return public(row)
 
     def delete(self, deal_id: str) -> None:
-        with self.db.session() as connection:
-            row = self._row(connection, deal_id)
+        with self.db.session() as db:
+            row = self._row(db, deal_id)
+            version = int(row.version)
             stamp = self.now()
-            connection.execute("DELETE FROM deals WHERE deal_id = ?", (deal_id,))
-            self._log_delete(connection, deal_id, int(row["version"]), stamp)
+            db.delete(row)
+            self._log_delete(db, deal_id, version, stamp)
 
     def reset(self) -> None:
-        with self.db.session() as connection:
-            connection.execute("DELETE FROM deals")
-            connection.execute("DELETE FROM change_log")
+        with self.db.session() as db:
+            db.execute(delete(Deal))
+            db.execute(delete(ChangeLog))
 
-    def _row(self, connection: object, deal_id: str):
-        row = connection.execute("SELECT * FROM deals WHERE deal_id = ?", (deal_id,)).fetchone()
+    @staticmethod
+    def _row(db: Session, deal_id: str) -> Deal:
+        row = db.get(Deal, deal_id)
         if row is None:
             raise NotFound(deal_id)
         return row
 
     @staticmethod
-    def _log(connection: object, op: str, row: object) -> None:
-        body = public(row)
-        connection.execute(
-            """
-            INSERT INTO change_log (op, deal_id, version, updated_at, record_json)
-            VALUES (?, ?, ?, ?, ?)
-            """,
-            (
-                op,
-                row["deal_id"],
-                row["version"],
-                row["updated_at"],
-                json.dumps(body, separators=(",", ":"), sort_keys=True),
-            ),
+    def _log(db: Session, op: str, row: Deal) -> None:
+        db.add(
+            ChangeLog(
+                op=op,
+                deal_id=row.deal_id,
+                version=row.version,
+                updated_at=row.updated_at,
+                record_json=json.dumps(public(row), separators=(",", ":"), sort_keys=True),
+            )
         )
 
     @staticmethod
-    def _log_delete(connection: object, deal_id: str, version: int, stamp: str) -> None:
-        connection.execute(
-            """
-            INSERT INTO change_log (op, deal_id, version, updated_at, record_json)
-            VALUES ('delete', ?, ?, ?, '{}')
-            """,
-            (deal_id, version, stamp),
+    def _log_delete(db: Session, deal_id: str, version: int, stamp: str) -> None:
+        db.add(
+            ChangeLog(
+                op="delete",
+                deal_id=deal_id,
+                version=version,
+                updated_at=stamp,
+                record_json="{}",
+            )
         )
 
     @staticmethod
@@ -343,16 +338,3 @@ class Store:
             raise Invalid("owner_email must be an email address")
         if product_key not in PRODUCT_KEYS:
             raise Invalid(f"unknown product_key: {product_key}")
-
-
-def _change(row: object) -> dict[str, object]:
-    item: dict[str, object] = {
-        "op": row["op"],
-        "object_type": "deal",
-        "id": row["deal_id"],
-        "version": row["version"],
-        "updated_at": row["updated_at"],
-    }
-    if row["op"] == "upsert":
-        item["record"] = json.loads(row["record_json"])
-    return item

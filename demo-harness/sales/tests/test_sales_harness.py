@@ -1,13 +1,14 @@
-import sqlite3
 from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import create_engine, select
+from sqlalchemy.orm import Session
 
 from harness_engineering.catalog import QUESTION_EPICS
 from harness_sales.app import create_app
 from harness_sales.catalog import HIGH_ARR, QUESTION_DEALS
-from harness_sales.store import Store
+from harness_sales.store import Deal, Store
 
 FORBIDDEN = {"salary", "compensation", "ssn", "national_id", "commission_rate"}
 
@@ -103,11 +104,10 @@ def test_delete_is_an_event_and_commission_is_never_returned(harness):
     assert client.get(f"/deals/{deal_id}").status_code == 404
     for route in ("/discover", "/changes", "/ids", "/deals", "/deals/deal-northwind-q3/acl"):
         assert not _keys(client.get(route).json()) & FORBIDDEN, route
-    with sqlite3.connect(path) as connection:
-        rate = connection.execute(
-            "SELECT commission_rate FROM deals WHERE deal_id = 'deal-northwind-q3'"
-        ).fetchone()
-    assert rate is not None and rate[0] > 0
+    engine = create_engine(f"sqlite:///{path}")
+    with Session(engine) as db:
+        rate = db.scalar(select(Deal.commission_rate).where(Deal.deal_id == "deal-northwind-q3"))
+    assert rate is not None and rate > 0
 
 
 def test_edit_and_acl_change_are_upserts(harness):

@@ -3,7 +3,10 @@ name = "harness-sales"
 version = "0.1.0"
 description = "Sales harness. CRM deals with a cursor change feed."
 requires-python = ">=3.12"
-dependencies = ["harness-common"]
+dependencies = [
+  "harness-common",
+  "sqlalchemy>=2.1.4",
+]
 
 [tool.uv.sources]
 harness-common = { workspace = true }

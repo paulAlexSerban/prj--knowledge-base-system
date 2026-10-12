@@ -886,6 +886,7 @@ dependencies = [
     { name = "fastapi" },
     { name = "prometheus-client" },
     { name = "shared" },
+    { name = "sqlalchemy" },
     { name = "uvicorn", extra = ["standard"] },
 ]
 
@@ -894,6 +895,7 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.143.0" },
     { name = "prometheus-client", specifier = ">=0.26.0" },
     { name = "shared", editable = "shared" },
+    { name = "sqlalchemy", specifier = ">=2.1.4" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.54.0" },
 ]
 
@@ -903,10 +905,14 @@ version = "0.1.0"
 source = { editable = "demo-harness/engineering" }
 dependencies = [
     { name = "harness-common" },
+    { name = "sqlalchemy" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "harness-common", editable = "demo-harness/common" }]
+requires-dist = [
+    { name = "harness-common", editable = "demo-harness/common" },
+    { name = "sqlalchemy", specifier = ">=2.1.4" },
+]
 
 [[package]]
 name = "harness-hr"
@@ -937,10 +943,14 @@ version = "0.1.0"
 source = { editable = "demo-harness/product" }
 dependencies = [
     { name = "harness-common" },
+    { name = "sqlalchemy" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "harness-common", editable = "demo-harness/common" }]
+requires-dist = [
+    { name = "harness-common", editable = "demo-harness/common" },
+    { name = "sqlalchemy", specifier = ">=2.1.4" },
+]
 
 [[package]]
 name = "harness-sales"
@@ -948,10 +958,14 @@ version = "0.1.0"
 source = { editable = "demo-harness/sales" }
 dependencies = [
     { name = "harness-common" },
+    { name = "sqlalchemy" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "harness-common", editable = "demo-harness/common" }]
+requires-dist = [
+    { name = "harness-common", editable = "demo-harness/common" },
+    { name = "sqlalchemy", specifier = ">=2.1.4" },
+]
 
 [[package]]
 name = "httpcore"

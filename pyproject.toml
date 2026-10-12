@@ -88,6 +88,16 @@ chat-ui = { workspace = true }
 [tool.ruff]
 line-length = 100
 
+[tool.ruff.lint]
+extend-select = ["TID251"]
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"sqlite3".msg = "Use SQLAlchemy."
+
+[tool.ruff.lint.per-file-ignores]
+"shared/**/*.py" = ["TID251"]
+"backend/**/*.py" = ["TID251"]
+
 [tool.ruff.lint.isort]
 known-first-party = [
   "shared",

@@ -1,6 +1,6 @@
 # Product harness
 
-Service `harness-product`, host port 8103, container port 8080. FastAPI, SQLite, and markdown files. Status: built.
+Service `harness-product`, host port 8103, container port 8080. FastAPI, SQLAlchemy on SQLite, and markdown files. Status: built.
 
 The source stands in for a spec store. An empty database is seeded with 12 curated specs at `2026-01-15T09:00:00Z`. Product keys match Sales and Engineering. The bodies name the epics they describe. Specs stay prose: the graph does not get a spec node.
 

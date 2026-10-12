@@ -1,12 +1,13 @@
 [project]
 name = "harness-common"
 version = "0.1.0"
-description = "Shared SQLite and change-feed helpers for the department harnesses."
+description = "Shared SQLAlchemy and change-feed helpers for the department harnesses."
 requires-python = ">=3.12"
 dependencies = [
   "fastapi>=0.143.0",
   "prometheus-client>=0.26.0",
   "shared",
+  "sqlalchemy>=2.1.4",
   "uvicorn[standard]>=0.54.0",
 ]
 

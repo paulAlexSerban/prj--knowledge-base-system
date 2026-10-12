@@ -29,7 +29,7 @@ This repository is a POC knowledge gateway: ingest four department sources, keep
 | `backend/tests/integration/` | Tests that cross a deployable boundary. |
 | `backend/tests/e2e/` | Opt-in live-stack test. `make e2e`. |
 | `database/` | Postgres migrations (sync state, chunks, full-text, vectors, ACL, row-level security) and Neo4j constraints. |
-| `demo-harness/` | One image per source. HR is built and can bulk-load. Sales, Product, and Engineering are curated stores on `harness-common`. |
+| `demo-harness/` | One image per source. HR is built and can bulk-load. Sales, Product, and Engineering are curated SQLAlchemy stores on `harness-common`. |
 | `frontend/` | Streamlit chat page (`chat-ui`). Own image. Calls the gateway REST API only; holds no store credentials. Writes the answer from cited snippets with LangChain when an OpenRouter key is set. LangSmith is on only when `LANGSMITH_API_KEY` is set. |
 | `notebooks/` | Jupyter notebooks that seed, inspect, and edit the HR harness (`00`–`30`), reset and edit the other three sources (`02`, `14`–`16`), and call the gateway (`40`–`44`). |
 | `infrastructure/orchestration/` | One Compose file per trust area, plus `compose.yaml` which includes them. |
