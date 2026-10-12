@@ -872,6 +872,7 @@ source = { editable = "demo-harness/common" }
 dependencies = [
     { name = "fastapi" },
     { name = "prometheus-client" },
+    { name = "shared" },
     { name = "uvicorn", extra = ["standard"] },
 ]
 
@@ -879,6 +880,7 @@ dependencies = [
 requires-dist = [
     { name = "fastapi", specifier = ">=0.143.0" },
     { name = "prometheus-client", specifier = ">=0.26.0" },
+    { name = "shared", editable = "shared" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.54.0" },
 ]
 
@@ -901,6 +903,7 @@ dependencies = [
     { name = "faker" },
     { name = "fastapi" },
     { name = "prometheus-client" },
+    { name = "shared" },
     { name = "sqlalchemy" },
     { name = "uvicorn", extra = ["standard"] },
 ]
@@ -910,6 +913,7 @@ requires-dist = [
     { name = "faker", specifier = ">=40.43.0" },
     { name = "fastapi", specifier = ">=0.143.0" },
     { name = "prometheus-client", specifier = ">=0.26.0" },
+    { name = "shared", editable = "shared" },
     { name = "sqlalchemy", specifier = ">=2.1.4" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.54.0" },
 ]

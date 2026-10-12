@@ -2,6 +2,9 @@
 
 import asyncio
 
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from prometheus_client import REGISTRY
 
 from shared.http_metrics import REQUESTS, HttpMetricsMiddleware, route_label
@@ -52,3 +55,52 @@ def test_middleware_does_not_label_the_raw_path() -> None:
                 routes.add(sample.labels.get("route"))
     assert raw not in routes
     assert "unmatched" in routes
+
+
+def test_server_span_continues_traceparent_and_drops_the_raw_path(monkeypatch) -> None:
+    raw = "/v1/people/ada-lovelace"
+    exporter = InMemorySpanExporter()
+    provider = TracerProvider()
+    provider.add_span_processor(SimpleSpanProcessor(exporter))
+    monkeypatch.setattr(
+        "shared.telemetry.trace.get_tracer",
+        lambda *_args, **_kwargs: provider.get_tracer("kbs"),
+    )
+
+    async def app(scope, receive, send) -> None:
+        await send({"type": "http.response.start", "status": 404, "headers": []})
+        await send({"type": "http.response.body", "body": b""})
+
+    wrapped = HttpMetricsMiddleware(app, templates=TEMPLATES)
+
+    async def receive() -> dict:
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+    async def send(_message: dict) -> None:
+        return None
+
+    asyncio.run(
+        wrapped(
+            {
+                "type": "http",
+                "path": raw,
+                "method": "GET",
+                "headers": [
+                    (
+                        b"traceparent",
+                        b"00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
+                    )
+                ],
+            },
+            receive,
+            send,
+        )
+    )
+    finished = exporter.get_finished_spans()
+    assert len(finished) == 1
+    current = finished[0]
+    assert current.attributes["route"] == "unmatched"
+    assert current.attributes["method"] == "GET"
+    assert format(current.context.trace_id, "032x") == "0af7651916cd43dd8448eb211c80319c"
+    assert raw not in current.name
+    assert "ada-lovelace" not in str(current.attributes)

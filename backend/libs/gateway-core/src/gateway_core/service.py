@@ -11,6 +11,7 @@ from knowledge_store.postgres import Hit
 from knowledge_store.store import KnowledgeStore
 from shared.logging import log_event
 from shared.registry import source_payloads
+from shared.telemetry import span
 
 LOG = logging.getLogger("gateway")
 
@@ -31,13 +32,18 @@ class GatewayService:
     def search(
         self, principal: Principal, query: str, limit: int, request_id: str
     ) -> dict[str, object]:
-        with RETRIEVAL_SECONDS.labels(tool="search", surface=self.surface).time():
+        with (
+            span("retrieval", tool="search", surface=self.surface),
+            RETRIEVAL_SECONDS.labels(tool="search", surface=self.surface).time(),
+        ):
             # The store limit counts chunks. A policy is several chunks, so ask
             # for more and keep the best chunk of each object.
             hits = self.store.search(
                 query, principal, limit=max(limit * 4, limit), request_id=request_id
             )
-            hits = apply_recheck(hits, principal, self.store.contracts, self.recheck)
+            with span("acl.recheck") as current:
+                hits = apply_recheck(hits, principal, self.store.contracts, self.recheck)
+                current.set_attribute("count", len(hits))
             hits = _one_chunk_per_object(hits)[:limit]
         source = hits[0].source_id if hits else "none"
         self._record("search", principal, request_id, len(hits), source, empty_rate=True)
@@ -46,10 +52,15 @@ class GatewayService:
     def get_document(
         self, principal: Principal, chunk_id: int, request_id: str
     ) -> dict[str, object] | None:
-        with RETRIEVAL_SECONDS.labels(tool="get_document", surface=self.surface).time():
+        with (
+            span("retrieval", tool="get_document", surface=self.surface),
+            RETRIEVAL_SECONDS.labels(tool="get_document", surface=self.surface).time(),
+        ):
             hit = self.store.chunks.get_chunk(chunk_id, principal, request_id)
             if hit is not None:
-                kept = apply_recheck([hit], principal, self.store.contracts, self.recheck)
+                with span("acl.recheck") as current:
+                    kept = apply_recheck([hit], principal, self.store.contracts, self.recheck)
+                    current.set_attribute("count", len(kept))
                 hit = kept[0] if kept else None
         source = "none" if hit is None else hit.source_id
         self._record(
@@ -74,21 +85,27 @@ class GatewayService:
         limit: int,
         request_id: str,
     ) -> dict[str, object]:
-        with RETRIEVAL_SECONDS.labels(tool="find_related", surface=self.surface).time():
-            accesses = self.graph.related(kind, principal, entity_id, limit)
-            self.store.chunks.record_decisions(
-                principal,
-                request_id,
-                [
-                    (
-                        "allow" if item.allowed else "deny",
-                        item.source_id,
-                        item.rule,
-                        item.object_id,
-                    )
-                    for item in accesses
-                ],
-            )
+        with (
+            span("retrieval", tool="find_related", surface=self.surface),
+            RETRIEVAL_SECONDS.labels(tool="find_related", surface=self.surface).time(),
+        ):
+            kind_label = kind if kind in {"teammates", "team", "policies"} else "other"
+            with span("graph.related", kind=kind_label):
+                accesses = self.graph.related(kind, principal, entity_id, limit)
+            with span("audit.write", count=len(accesses)):
+                self.store.chunks.record_decisions(
+                    principal,
+                    request_id,
+                    [
+                        (
+                            "allow" if item.allowed else "deny",
+                            item.source_id,
+                            item.rule,
+                            item.object_id,
+                        )
+                        for item in accesses
+                    ],
+                )
         paths = [item.path for item in accesses if item.allowed]
         source = next(
             (item.source_id for item in accesses if item.allowed and item.source_id),

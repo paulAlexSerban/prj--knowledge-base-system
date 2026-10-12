@@ -67,6 +67,15 @@ def create_app(store: Store, seed_if_empty: bool = True) -> FastAPI:
         counts=store.counts,
         ids=store.ids,
         now=store.now,
+        routes=(
+            "/epics",
+            "/epics/{epic_id}",
+            "/epics/{epic_id}/acl",
+            "/admin/epics",
+            "/admin/epics/{epic_id}",
+            "/admin/epics/{epic_id}/acl",
+            "/admin/reset",
+        ),
     )
 
     @app.get("/changes")

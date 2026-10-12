@@ -13,6 +13,7 @@ from sqlalchemy.engine import Engine
 from knowledge_store.acl import AclView, Principal, allows, view_from_rules
 from knowledge_store.chunkers import ChunkDraft
 from knowledge_store.embedder import HASH_MODEL
+from shared.telemetry import span
 
 RRF_K = 60
 OVERFETCH = 3
@@ -281,28 +282,33 @@ class ChunkTable:
         )
         with self.reader.begin() as connection:
             _set_principal(connection, principal)
-            vector_rows = list(connection.execute(vector_sql, params).mappings())
-            lexical_rows = list(connection.execute(lexical_sql, params).mappings())
+            # The ACL predicate is in each statement. It is not a separate query.
+            with span("chunks.vector", acl_prefilter=True):
+                vector_rows = list(connection.execute(vector_sql, params).mappings())
+            with span("chunks.full_text", acl_prefilter=True):
+                lexical_rows = list(connection.execute(lexical_sql, params).mappings())
             ranked = _fuse(vector_rows, lexical_rows)
             # hash-v1 is not semantic. A vector-only neighbor is not an answer.
             lexical_ids = {int(row["id"]) for row in lexical_rows}
             hits: list[Hit] = []
             denied = False
-            for row, score in ranked:
-                if model == HASH_MODEL and int(row["id"]) not in lexical_ids:
-                    continue
-                view = view_from_rules(row["acl_rules"])
-                allowed, rule = allows(view, principal)
-                if not allowed:
-                    denied = True
-                    _audit(connection, principal, row, "deny", None, request_id)
-                    continue
-                _audit(connection, principal, row, "allow", rule, request_id)
-                hits.append(_hit(row, score))
-                if len(hits) >= limit:
-                    break
-            if not hits and not denied:
-                _audit(connection, principal, None, "deny", None, request_id)
+            with span("audit.write") as current:
+                for row, score in ranked:
+                    if model == HASH_MODEL and int(row["id"]) not in lexical_ids:
+                        continue
+                    view = view_from_rules(row["acl_rules"])
+                    allowed, rule = allows(view, principal)
+                    if not allowed:
+                        denied = True
+                        _audit(connection, principal, row, "deny", None, request_id)
+                        continue
+                    _audit(connection, principal, row, "allow", rule, request_id)
+                    hits.append(_hit(row, score))
+                    if len(hits) >= limit:
+                        break
+                if not hits and not denied:
+                    _audit(connection, principal, None, "deny", None, request_id)
+                current.set_attribute("count", len(hits))
             return hits
 
     def get_chunk(self, chunk_id: int, principal: Principal, request_id: str) -> Hit | None:

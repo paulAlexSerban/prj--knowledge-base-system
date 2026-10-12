@@ -7,10 +7,13 @@ from prometheus_client import make_asgi_app
 
 from harness_common.db import Conflict, Invalid, NotFound
 from harness_common.metrics import gauge
+from shared.http_metrics import HttpMetricsMiddleware
 
 Counts = Callable[[], dict[str, int]]
 Ids = Callable[[], dict[str, list[dict[str, object]]]]
 Now = Callable[[], str]
+
+CATALOG_ROUTES = ("/health", "/discover", "/ids", "/metrics", "/changes")
 
 
 def register_catalog(
@@ -23,6 +26,7 @@ def register_catalog(
     counts: Counts,
     ids: Ids,
     now: Now,
+    routes: tuple[str, ...] = (),
 ) -> Callable[[], None]:
     """Register the shared read routes. Returns a function that refreshes object gauges."""
     up = gauge("kbs_harness_up", "1 when a harness service is serving", ["service"])
@@ -61,6 +65,7 @@ def register_catalog(
         return {"service": service, "server_time": now(), "ids": ids()}
 
     app.mount("/metrics", make_asgi_app())
+    app.add_middleware(HttpMetricsMiddleware, templates=CATALOG_ROUTES + routes)
     return refresh
 
 

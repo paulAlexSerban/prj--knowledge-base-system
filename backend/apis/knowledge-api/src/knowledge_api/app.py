@@ -25,6 +25,7 @@ from knowledge_store.acl import Principal
 from shared.http_metrics import HttpMetricsMiddleware
 from shared.logging import configure, log_event
 from shared.registry import load_registry, source_payloads
+from shared.telemetry import init_telemetry
 
 LOG = logging.getLogger("gateway-api")
 
@@ -178,6 +179,7 @@ app = create_app()
 
 def main() -> None:
     configure("gateway-api", "access")
+    init_telemetry("gateway-api")
     log_event(LOG, "gateway api started")
     uvicorn.run(app, host="0.0.0.0", port=8000, log_config=None, access_log=False)
 

@@ -29,6 +29,7 @@ COPY demo-harness/product/pyproject.toml demo-harness/product/pyproject.toml
 COPY demo-harness/engineering/pyproject.toml demo-harness/engineering/pyproject.toml
 COPY frontend/pyproject.toml frontend/pyproject.toml
 
+COPY shared shared
 COPY demo-harness/common demo-harness/common
 COPY demo-harness/sales demo-harness/sales
 

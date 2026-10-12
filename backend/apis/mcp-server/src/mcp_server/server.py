@@ -8,9 +8,11 @@ and Prometheus.
 import logging
 import os
 import uuid
+from collections.abc import Callable
 from functools import partial
 
 import anyio
+from opentelemetry import context as otel_context
 from prometheus_client import generate_latest
 from starlette.requests import Request
 from starlette.responses import Response
@@ -23,6 +25,7 @@ from gateway_core.tools import FIND_RELATED, GET_DOCUMENT, LIST_SOURCES, SEARCH
 from knowledge_store.acl import Principal
 from shared.http_metrics import HttpMetricsMiddleware
 from shared.logging import configure, log_event
+from shared.telemetry import init_telemetry, span
 
 LOG = logging.getLogger("gateway-mcp")
 
@@ -79,18 +82,20 @@ def build_server(service: GatewayService) -> MCPServer:
         bounded = max(1, min(limit, 20))
         # The SDK runs a sync tool on a worker thread, which drops the auth
         # context. Read the principal here, then do the blocking search aside.
-        return await anyio.to_thread.run_sync(
-            partial(service.search, principal, query, bounded, request_id)
-        )
+        with span("mcp.tool", tool="search"):
+            return await anyio.to_thread.run_sync(
+                _with_trace(partial(service.search, principal, query, bounded, request_id))
+            )
 
     @server.tool(description=GET_DOCUMENT)
     async def get_document(chunk_id: int, ctx: Context | None = None) -> dict[str, object]:
         """One authorized chunk, or a not-found error when the caller cannot read it."""
         principal = _caller()
         request_id = _request_id(ctx)
-        found = await anyio.to_thread.run_sync(
-            partial(service.get_document, principal, chunk_id, request_id)
-        )
+        with span("mcp.tool", tool="get_document"):
+            found = await anyio.to_thread.run_sync(
+                _with_trace(partial(service.get_document, principal, chunk_id, request_id))
+            )
         if found is None:
             return {"request_id": request_id, "error": "not found"}
         return found
@@ -107,9 +112,14 @@ def build_server(service: GatewayService) -> MCPServer:
         request_id = _request_id(ctx)
         bounded = max(1, min(limit, 25))
         try:
-            return await anyio.to_thread.run_sync(
-                partial(service.find_related, principal, kind, entity_id, bounded, request_id)
-            )
+            with span("mcp.tool", tool="find_related"):
+                return await anyio.to_thread.run_sync(
+                    _with_trace(
+                        partial(
+                            service.find_related, principal, kind, entity_id, bounded, request_id
+                        )
+                    )
+                )
         except ValueError as exc:
             return {"request_id": request_id, "error": str(exc)}
 
@@ -118,7 +128,8 @@ def build_server(service: GatewayService) -> MCPServer:
         """Registered sources and last sync. No document text."""
         _caller()
         _request_id(ctx)
-        return await anyio.to_thread.run_sync(service.list_sources)
+        with span("mcp.tool", tool="list_sources"):
+            return await anyio.to_thread.run_sync(_with_trace(service.list_sources))
 
     @server.custom_route("/health", methods=["GET"])
     async def health(_: Request) -> Response:
@@ -129,6 +140,20 @@ def build_server(service: GatewayService) -> MCPServer:
         return Response(generate_latest(), media_type="text/plain; version=0.0.4")
 
     return server
+
+
+def _with_trace[T](fn: Callable[[], T]) -> Callable[[], T]:
+    """Run fn on a worker thread without dropping the current trace."""
+    parent = otel_context.get_current()
+
+    def run():
+        token = otel_context.attach(parent)
+        try:
+            return fn()
+        finally:
+            otel_context.detach(token)
+
+    return run
 
 
 def _auth_settings() -> AuthSettings:
@@ -176,6 +201,7 @@ def attach_http_metrics(server: MCPServer) -> None:
 
 def main() -> None:
     configure("gateway-mcp", "access")
+    init_telemetry("gateway-mcp")
     log_event(LOG, "mcp server started")
     server = build_server(open_gateway())
     attach_http_metrics(server)

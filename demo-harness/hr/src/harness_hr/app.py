@@ -22,11 +22,33 @@ from pydantic import BaseModel, Field
 from harness_hr.catalog import seed
 from harness_hr.generate import generate_people, generate_policies
 from harness_hr.store import Conflict, Invalid, NotFound, Store, utc_now
+from shared.http_metrics import HttpMetricsMiddleware
 
 SERVICE = "hr"
 CAPABILITIES = ["updated_since", "snapshot_diff"]
 MAX_PAGE = 500
 MAX_SEED = 50_000
+HTTP_ROUTES = (
+    "/health",
+    "/metrics",
+    "/discover",
+    "/changes",
+    "/ids",
+    "/people",
+    "/people/{person_id}",
+    "/people/{person_id}/acl",
+    "/policies",
+    "/policies/{policy_id}",
+    "/policies/{policy_id}/content",
+    "/policies/{policy_id}/acl",
+    "/admin/policies",
+    "/admin/policies/{policy_id}",
+    "/admin/policies/{policy_id}/acl",
+    "/admin/people",
+    "/admin/people/{person_id}",
+    "/admin/seed",
+    "/admin/reset",
+)
 
 def _gauge(name: str, documentation: str, labels: list[str]) -> Gauge:
     """Reuse the series when another harness registered it first."""
@@ -267,4 +289,5 @@ def create_app(store: Store, seed_if_empty: bool = True) -> FastAPI:
         return {"status": "reset", "counts": counts, "at": utc_now().isoformat()}
 
     app.mount("/metrics", make_asgi_app())
+    app.add_middleware(HttpMetricsMiddleware, templates=HTTP_ROUTES)
     return app

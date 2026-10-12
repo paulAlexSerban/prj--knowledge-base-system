@@ -19,6 +19,7 @@ from knowledge_store.graph import GraphWriter
 from knowledge_store.postgres import ChunkTable, Hit, VerifyError
 from shared.contracts.source_contract import SourceContract
 from shared.logging import log_event
+from shared.telemetry import span
 
 LOG = logging.getLogger("ingestion-worker")
 
@@ -82,7 +83,8 @@ class KnowledgeStore:
         limit: int = 5,
         request_id: str = "",
     ) -> list[Hit]:
-        vector = self.embedder.embed([query])[0]
+        with span("embed"):
+            vector = self.embedder.embed([query])[0]
         metrics.EMBED_CALLS.labels(model=self.embedder.name).inc()
         return self.chunks.search(query, principal, self.embedder.name, vector, limit, request_id)
 

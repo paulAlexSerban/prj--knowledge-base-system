@@ -20,6 +20,7 @@ from ingest_contract.events import fit_sqs_id
 from ingest_contract.hooks import HOOK_QUEUE, HookNotice
 from shared.http_metrics import HttpMetricsMiddleware
 from shared.logging import configure, log_event
+from shared.telemetry import init_telemetry
 
 LOG = logging.getLogger("webhook-receiver")
 
@@ -112,6 +113,7 @@ app = create_app()
 
 def main() -> None:
     configure("webhook-receiver", "sources")
+    init_telemetry("webhook-receiver")
     uvicorn.run(app, host="0.0.0.0", port=8090, log_config=None, access_log=False)
 
 

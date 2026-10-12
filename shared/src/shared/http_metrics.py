@@ -8,7 +8,11 @@ The raw path is never a label, so a scan cannot create a series per URL.
 import time
 from collections.abc import Awaitable, Callable, Iterable
 
+from opentelemetry.propagate import extract
+from opentelemetry.trace import Status, StatusCode
 from prometheus_client import Counter, Histogram
+
+from shared.telemetry import span
 
 BUCKETS = (0.01, 0.05, 0.1, 0.25, 0.5, 1, 2, 5)
 METHODS = frozenset({"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"})
@@ -68,6 +72,14 @@ def _parts(path: str) -> list[str]:
     return path.strip("/").split("/")
 
 
+def _carrier(scope: Scope) -> dict[str, str]:
+    found: dict[str, str] = {}
+    for key, value in scope.get("headers") or []:
+        if isinstance(key, bytes) and isinstance(value, bytes):
+            found[key.decode("latin1")] = value.decode("latin1")
+    return found
+
+
 class HttpMetricsMiddleware:
     """ASGI middleware. Starlette and FastAPI accept it via add_middleware."""
 
@@ -92,8 +104,15 @@ class HttpMetricsMiddleware:
                 status = int(message.get("status", 500))
             await send(message)
 
+        parent = extract(_carrier(scope))
         try:
-            await self.app(scope, receive, send_wrapper)
+            with span(f"{method} {route}", context=parent, method=method, route=route) as current:
+                try:
+                    await self.app(scope, receive, send_wrapper)
+                finally:
+                    current.set_attribute("http.status_code", status)
+                    if status >= 500:
+                        current.set_status(Status(StatusCode.ERROR))
         finally:
             DURATION.labels(route=route, method=method).observe(time.perf_counter() - started)
             REQUESTS.labels(route=route, method=method, status=str(status)).inc()

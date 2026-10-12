@@ -8,6 +8,7 @@ services:
       PORT: "8080"
       SQLITE_PATH: /data/harness.db
       FILES_DIR: /data/policies
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://alloy:4318
     command: ["python", "-m", "harness_hr"]
     volumes: [hrdata:/data]
     networks: [kbs-sources, kbs-obs]
@@ -33,6 +34,7 @@ services:
       SERVICE: sales
       PORT: "8080"
       SQLITE_PATH: /data/harness.db
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://alloy:4318
     volumes: [salesdata:/data]
     networks: [kbs-sources, kbs-obs]
     ports: ["127.0.0.1:8102:8080"]
@@ -46,6 +48,7 @@ services:
       SERVICE: product
       PORT: "8080"
       SQLITE_PATH: /data/harness.db
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://alloy:4318
       FILES_DIR: /data/specs
       WEBHOOK_URL: http://webhook-receiver:8090/webhooks/product
     volumes: [productdata:/data]
@@ -61,6 +64,7 @@ services:
       SERVICE: engineering
       PORT: "8080"
       SQLITE_PATH: /data/harness.db
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://alloy:4318
     volumes: [engineeringdata:/data]
     networks: [kbs-sources, kbs-obs]
     ports: ["127.0.0.1:8104:8080"]

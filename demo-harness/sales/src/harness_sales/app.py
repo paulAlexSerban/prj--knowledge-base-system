@@ -66,6 +66,15 @@ def create_app(store: Store, seed_if_empty: bool = True) -> FastAPI:
         counts=store.counts,
         ids=store.ids,
         now=store.now,
+        routes=(
+            "/deals",
+            "/deals/{deal_id}",
+            "/deals/{deal_id}/acl",
+            "/admin/deals",
+            "/admin/deals/{deal_id}",
+            "/admin/deals/{deal_id}/acl",
+            "/admin/reset",
+        ),
     )
 
     @app.get("/changes")

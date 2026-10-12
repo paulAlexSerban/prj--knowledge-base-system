@@ -74,6 +74,16 @@ def create_app(
         counts=store.counts,
         ids=store.ids,
         now=store.now,
+        routes=(
+            "/specs",
+            "/specs/{spec_id}",
+            "/specs/{spec_id}/content",
+            "/specs/{spec_id}/acl",
+            "/admin/specs",
+            "/admin/specs/{spec_id}",
+            "/admin/specs/{spec_id}/acl",
+            "/admin/reset",
+        ),
     )
 
     @app.get("/specs")

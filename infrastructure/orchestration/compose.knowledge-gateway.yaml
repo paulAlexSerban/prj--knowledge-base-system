@@ -17,6 +17,7 @@ services:
       GATEWAY_JWT_SECRET: ${GATEWAY_JWT_SECRET}
       DEV_TOKEN_ENDPOINT: ${DEV_TOKEN_ENDPOINT:-0}
       HARNESS_HR_URL: http://harness-hr:8080
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://alloy:4318
     volumes:
       - ../config/sources:/contracts:ro
       - ../config/principals.yaml:/principals.yaml:ro
@@ -54,6 +55,7 @@ services:
       HARNESS_HR_URL: http://harness-hr:8080
       MCP_ISSUER_URL: http://gateway-api:8000
       MCP_RESOURCE_URL: http://gateway-mcp:8001
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://alloy:4318
     volumes:
       - ../config/sources:/contracts:ro
     networks: [kbs-data, kbs-obs, kbs-sources]

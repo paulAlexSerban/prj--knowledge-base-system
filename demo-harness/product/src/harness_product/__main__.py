@@ -13,12 +13,14 @@ import uvicorn
 from harness_product.app import create_app
 from harness_product.notify import Notifier
 from harness_product.store import Store
+from shared.telemetry import init_telemetry
 
 
 def main() -> None:
     db_path = Path(os.environ.get("SQLITE_PATH", "/tmp/harness-product/harness.db"))
     files_dir = Path(os.environ.get("FILES_DIR", db_path.parent / "specs"))
     port = int(os.environ.get("PORT", "8080"))
+    init_telemetry("harness-product")
     uvicorn.run(
         create_app(Store(db_path, files_dir), Notifier(os.environ.get("WEBHOOK_URL"))),
         host="0.0.0.0",
