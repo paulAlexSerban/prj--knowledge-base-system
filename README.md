@@ -7,17 +7,17 @@ This repository is a proof of concept for that gateway. The design is written do
 ## Status
 
 
-| Built | Production path, not built |
-| ----- | -------------------------- |
-| Project brief, spikes, ADRs, the architecture document, four C4 diagrams, one end-to-end data-flow diagram, and two sequence diagrams (ingestion, and the knowledge-store read path). | Query router. Question 2 is one fixed graph template, `roadmap_deals`. |
-| Source-contract model, four YAML contracts, validator, tests, and CI. Sales, Product, Engineering, and HR harnesses and connectors. | OIDC in place of the shared-secret JWT. A principal that can hold more than one department. |
-| `make setup`: preflight, `.env`, build, start, health wait, seed, and a smoke test. `make seed`, `make demo`, `make eval`, `make reindex`. | Loki and Tempo on object storage. Alertmanager. |
-| Compose for the harness, gateway, ingestion, store, floci, Jupyter, pgAdmin, SQLite viewers, and observability. Terraform runs in a one-shot container against floci: three tier queues, the product hook queue, their dead-letter queues, and one snapshot bucket. `make dlq-replay`. | A deployed agent runtime. Agents are two notebooks and one chat page. |
-| Ingestion worker: chunking, embeddings, Postgres chunks (full-text, HNSW, ACL columns, row-level security, tombstones), and the Neo4j writer. HR writes Person, Team, and Policy. A deal depends on an epic. An epic is owned by an HR team. Specs stay prose. | Spec extractor and edges extracted from prose. |
+| Built                                                                                                                                                                                                                                                                                                                                                                  | Production path, not built                                                                                                   |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| Project brief, spikes, ADRs, the architecture document, four C4 diagrams, one end-to-end data-flow diagram, and two sequence diagrams (ingestion, and the knowledge-store read path).                                                                                                                                                                                  | Query router. Question 2 is one fixed graph template, `roadmap_deals`.                                                       |
+| Source-contract model, four YAML contracts, validator, tests, and CI. Sales, Product, Engineering, and HR harnesses and connectors.                                                                                                                                                                                                                                    | OIDC in place of the shared-secret JWT. A principal that can hold more than one department.                                  |
+| `make setup`: preflight, `.env`, build, start, health wait, seed, and a smoke test. `make seed`, `make demo`, `make eval`, `make reindex`.                                                                                                                                                                                                                             | Loki and Tempo on object storage. Alertmanager.                                                                              |
+| Compose for the harness, gateway, ingestion, store, floci, Jupyter, pgAdmin, SQLite viewers, and observability. Terraform runs in a one-shot container against floci: three tier queues, the product hook queue, their dead-letter queues, and one snapshot bucket. `make dlq-replay`.                                                                                 | A deployed agent runtime. Agents are two notebooks and one chat page.                                                        |
+| Ingestion worker: chunking, embeddings, Postgres chunks (full-text, HNSW, ACL columns, row-level security, tombstones), and the Neo4j writer. HR writes Person, Team, and Policy. A deal depends on an epic. An epic is owned by an HR team. Specs stay prose.                                                                                                         | Spec extractor and edges extracted from prose.                                                                               |
 | Embedder: `bge-small-en-v1.5` through fastembed (384 dimensions), baked into the images. `hash-v1` stays the default for tests and offline runs. `make reindex` rebuilds the index when `EMBEDDER` changes. Hybrid search is pgvector cosine plus full-text, merged with reciprocal rank fusion, with a similarity floor so a question with no answer returns nothing. | Cross-encoder reranker. The golden set shows no gap, so none was added. A multilingual model if policies stop being English. |
-| REST and MCP retrieval over `gateway-core`: search (one chunk per object), get document, HR graph lookup, and `roadmap_deals`. Dev-only `POST /dev/token` signs an HS256 JWT. HR policy search re-checks the harness ACL. | Lambda behind API Gateway for the webhook receiver. See the AWS production path in the architecture document. |
-| Golden set of 20 cases and `make eval`: known chunk, paraphrase, no answer, conflicting sources, access boundary, and the graph. Recall at 5, MRR, and p95 latency are printed and gated. | A model-graded faithfulness judge. |
-| Grafana: overview, ingestion, retrieval and access, platform, and traces. A deny is a log line, and the same `trace_id` opens the trace. Notebooks `00`–`30` edit HR, `02` and `14`–`16` edit the other sources, `40`–`44` call the gateway, `50` and `51` run LangChain agents over MCP. | |
+| REST and MCP retrieval over `gateway-core`: search (one chunk per object), get document, HR graph lookup, and `roadmap_deals`. Dev-only `POST /dev/token` signs an HS256 JWT. HR policy search re-checks the harness ACL.                                                                                                                                              | Lambda behind API Gateway for the webhook receiver. See the AWS production path in the architecture document.                |
+| Golden set of 20 cases and `make eval`: known chunk, paraphrase, no answer, conflicting sources, access boundary, and the graph. Recall at 5, MRR, and p95 latency are printed and gated.                                                                                                                                                                              | A model-graded faithfulness judge.                                                                                           |
+| Grafana: overview, ingestion, retrieval and access, platform, and traces. A deny is a log line, and the same `trace_id` opens the trace. Notebooks `00`–`30` edit HR, `02` and `14`–`16` edit the other sources, `40`–`44` call the gateway, `50` and `51` run LangChain agents over MCP.                                                                              |                                                                                                                              |
 
 
 ## Problem
@@ -62,14 +62,14 @@ Knowledge store read path sequence:
 ![Knowledge store read path sequence](/_docs/99--dagrams/04-sequence--knowledge-store-flow.png)
 
 
-| Concern                                           | Choice                                                                                                                                                                      |
-| ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Language and HTTP                                 | Python 3.12, FastAPI. The API and the MCP server are thin adapters over one service layer.                                                                                  |
-| Documents, vectors, lexical search, authorization | Postgres with pgvector, full-text search, and row-level security.                                                                                                           |
-| Knowledge graph                                   | Neo4j, small typed ontology.                                                                                                                                                |
-| Messaging and objects                             | SQS FIFO per object, with a dead-letter queue, and S3, both on floci. Scheduler, when added, drives P1/P2 polls and reconciliation. P0 polling is in the connector process. |
+| Concern                                           | Choice                                                                                                                                                                                       |
+| ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Language and HTTP                                 | Python 3.12, FastAPI. The API and the MCP server are thin adapters over one service layer.                                                                                                   |
+| Documents, vectors, lexical search, authorization | Postgres with pgvector, full-text search, and row-level security.                                                                                                                            |
+| Knowledge graph                                   | Neo4j, small typed ontology.                                                                                                                                                                 |
+| Messaging and objects                             | SQS FIFO per object, with a dead-letter queue, and S3, both on floci. Scheduler, when added, drives P1/P2 polls and reconciliation. P0 polling is in the connector process.                  |
 | Models                                            | OpenRouter when `OPENROUTER_API_KEY` is set. The chat page calls it through LangChain and falls back to the cited snippets. A local embedder and a deterministic extractor for offline runs. |
-| Observability                                     | Alloy collects metrics, container logs, and OTLP traces. Prometheus stores metrics, Loki stores logs, Tempo stores traces, and Grafana shows them. |
+| Observability                                     | Alloy collects metrics, container logs, and OTLP traces. Prometheus stores metrics, Loki stores logs, Tempo stores traces, and Grafana shows them.                                           |
 
 
 Decisions, and what was rejected:
@@ -106,22 +106,22 @@ The pieces `make setup` wraps are also separate targets: `make sync`, `make up`,
 Postgres 18 cannot open a data directory written by 16. If `kbs_pgdata` already exists from the older image, run `make setup ARGS=--reset` or `docker volume rm kbs_pgdata`. There is no upgrade step in this POC.
 
 
-| Port      | Service                                           |
-| --------- | ------------------------------------------------- |
-| 8000      | Knowledge API. `/health`, `/metrics`, `/v1/sources`, `/v1/search`, `/v1/documents/{id}`, `/v1/graph/related`, and dev-only `/dev/token`. |
-| 8001      | MCP server. `/health`, `/metrics`, and streamable HTTP at `/mcp`. Tools: `search_knowledge`, `get_document`, `find_related`, `list_sources`. |
+| Port      | Service                                                                                                                                                                                                                                                                                                                                           |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 8000      | Knowledge API. `/health`, `/metrics`, `/v1/sources`, `/v1/search`, `/v1/documents/{id}`, `/v1/graph/related`, and dev-only `/dev/token`.                                                                                                                                                                                                          |
+| 8001      | MCP server. `/health`, `/metrics`, and streamable HTTP at `/mcp`. Tools: `search_knowledge`, `get_document`, `find_related`, `list_sources`.                                                                                                                                                                                                      |
 | 8501      | Chat page (Streamlit). Personas: `employee_eng`, `hr_admin`, `outsider`, `product_lead`. Sidebar buttons ask the two demo questions. A typed question uses search. The question-2 button uses `roadmap_deals`. With `OPENROUTER_API_KEY` set the page writes an answer. Without a key, search shows passages and question 2 shows the path table. |
-| 8090      | Product webhook receiver                          |
-| 8101–8104 | HR, Sales, Product, Engineering harness           |
-| 9100      | HR connector metrics                              |
-| 9101      | Ingestion worker metrics                          |
-| 9102–9104 | Engineering, sales, and product connector metrics |
-| 8111–8114 | SQLite viewers for HR, Sales, Product, Engineering. Read-only. |
-| 8888      | Jupyter (`make notebooks`). Token is `JUPYTER_TOKEN`. |
-| 5050      | pgAdmin, desktop mode, no login. Dev only.        |
-| 9090      | Prometheus                                        |
-| 3000      | Grafana. Log in as `admin` / `admin`, or set `GRAFANA_ADMIN_PASSWORD`. Logs are read here. Loki and Alloy are not published. |
-| 4566      | floci, bound to 127.0.0.1                         |
+| 8090      | Product webhook receiver                                                                                                                                                                                                                                                                                                                          |
+| 8101–8104 | HR, Sales, Product, Engineering harness                                                                                                                                                                                                                                                                                                           |
+| 9100      | HR connector metrics                                                                                                                                                                                                                                                                                                                              |
+| 9101      | Ingestion worker metrics                                                                                                                                                                                                                                                                                                                          |
+| 9102–9104 | Engineering, sales, and product connector metrics                                                                                                                                                                                                                                                                                                 |
+| 8111–8114 | SQLite viewers for HR, Sales, Product, Engineering. Read-only.                                                                                                                                                                                                                                                                                    |
+| 8888      | Jupyter (`make notebooks`). Token is `JUPYTER_TOKEN`.                                                                                                                                                                                                                                                                                             |
+| 5050      | pgAdmin, desktop mode, no login. Dev only.                                                                                                                                                                                                                                                                                                        |
+| 9090      | Prometheus                                                                                                                                                                                                                                                                                                                                        |
+| 3000      | Grafana. Log in as `admin` / `admin`, or set `GRAFANA_ADMIN_PASSWORD`. Logs are read here. Loki and Alloy are not published.                                                                                                                                                                                                                      |
+| 4566      | floci, bound to 127.0.0.1                                                                                                                                                                                                                                                                                                                         |
 
 
 ```bash
@@ -151,28 +151,28 @@ Contracts live in [infrastructure/config/sources](infrastructure/config/sources)
 ## Repository map
 
 
-| Path                             | Role                                                                            |
-| -------------------------------- | ------------------------------------------------------------------------------- |
-| `_docs/00--project-brief/`       | Brief, scope, and the demo script.                                              |
-| `_docs/01--spikes/`              | Decisions for ingestion, knowledge representation, access, and synchronization. |
-| `_docs/02--architecture/`        | Architecture document (Deliverable 1).                                          |
-| `_docs/99--dagrams/`             | C4 diagrams, the end-to-end data flow, and the two sequence diagrams.           |
-| `_docs/03--adrs/`                | One ADR per decision. Index in [the ADR readme](_docs/03--adrs/README.md).      |
-| `infrastructure/config/sources/` | The four YAML contracts.                                                        |
-| `shared/`                        | Source contracts, registry gate, JSON logging, and the OpenTelemetry bootstrap. The model is [shared/src/shared/contracts/source_contract.py](shared/src/shared/contracts/source_contract.py). |
-| `backend/apis/`                  | `knowledge-api`, `mcp-server`, and `webhook-receiver`, each with its own image. |
-| `backend/connectors/`            | One process per source: `connector-hr`, `connector-engineering`, `connector-sales`, `connector-product`. |
-| `backend/workers/ingestion-worker/` | Queue consumer. Writes chunks and the graph. |
-| `backend/libs/`                  | `connector-core`, `ingest-contract`, `knowledge-store`, and `gateway-core`. Libraries, not services. |
-| `backend/tests/`                 | Integration tests, plus `e2e/` for `make e2e`. |
-| `database/`                      | Postgres migrations (sync state, chunks, full-text, vectors, ACL, row-level security) and Neo4j constraints. |
-| `demo-harness/`                  | One image per source. HR can bulk-load. Sales, Product, and Engineering are a curated set. |
-| `frontend/`                      | Streamlit chat page `chat-ui`. Own image. Calls the REST API only. |
-| `notebooks/`                     | Jupyter notebooks that seed and edit HR (`00`–`30`), reset and edit the other three sources (`02`, `14`–`16`), call the gateway (`40`–`44`), and run two read-only LangChain agents (`50`, `51`). |
-| `infrastructure/`                | Compose projects, Terraform for floci, source contracts.                        |
-| `observability/`                 | Alloy, Loki, Tempo, Prometheus, five Grafana dashboards, and metric definitions. |
-| `tools/`                         | `scripts/` (`setup.sh`, `seed.py`, `demo.py`, `dlq_replay.py`), `eval/` (golden set and runner), and their tests. |
-| `.github/workflows/`             | Contract gate and Compose config CI.                                            |
+| Path                                | Role                                                                                                                                                                                              |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `_docs/00--project-brief/`          | Brief, scope, and the demo script.                                                                                                                                                                |
+| `_docs/01--spikes/`                 | Decisions for ingestion, knowledge representation, access, and synchronization.                                                                                                                   |
+| `_docs/02--architecture/`           | Architecture document (Deliverable 1).                                                                                                                                                            |
+| `_docs/99--dagrams/`                | C4 diagrams, the end-to-end data flow, and the two sequence diagrams.                                                                                                                             |
+| `_docs/03--adrs/`                   | One ADR per decision. Index in [the ADR readme](_docs/03--adrs/README.md).                                                                                                                        |
+| `infrastructure/config/sources/`    | The four YAML contracts.                                                                                                                                                                          |
+| `shared/`                           | Source contracts, registry gate, JSON logging, and the OpenTelemetry bootstrap. The model is [shared/src/shared/contracts/source_contract.py](shared/src/shared/contracts/source_contract.py).    |
+| `backend/apis/`                     | `knowledge-api`, `mcp-server`, and `webhook-receiver`, each with its own image.                                                                                                                   |
+| `backend/connectors/`               | One process per source: `connector-hr`, `connector-engineering`, `connector-sales`, `connector-product`.                                                                                          |
+| `backend/workers/ingestion-worker/` | Queue consumer. Writes chunks and the graph.                                                                                                                                                      |
+| `backend/libs/`                     | `connector-core`, `ingest-contract`, `knowledge-store`, and `gateway-core`. Libraries, not services.                                                                                              |
+| `backend/tests/`                    | Integration tests, plus `e2e/` for `make e2e`.                                                                                                                                                    |
+| `database/`                         | Postgres migrations (sync state, chunks, full-text, vectors, ACL, row-level security) and Neo4j constraints.                                                                                      |
+| `demo-harness/`                     | One image per source. HR can bulk-load. Sales, Product, and Engineering are a curated set.                                                                                                        |
+| `frontend/`                         | Streamlit chat page `chat-ui`. Own image. Calls the REST API only.                                                                                                                                |
+| `notebooks/`                        | Jupyter notebooks that seed and edit HR (`00`–`30`), reset and edit the other three sources (`02`, `14`–`16`), call the gateway (`40`–`44`), and run two read-only LangChain agents (`50`, `51`). |
+| `infrastructure/`                   | Compose projects, Terraform for floci, source contracts.                                                                                                                                          |
+| `observability/`                    | Alloy, Loki, Tempo, Prometheus, five Grafana dashboards, and metric definitions.                                                                                                                  |
+| `tools/`                            | `scripts/` (`setup.sh`, `seed.py`, `demo.py`, `dlq_replay.py`), `eval/` (golden set and runner), and their tests.                                                                                 |
+| `.github/workflows/`                | Contract gate and Compose config CI.                                                                                                                                                              |
 
 
 
@@ -207,10 +207,10 @@ This is Deliverable 2's process description. The work was done with an AI coding
 
 The same 20 cases, the same corpus, one reindex between runs (`make eval ARGS="--label ..."`):
 
-| Run | recall at 5 | paraphrase recall at 5 | MRR | p95 latency |
-| --- | ----------- | ---------------------- | --- | ----------- |
-| `hash-v1` plus full-text, fused | 0.50 | 0.20 | 0.50 | 167 ms |
-| `bge-small-en-v1.5` plus full-text, fused | 1.00 | 1.00 | 0.95 | 216 ms |
+| Run                                       | recall at 5 | paraphrase recall at 5 | MRR  | p95 latency |
+| ----------------------------------------- | ----------- | ---------------------- | ---- | ----------- |
+| `hash-v1` plus full-text, fused           | 0.50        | 0.20                   | 0.50 | 167 ms      |
+| `bge-small-en-v1.5` plus full-text, fused | 1.00        | 1.00                   | 0.95 | 216 ms      |
 
 Latency is measured from the host through the REST API on a laptop that also runs the whole stack, and it includes the live HR ACL check. The 250 ms target is a design target and not a load test. The corpus is about 500 chunks. These numbers say the reranker has nothing to fix here. They say nothing about 10 million objects.
 
