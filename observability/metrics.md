@@ -6,7 +6,7 @@ Alloy scrapes `gateway-api:8000`, `gateway-mcp:8001`, `connector-hr:9100`, `conn
 
 ## Connector
 
-The HR connector exposes these. Every series also has `source_id`, except `kbs_connector_dependency_up` and `kbs_worker_up`.
+Every connector exposes these through `connector-core`. Every series also has `source_id`, except `kbs_connector_dependency_up` and `kbs_worker_up`.
 
 | Metric | Extra labels | Meaning |
 | ------ | ------------ | ------- |
@@ -14,7 +14,7 @@ The HR connector exposes these. Every series also has `source_id`, except `kbs_c
 | `kbs_connector_sync_duration_seconds` | | Cycle duration. |
 | `kbs_connector_last_success_timestamp_seconds` | | Unix time of the last cycle that advanced the watermark. |
 | `kbs_connector_watermark_lag_seconds` | | Now minus the stored watermark. |
-| `kbs_snapshot_object_lag_seconds` | | Snapshot time minus the source `updated_at`. The p95 is the freshness signal. The dashboard turns red above 30 seconds. |
+| `kbs_snapshot_object_lag_seconds` | | Snapshot time minus the source `updated_at`. The p95 is the freshness signal, charted per `source_id`. Yellow at 30 seconds is the HR contract. Red at 300 seconds is the sales, product, and engineering contract. |
 | `kbs_snapshots_written_total` | `object_type` | Objects written to S3. |
 | `kbs_snapshots_skipped_unchanged_total` | | Version, ACL, and hash already matched. |
 | `kbs_snapshots_deleted_total` | | Keys removed after the source deleted the object. |
@@ -27,7 +27,7 @@ The HR connector exposes these. Every series also has `source_id`, except `kbs_c
 | `kbs_connector_dependency_up` | `dependency` (`postgres`, `s3`, `harness`, `sqs`) | 1 when that dependency answered. |
 | `kbs_events_published_total` | `event_type` | Change events sent to a tier queue. |
 
-Logs are JSON on stdout. `source_id` is a Loki label. A snapshot line names the object type, version, and byte count. It does not contain the body. `{service="connector-hr"}` is the connector panel. The other connectors log as `connector-sales`, `connector-product`, and `connector-engineering`.
+Logs are JSON on stdout. `source_id` is a Loki label. A snapshot line names the object type, version, and byte count. It does not contain the body. The connector panel is `{service=~"connector-.*"}`, which covers `connector-hr`, `connector-sales`, `connector-product`, and `connector-engineering`.
 
 A cursor watermark is not a timestamp. `kbs_connector_watermark_lag_seconds` stays unset for that cycle.
 
@@ -37,8 +37,8 @@ The receiver exposes `kbs_webhook_events_total` on `webhook-receiver:8090/metric
 
 | Metric | Labels | Meaning |
 | ------ | ------ | ------- |
-| `kbs_webhook_events_total` | `result` (`ok`, `invalid`, or `error`) | Notices accepted, rejected as an invalid body, or refused because SQS did not take them. |
-| `kbs_hook_queue_depth` | `queue` | Visible messages on `kbs-product-hooks.fifo` or `kbs-product-hooks-dlq.fifo`. |
+| `kbs_webhook_events_total` | `result` (`ok`, `invalid`, or `error`) | Notices accepted, rejected as an invalid body, or refused because SQS did not take them. The dashboard uses `increase` over the selected range. The raw counter is the total since process start. |
+| `kbs_hook_queue_depth` | `queue` | Visible messages on `kbs-product-hooks.fifo` or `kbs-product-hooks-dlq.fifo`. This is a gauge. The live queue can hold work. Only the dead-letter queue turns the panel red. |
 
 ## Ingestion worker
 
@@ -50,16 +50,16 @@ Exposed on `ingestion-worker:9101`. Queue depth is `GetQueueAttributes` (`Approx
 | `kbs_ingest_events_total` | `source_id`, `event_type`, `result` (`ok`, `retry`, `invalid`) | Events the worker finished or refused. |
 | `kbs_ingest_event_lag_seconds` | `source_id` | Now minus `occurred_at`, recorded when the event completes. Not the age of the oldest message. |
 | `kbs_queue_depth` | `queue` | Visible messages on `kbs-p0.fifo`, `kbs-p1.fifo`, or `kbs-p2.fifo`. |
-| `kbs_dlq_depth` | `queue` | Visible messages on that tier's dead-letter queue. |
+| `kbs_dlq_depth` | `queue` | Visible messages on that tier's dead-letter queue. This is a gauge, charted per queue. It is not wrapped in `increase`. |
 | `kbs_embed_calls_total` | `model` | Embedding calls. One increment per text, not per object. |
 | `kbs_embed_skipped_unchanged_total` | `source_id` | Objects whose content hash already matched, so nothing was embedded. The graph write still runs. |
 | `kbs_store_write_seconds` | `store` (`postgres` or `neo4j`), `op` (`upsert`, `delete`, or `acl`) | Time spent on one store write. |
-| `kbs_store_errors_total` | `store`, `op` | Store write failures. |
+| `kbs_store_errors_total` | `store`, `op` | Store write failures. The dashboard uses `increase` over the selected range, by store and operation. |
 | `kbs_index_objects` | `source_id` | Distinct objects that have at least one chunk. |
 | `kbs_index_drift` | `source_id` | Indexed object count minus `source_objects` count. |
 | `kbs_worker_dependency_up` | `dependency` (`postgres`, `neo4j`, `s3`, `sqs`) | 1 when that dependency answered. |
 
-`kbs_delete_verification_failures_total` is the same series as the connector, with `store` `postgres` or `neo4j`.
+`kbs_delete_verification_failures_total` is the same series as the connector, with `store` `postgres` or `neo4j`. The dashboard uses `increase` over the selected range, by source and store. The raw counter is the total since process start.
 
 ## Retrieval
 

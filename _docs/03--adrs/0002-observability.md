@@ -23,14 +23,14 @@ The dashboard is [kbs-overview.json](../../observability/grafana/dashboards/kbs-
 | Panel | Source |
 | ----- | ------ |
 | Scrape targets and workers | `up`, `kbs_worker_up` (connector and ingestion), `kbs_worker_dependency_up` |
-| Snapshot lag, last successful sync, write and skip rate, snapshot errors, snapshot drift, connector logs | HR connector series already on the dashboard |
-| Sync lag per source | `kbs_ingest_event_lag_seconds` p95 and `kbs_connector_watermark_lag_seconds`. Red above 30 seconds. Event lag is now minus `occurred_at` when the worker finishes the message. SQS does not expose oldest-message age outside CloudWatch, so that is not the panel. |
+| Snapshot lag, last successful sync, write and skip rate, snapshot errors, snapshot drift, connector logs | The same series from every connector, broken out by `source_id`. Connector logs are `{service=~"connector-.*"}`. |
+| Sync lag per source | `kbs_ingest_event_lag_seconds` p95 and `kbs_connector_watermark_lag_seconds`. Yellow above 30 seconds (HR contract). Red above 300 seconds (sales, product, and engineering contracts). Event lag is now minus `occurred_at` when the worker finishes the message. SQS does not expose oldest-message age outside CloudWatch, so that is not the panel. |
 | Queue depth per tier | `kbs_queue_depth`, from `GetQueueAttributes` in the worker, not from CloudWatch |
 | Dead-letter depth | `kbs_dlq_depth`. Red when any message is visible. |
 | Embed calls and skips | `kbs_embed_calls_total` and `kbs_embed_skipped_unchanged_total` |
 | Index drift | `kbs_index_drift`, next to snapshot reconciliation drift |
-| Store write latency and errors | `kbs_store_write_seconds`, `kbs_store_errors_total` |
-| Delete verification failures | `kbs_delete_verification_failures_total`. Red on any failure. |
+| Store write latency and errors | `kbs_store_write_seconds`. `kbs_store_errors_total` is an `increase` over the selected range, not the raw counter. |
+| Delete verification failures | `increase(kbs_delete_verification_failures_total[$__range])` by source and store. Red on any failure in the range. |
 | Ingestion logs | Loki `{service="ingestion-worker"}`. `event_type` and `decision` are in the line. `request_id` stays in the line. |
 | Retrieval latency | `kbs_retrieval_seconds` p95 by tool. The 0.25 bucket is the 250 ms target. Search includes the HR ACL re-check. |
 | ACL re-check | `kbs_acl_recheck_seconds` and `kbs_acl_recheck_failures_total`. |
