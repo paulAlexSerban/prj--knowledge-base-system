@@ -46,6 +46,129 @@ services:
       retries: 10
       start_period: 20s
 
+  connector-engineering:
+    build:
+      context: ../..
+      dockerfile: backend/connectors/engineering/Dockerfile
+    command: ["python", "-m", "connector_engineering"]
+    depends_on:
+      floci-ready:
+        condition: service_completed_successfully
+    environment:
+      CONTRACTS_DIR: /contracts
+      METRICS_PORT: "9102"
+      # P1. Sixty seconds is inside the freshness target. HR stays on the faster loop.
+      POLL_SECONDS: "60"
+      RECONCILE_SECONDS: "60"
+      SYNC_WORKERS: "4"
+      AWS_ENDPOINT_URL: http://floci:4566
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION}
+      RAW_BUCKET: kbs-raw-snapshots
+      HARNESS_ENGINEERING_URL: http://harness-engineering:8080
+      POSTGRES_HOST: postgres
+      POSTGRES_DB: kbs
+      INGESTION_DB_PASSWORD: ${INGESTION_DB_PASSWORD}
+    volumes:
+      - ../config/sources:/contracts:ro
+    networks: [kbs-data, kbs-sources, kbs-aws, kbs-obs]
+    ports:
+      - "127.0.0.1:9102:9102"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9102/metrics')",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 20s
+
+  connector-sales:
+    build:
+      context: ../..
+      dockerfile: backend/connectors/sales/Dockerfile
+    command: ["python", "-m", "connector_sales"]
+    depends_on:
+      floci-ready:
+        condition: service_completed_successfully
+    environment:
+      CONTRACTS_DIR: /contracts
+      METRICS_PORT: "9103"
+      POLL_SECONDS: "60"
+      RECONCILE_SECONDS: "60"
+      SYNC_WORKERS: "4"
+      AWS_ENDPOINT_URL: http://floci:4566
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION}
+      RAW_BUCKET: kbs-raw-snapshots
+      HARNESS_SALES_URL: http://harness-sales:8080
+      POSTGRES_HOST: postgres
+      POSTGRES_DB: kbs
+      INGESTION_DB_PASSWORD: ${INGESTION_DB_PASSWORD}
+    volumes:
+      - ../config/sources:/contracts:ro
+    networks: [kbs-data, kbs-sources, kbs-aws, kbs-obs]
+    ports:
+      - "127.0.0.1:9103:9103"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9103/metrics')",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 20s
+
+  connector-product:
+    build:
+      context: ../..
+      dockerfile: backend/connectors/product/Dockerfile
+    command: ["python", "-m", "connector_product"]
+    depends_on:
+      floci-ready:
+        condition: service_completed_successfully
+    environment:
+      CONTRACTS_DIR: /contracts
+      METRICS_PORT: "9104"
+      RECONCILE_SECONDS: "60"
+      SYNC_WORKERS: "4"
+      AWS_ENDPOINT_URL: http://floci:4566
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION}
+      RAW_BUCKET: kbs-raw-snapshots
+      HARNESS_PRODUCT_URL: http://harness-product:8080
+      POSTGRES_HOST: postgres
+      POSTGRES_DB: kbs
+      INGESTION_DB_PASSWORD: ${INGESTION_DB_PASSWORD}
+    volumes:
+      - ../config/sources:/contracts:ro
+    networks: [kbs-data, kbs-sources, kbs-aws, kbs-obs]
+    ports:
+      - "127.0.0.1:9104:9104"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9104/metrics')",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 20s
+
   ingestion-worker:
     build:
       context: ../..
