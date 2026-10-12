@@ -12,7 +12,7 @@ from opentelemetry.propagate import extract
 from opentelemetry.trace import Status, StatusCode
 from prometheus_client import Counter, Histogram
 
-from shared.telemetry import span
+from shared.telemetry import operational_path, span
 
 BUCKETS = (0.01, 0.05, 0.1, 0.25, 0.5, 1, 2, 5)
 METHODS = frozenset({"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"})
@@ -109,8 +109,8 @@ class HttpMetricsMiddleware:
                 status = int(message.get("status", 500))
             await send(message)
 
-        # Health checks and scrapes are not traces. They would fill Tempo.
-        if route in {"/health", "/metrics"}:
+        # Health checks, scrapes, and readiness probes are not traces.
+        if operational_path(str(scope.get("path", ""))) or operational_path(route):
             try:
                 await self.app(scope, receive, send_wrapper)
             finally:

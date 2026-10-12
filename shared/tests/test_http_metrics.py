@@ -8,6 +8,7 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 from prometheus_client import REGISTRY
 
 from shared.http_metrics import REQUESTS, HttpMetricsMiddleware, route_label
+from shared.telemetry import FASTAPI_TELEMETRY, operational_path
 
 TEMPLATES = ("/health", "/v1/search", "/v1/documents/{chunk_id}")
 
@@ -138,3 +139,101 @@ def test_health_is_counted_and_not_traced(monkeypatch) -> None:
     after = REQUESTS.labels(route="/health", method="GET", status="200")._value.get()
     assert after == before + 1
     assert exporter.get_finished_spans() == ()
+
+
+def test_operational_paths_are_probes_and_feature_paths_are_not() -> None:
+    for path in (
+        "/health",
+        "/health/",
+        "/metrics",
+        "/metrics/",
+        "/metrics/{path}",
+        "/-/healthy",
+        "/-/ready",
+        "/_stcore/health",
+        "/ready",
+        "/livez",
+    ):
+        assert operational_path(path), path
+    for path in (
+        "/v1/search",
+        "/changes",
+        "/ids",
+        "/discover",
+        "/webhooks/product",
+        "/v1/graph/related",
+        "/health-policy",
+        "/live-deals",
+    ):
+        assert not operational_path(path), path
+    exclude = FASTAPI_TELEMETRY["exclude"]
+    assert exclude({"type": "http", "path": "/metrics/foo"})
+    assert not exclude({"type": "http", "path": "/changes"})
+    assert not exclude({"type": "lifespan", "path": "/health"})
+
+
+def test_metrics_subpath_is_counted_and_not_traced(monkeypatch) -> None:
+    exporter = InMemorySpanExporter()
+    provider = TracerProvider()
+    provider.add_span_processor(SimpleSpanProcessor(exporter))
+    monkeypatch.setattr(
+        "shared.telemetry.trace.get_tracer",
+        lambda *_args, **_kwargs: provider.get_tracer("kbs"),
+    )
+
+    async def app(scope, receive, send) -> None:
+        await send({"type": "http.response.start", "status": 200, "headers": []})
+        await send({"type": "http.response.body", "body": b""})
+
+    wrapped = HttpMetricsMiddleware(app, templates=("/health", "/metrics", "/changes"))
+    before = REQUESTS.labels(route="unmatched", method="GET", status="200")._value.get()
+
+    async def receive() -> dict:
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+    async def send(_message: dict) -> None:
+        return None
+
+    asyncio.run(
+        wrapped(
+            {"type": "http", "path": "/metrics/foo", "method": "GET", "headers": []},
+            receive,
+            send,
+        )
+    )
+    after = REQUESTS.labels(route="unmatched", method="GET", status="200")._value.get()
+    assert after == before + 1
+    assert exporter.get_finished_spans() == ()
+
+
+def test_changes_is_traced(monkeypatch) -> None:
+    exporter = InMemorySpanExporter()
+    provider = TracerProvider()
+    provider.add_span_processor(SimpleSpanProcessor(exporter))
+    monkeypatch.setattr(
+        "shared.telemetry.trace.get_tracer",
+        lambda *_args, **_kwargs: provider.get_tracer("kbs"),
+    )
+
+    async def app(scope, receive, send) -> None:
+        await send({"type": "http.response.start", "status": 200, "headers": []})
+        await send({"type": "http.response.body", "body": b""})
+
+    wrapped = HttpMetricsMiddleware(app, templates=("/health", "/metrics", "/changes"))
+
+    async def receive() -> dict:
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+    async def send(_message: dict) -> None:
+        return None
+
+    asyncio.run(
+        wrapped(
+            {"type": "http", "path": "/changes", "method": "GET", "headers": []},
+            receive,
+            send,
+        )
+    )
+    finished = exporter.get_finished_spans()
+    assert len(finished) == 1
+    assert finished[0].name == "GET /changes"

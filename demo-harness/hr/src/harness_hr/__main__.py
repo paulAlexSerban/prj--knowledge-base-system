@@ -19,7 +19,12 @@ def main() -> None:
     files_dir = Path(os.environ.get("FILES_DIR", db_path.parent / "policies"))
     port = int(os.environ.get("PORT", "8080"))
     init_telemetry("harness-hr")
-    uvicorn.run(create_app(Store(db_path, files_dir)), host="0.0.0.0", port=port)
+    uvicorn.run(
+        create_app(Store(db_path, files_dir)),
+        host="0.0.0.0",
+        port=port,
+        access_log=False,
+    )
 
 
 if __name__ == "__main__":

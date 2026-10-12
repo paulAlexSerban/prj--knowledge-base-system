@@ -17,7 +17,7 @@ def main() -> None:
     db_path = Path(os.environ.get("SQLITE_PATH", "/tmp/harness-sales/harness.db"))
     port = int(os.environ.get("PORT", "8080"))
     init_telemetry("harness-sales")
-    uvicorn.run(create_app(Store(db_path)), host="0.0.0.0", port=port)
+    uvicorn.run(create_app(Store(db_path)), host="0.0.0.0", port=port, access_log=False)
 
 
 if __name__ == "__main__":

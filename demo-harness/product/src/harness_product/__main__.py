@@ -25,6 +25,7 @@ def main() -> None:
         create_app(Store(db_path, files_dir), Notifier(os.environ.get("WEBHOOK_URL"))),
         host="0.0.0.0",
         port=port,
+        access_log=False,
     )
 
 

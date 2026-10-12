@@ -34,7 +34,7 @@
         "spec": {
           "id": 70,
           "title": "Recent traces",
-          "description": "Traces for the selected service. There is no service map. The trace id cell opens the trace. A missing row means the process has no OTEL_EXPORTER_OTLP_ENDPOINT or Alloy is down.",
+          "description": "Feature traces for the selected service. Health checks, metrics scrapes, and readiness probes are left out. There is no service map. The trace id cell opens the trace. A missing row means the process has no OTEL_EXPORTER_OTLP_ENDPOINT, Alloy is down, or only probes ran.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -56,7 +56,7 @@
                       "spec": {
                         "filters": [],
                         "limit": 20,
-                        "query": "{ resource.service.name =~ \"$service\" }",
+                        "query": "{ resource.service.name =~ \"$service\" && rootName !~ \"^(GET|HEAD|POST) /(health|metrics)\" && rootName !~ \"^(GET|HEAD) /(ready|live|-/healthy|-/ready|_stcore/health)\" }",
                         "queryType": "traceql",
                         "tableType": "traces"
                       }
@@ -160,7 +160,7 @@
         "spec": {
           "id": 72,
           "title": "Error spans",
-          "description": "Spans marked error. The trace id cell opens the trace, then the log line with the same trace id. A deny is not an error span. An error here is a failed call, a store exception, or an HTTP 5xx.",
+          "description": "Feature spans marked error. Health checks, metrics scrapes, and readiness probes are left out. The trace id cell opens the trace, then the log line with the same trace id. A deny is not an error span. An error here is a failed call, a store exception, or an HTTP 5xx.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -182,7 +182,7 @@
                       "spec": {
                         "filters": [],
                         "limit": 20,
-                        "query": "{ resource.service.name =~ \"$service\" && status = error }",
+                        "query": "{ resource.service.name =~ \"$service\" && status = error && rootName !~ \"^(GET|HEAD|POST) /(health|metrics)\" && rootName !~ \"^(GET|HEAD) /(ready|live|-/healthy|-/ready|_stcore/health)\" }",
                         "queryType": "traceql",
                         "tableType": "traces"
                       }

@@ -25,7 +25,7 @@ from knowledge_store.acl import Principal
 from shared.http_metrics import HttpMetricsMiddleware
 from shared.logging import configure, log_event
 from shared.registry import load_registry, source_payloads
-from shared.telemetry import FASTAPI_TELEMETRY, init_telemetry
+from shared.telemetry import FASTAPI_TELEMETRY, init_telemetry, operational_path
 
 LOG = logging.getLogger("gateway-api")
 
@@ -83,7 +83,7 @@ def create_app(service: GatewayService | None = None) -> FastAPI:
         response = await call_next(request)
         response.headers["x-request-id"] = request_id
         path = request.url.path
-        if path != "/health" and not path.startswith("/metrics"):
+        if not operational_path(path):
             fields: dict[str, object] = {"path": path, "status": response.status_code, "request_id": request_id}
             log_event(LOG, "request", **fields)
         return response

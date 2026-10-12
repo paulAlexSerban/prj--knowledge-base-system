@@ -26,6 +26,14 @@ discovery.relabel "containers" {
     source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
     target_label  = "service"
   }
+
+  // Feature logs only. The collector, Grafana, stores, floci, and dev viewers
+  // stay on their own stdout. Metrics for those processes are unchanged.
+  rule {
+    source_labels = ["service"]
+    regex         = "alloy|loki|tempo|prometheus|grafana|jupyter|pgadmin|sqlite-hr|sqlite-sales|sqlite-product|sqlite-engineering|postgres|neo4j|postgres-migrate|neo4j-init|floci|floci-ready"
+    action        = "drop"
+  }
 }
 
 loki.source.docker "containers" {
@@ -38,6 +46,12 @@ loki.source.docker "containers" {
 
 loki.process "kbs" {
   forward_to = [loki.write.local.receiver]
+
+  // Probes are not a feature. /changes, /ids, and /v1/search stay.
+  stage.drop {
+    expression          = "\"(GET|HEAD) /(health|metrics|ready|live|-/healthy|-/ready|_stcore/health)|\\\"path\\\": ?\\\"/(health|metrics|ready|live|_stcore)"
+    drop_counter_reason = "operational_probe"
+  }
 
   stage.json {
     expressions = {
@@ -109,6 +123,25 @@ otelcol.receiver.otlp "kbs" {
   http {
     endpoint = "0.0.0.0:4318"
   }
+  output {
+    traces = [otelcol.processor.filter.features.input]
+  }
+}
+
+// Drop probe spans and FastAPI's internal handler spans. A feature span such
+// as GET /v1/search or connector.sync stays, including when an old image
+// still emits it from the fastapi scope.
+otelcol.processor.filter "features" {
+  error_mode = "ignore"
+
+  traces {
+    span = [
+      "IsMatch(name, \"^(GET|HEAD|POST) /(health|metrics)\")",
+      "IsMatch(name, \"^(GET|HEAD) /(ready|live|-/healthy|-/ready|_stcore/health)\")",
+      "IsMatch(name, \"^fastapi($|\\\\.)\")",
+    ]
+  }
+
   output {
     traces = [otelcol.processor.batch.kbs.input]
   }

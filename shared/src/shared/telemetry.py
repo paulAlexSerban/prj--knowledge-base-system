@@ -41,13 +41,46 @@ _DROPPED = frozenset(
 )
 
 
+# A probe matches the path exactly, or a slash and the rest of the path.
+_OPERATIONAL_PATHS = (
+    "/healthz",
+    "/livez",
+    "/readyz",
+    "/health",
+    "/ready",
+    "/live",
+    "/metrics",
+    "/-/healthy",
+    "/-/ready",
+    "/_stcore/health",
+)
+
+
+def operational_path(path: str) -> bool:
+    """Health, metrics, and readiness paths. They are counted and not traced."""
+    normalized = "/" + (path or "").strip("/")
+    if normalized == "/":
+        return False
+    return any(
+        normalized == prefix or normalized.startswith(prefix + "/") for prefix in _OPERATIONAL_PATHS
+    )
+
+
+def _exclude_operational(scope: Mapping[str, Any]) -> bool:
+    if scope.get("type") not in {"http", "websocket"}:
+        return False
+    return operational_path(str(scope.get("path", "")))
+
+
 # FastAPI 0.143 traces the raw URL path and the handler arguments. That path
 # can be an object id, and the arguments can be the query. Our spans stay on.
+# exclude still skips probes if tracing is turned back on.
 FASTAPI_TELEMETRY = {
     "tracing": False,
     "metrics": False,
     "logs": False,
     "operation_spans": False,
+    "exclude": _exclude_operational,
 }
 
 

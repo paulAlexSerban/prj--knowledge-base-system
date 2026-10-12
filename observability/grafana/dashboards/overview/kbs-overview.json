@@ -164,7 +164,7 @@
               "transformations": []
             }
           },
-          "description": "Error lines, and lines whose decision is deny. The service variable filters both. There is no color threshold. A deny is demo step 2: open the line and follow request_id. An error line is a failed sync, enqueue, or store write. The line has no snippet and no secret.",
+          "description": "Error lines, and lines whose decision is deny, from the gateway, connectors, worker, harnesses, and chat page. Health, metrics, collector, store, and floci lines are not in Loki. The service variable filters both. There is no color threshold. A deny is demo step 2: open the line and follow request_id. An error line is a failed sync, enqueue, or store write. The line has no snippet and no secret.",
           "id": 3,
           "links": [],
           "title": "Errors and denies",

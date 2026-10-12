@@ -2,6 +2,7 @@
 
 import json
 import logging
+import re
 from pathlib import Path
 
 from shared.logging import LABEL_KEYS, audit_decision, configure, log_event
@@ -135,6 +136,72 @@ def test_loki_copies_service_for_logs_drilldown() -> None:
     labeled = alloy.split("stage.labels", 1)[1].split("}", 1)[0]
     for forbidden in ("request_id", "trace_id"):
         assert forbidden not in labeled
+
+
+def _hcl_string(value: str) -> str:
+    inner = value.strip()
+    assert inner[0] == '"' and inner[-1] == '"'
+    decoded: list[str] = []
+    index = 1
+    while index < len(inner) - 1:
+        if inner[index] == "\\" and index + 1 < len(inner) - 1:
+            decoded.append(inner[index + 1])
+            index += 2
+            continue
+        decoded.append(inner[index])
+        index += 1
+    return "".join(decoded)
+
+
+def test_alloy_keeps_feature_logs_and_drops_probes() -> None:
+    text = ALLOY_CONFIG.read_text()
+    rule = text.split("Feature logs only", 1)[1].split("loki.source.docker", 1)[0]
+    for dropped in (
+        "alloy",
+        "loki",
+        "tempo",
+        "prometheus",
+        "grafana",
+        "jupyter",
+        "pgadmin",
+        "postgres",
+        "neo4j",
+        "floci",
+    ):
+        assert dropped in rule
+    for kept in ("gateway-api", "connector-hr", "ingestion-worker", "harness-hr", "chat-ui"):
+        assert kept not in rule
+    expression = text.split("expression", 1)[1].split("\n", 1)[0].split("=", 1)[1]
+    pattern = re.compile(_hcl_string(expression))
+    assert pattern.search('INFO: 127.0.0.1 - "GET /health HTTP/1.1" 200 OK')
+    assert pattern.search('INFO: 127.0.0.1 - "GET /metrics/ HTTP/1.1" 200 OK')
+    assert pattern.search('{"path": "/metrics", "status": 200}')
+    assert pattern.search('{"path":"/_stcore/health"}')
+    assert pattern.search('INFO: 10.0.0.8 - "GET /changes?limit=200 HTTP/1.1" 200 OK') is None
+    assert pattern.search('{"path": "/v1/search", "status": 200}') is None
+    assert pattern.search('{"event": "connector.sync", "source_id": "sales"}') is None
+    receiver = text.split('otelcol.receiver.otlp "kbs"', 1)[1].split(
+        'otelcol.processor.filter "features"', 1
+    )[0]
+    assert "otelcol.processor.filter.features.input" in receiver
+    filt = text.split('otelcol.processor.filter "features"', 1)[1].split("otelcol.processor.batch", 1)[0]
+    assert "/(health|metrics)" in filt
+    assert "^fastapi" in filt
+    assert "connector.sync" not in filt
+
+
+def test_traces_board_hides_probe_roots() -> None:
+    dashboard = json.loads(
+        (ROOT / "observability/grafana/dashboards/traces/kbs-traces.json").read_text()
+    )
+    elements = dashboard["spec"]["elements"]
+    for key in ("panel-70", "panel-72"):
+        query = elements[key]["spec"]["data"]["spec"]["queries"][0]["spec"]["query"]["spec"]["query"]
+        assert "rootName !~" in query
+        assert "/(health|metrics)" in query
+        assert "_stcore/health" in query
+    slow = elements["panel-71"]["spec"]["data"]["spec"]["queries"][0]["spec"]["query"]["spec"]["query"]
+    assert 'name = "retrieval"' in slow
 
 
 def test_metric_relabel_copies_service_and_trust_area() -> None:

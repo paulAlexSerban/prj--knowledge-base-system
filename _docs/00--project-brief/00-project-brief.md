@@ -171,7 +171,7 @@ The demo is the acceptance test. Each step is observable in the API response, th
 | `backend/libs/gateway-core` | Retrieval, JWT checks, Neo4j read templates, and the tool text. A library, not a service. |
 | `database` | Postgres and Neo4j schema. |
 | `demo-harness/` | HR, Sales, Product, and Engineering mock services. |
-| `notebooks/` | Jupyter notebooks for the HR harness (`00`–`30`), the other three sources (`02`, `14`–`16`), and the gateway (`40`–`44`). |
+| `notebooks/` | Jupyter notebooks for the HR harness (`00`–`30`), the other three sources (`02`, `14`–`16`), the gateway (`40`–`44`), and two read-only LangChain agents (`50`, `51`). |
 | `infrastructure/` | Compose orchestration, Terraform provisioning, floci config, and `config/sources` YAML contracts. |
 | `observability` | Alloy, Loki, Prometheus, Tempo, five Grafana dashboards, and metric definitions. |
 | `shared` | Contracts, the registry gate, and logging. Source contracts in `shared/src/shared/contracts` are checked by `make contracts-check`. |

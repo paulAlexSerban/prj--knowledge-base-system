@@ -70,7 +70,7 @@ HR policy hits call the harness `GET /policies/{id}/acl` before they are returne
 
 ### Prompt injection and provenance
 
-Retrieved content is data. The service wraps snippets between `<<<UNTRUSTED_CONTENT` and `UNTRUSTED_CONTENT>>>`. The tool text says the snippet is not an instruction. The POC has no write-capable tool. The calling agent writes the answer. The demo chat page in `frontend/` is one such caller: it uses the REST API with a persona token, sends snippets to the model as untrusted data (or shows them as is when no key is set), and has no tools. Responses include chunk id, source, version, and sync time so a citation can be opened with `get_document`.
+Retrieved content is data. The service wraps snippets between `<<<UNTRUSTED_CONTENT` and `UNTRUSTED_CONTENT>>>`. The tool text says the snippet is not an instruction. The POC has no write-capable tool. The calling agent writes the answer. The demo chat page in `frontend/` is one such caller: it uses the REST API with a persona token, sends snippets to the model as untrusted data (or shows them as is when no key is set), and has no tools. Responses include chunk id, source, version, and sync time so a citation can be opened with `get_document`. Notebooks `50` and `51` are two more callers. They are read-only LangChain agents, an HR assistant and a roadmap agent. Each calls the MCP server with that persona's bearer token, holds no store credentials, and has no write tool. They are not a service. A production agent runtime is the production path.
 
 ### Versioning
 
@@ -98,7 +98,7 @@ The public HTTP API is `/v1`. Index metadata records `embedding_model` and `chun
 
 - The high-sensitivity read-time ACL check can miss the 250 ms budget. It is measured separately. If the demo cannot meet both, the freshness metric and the latency metric are reported as two numbers, not averaged into one.
 - Indexed ACLs for medium and low sources are stale inside the sync window. That window is a documented risk, not an accident discovered during an incident.
-- Tool descriptions that are vague cause the agent to call `search_knowledge` for a relational question or `find_related` for a policy question. The query router in spike 02 is not built. The caller picks the tool.
+- Tool descriptions that are vague cause the agent to call `search_knowledge` for a relational question or `find_related` for a policy question. The query router in spike 02 is not built. The chat page picks the tool. Notebooks `50` and `51` let the model pick from the MCP tool list, and they print that choice. A wrong pick is visible in the trace.
 - Session-scoped row-level security is easy to get wrong under connection pooling. Search sets `kbs.groups`, `kbs.clearance`, and `kbs.department` for the transaction and does not leave them on the connection. A test holds two principals on one pool and asserts isolation.
 - Neo4j Community has no roles. The gateway and the ingestion worker use the same `neo4j` user. The read path uses a read-only session and parameterized templates. A write from the gateway is a bug the database will not stop.
 
@@ -111,6 +111,6 @@ The public HTTP API is `/v1`. Index metadata records `embedding_model` and `chun
 
 ## Open TODOs
 
-- The query router and answer synthesis are not built. `roadmap_deals` answers question 2. It is one fixed template, not a router.
+- The query router is not built. `roadmap_deals` answers question 2. It is one fixed template, not a router. The chat page and notebooks `50` and `51` write an answer from tool results. A deployed agent runtime is not built.
 - OIDC is not built. The signer is the HS256 stub above.
 - The golden set of about 20 questions is not built. API tests cover one known chunk, a query with no shared terms, conflicting countries, an access boundary, and the roadmap path.

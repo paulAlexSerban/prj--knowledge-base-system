@@ -4,7 +4,7 @@ Jupyter for the four harnesses and the gateway. Status: built.
 
 The harness notebooks call the harness over HTTP and read raw snapshots from S3. The gateway notebooks call the API, the MCP server, and Loki. None of them open SQLite, and the container is not on the `kbs-data` network, so it cannot reach Postgres or Neo4j. Jupyter has no `/metrics` endpoint and is not scraped.
 
-Shared helpers live in [hr_demo.py](hr_demo.py), [source_demo.py](source_demo.py), and [gateway_demo.py](gateway_demo.py). Connector metrics are optional. When the connector metrics URL does not answer, the harness notebooks check S3 versions and still pass.
+Shared helpers live in [hr_demo.py](hr_demo.py), [source_demo.py](source_demo.py), [gateway_demo.py](gateway_demo.py), and [agents_demo.py](agents_demo.py). Connector metrics are optional. When the connector metrics URL does not answer, the harness notebooks check S3 versions and still pass.
 
 ## Start
 
@@ -31,6 +31,10 @@ Run the notebooks in this order. `00` resets the harness, so do not run it while
 10. [42-gateway-mcp.ipynb](42-gateway-mcp.ipynb) lists the four MCP tools and repeats one search. The MCP result matches REST.
 11. [43-gateway-freshness.ipynb](43-gateway-freshness.ipynb) creates a policy, closes its ACL, and deletes it. Search and `find_related` follow.
 12. [44-roadmap-question.ipynb](44-roadmap-question.ipynb) asks which high-ARR Q3 deals depend on an unreleased epic. `product_lead` sees the six non-leadership paths. `employee_eng` sees none. Run notebook `02` first if the curated set is not loaded.
+13. [50-agent-hr-policy.ipynb](50-agent-hr-policy.ipynb) is the HR assistant. It asks the Germany parental-leave question as `employee_eng`, cites the policy, then asks it again as `outsider` and gets nothing.
+14. [51-agent-roadmap.ipynb](51-agent-roadmap.ipynb) is the roadmap agent. It asks the Q3 question as `product_lead`, lists the six visible deals, and shows the empty result for `employee_eng`. Leadership deals stay hidden.
+
+Notebooks `50` and `51` are read-only LangChain agents. They call the MCP server with the persona's bearer token and hold no store credentials. They need `OPENROUTER_API_KEY` and a model that can call tools. `openai/gpt-4o-mini` works. A small model, including a 2.6B model, usually does not. `hash-v1` is lexical, so the HR question depends on shared words, and the roadmap question uses the graph template. There is no query router, no memory, and no write tool. The two agents are separate. An orchestrator is more than this POC needs. Agent answers are not in the golden set, which is not written. The agents are notebooks, not a service. A production agent runtime is the production path. Tools are loaded with `langchain.mcp.MCPAdapter`, because `langchain-mcp-adapters` does not import against MCP SDK 2. `make notebooks` rebuilds the Jupyter image, which is what installs those packages.
 
 Each CRUD notebook uses its own id (`pol-demo-*`, `emp-900001` to `emp-900003`) and deletes it at the end. The delete waits for the reconcile sweep (about a minute, up to `hr_demo.DELETE_WAIT`). The harness has no delete feed. Create, update, and ACL changes usually land on the next 10 second poll.
 

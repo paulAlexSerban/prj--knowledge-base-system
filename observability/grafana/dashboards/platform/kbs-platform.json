@@ -242,7 +242,7 @@
               "transformations": []
             }
           },
-          "description": "Error lines from every service. The service variable filters them. There is no color threshold. Use this when a dependency is red or a scrape target is down. The line has no snippet and no secret.",
+          "description": "Error lines from the gateway, connectors, worker, harnesses, and chat page. Collector, Grafana, store, floci, and dev-viewer logs are not in Loki, and neither are health or metrics lines. The service variable filters them. There is no color threshold. Use this when a dependency is red or a scrape target is down. The line has no snippet and no secret.",
           "id": 62,
           "links": [],
           "title": "Error logs",

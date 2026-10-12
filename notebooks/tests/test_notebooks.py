@@ -28,6 +28,8 @@ EXPECTED = [
     "42-gateway-mcp.ipynb",
     "43-gateway-freshness.ipynb",
     "44-roadmap-question.ipynb",
+    "50-agent-hr-policy.ipynb",
+    "51-agent-roadmap.ipynb",
 ]
 CRUD = {
     "10-policy-create-read.ipynb": ("/admin/policies", "409", "422"),
@@ -157,6 +159,13 @@ def test_gateway_notebooks_stay_off_the_databases():
         "42-gateway-mcp.ipynb": ("search_knowledge", "mcp_tools", "pol-parental-leave-de"),
         "43-gateway-freshness.ipynb": ("pol-demo-gateway", "policies", "hr_policy_admin"),
         "44-roadmap-question.ipynb": ("product_lead", "roadmap_deals", "employee_eng"),
+        "50-agent-hr-policy.ipynb": (
+            "employee_eng",
+            "outsider",
+            "pol-parental-leave-de",
+            "search_knowledge",
+        ),
+        "51-agent-roadmap.ipynb": ("product_lead", "roadmap_deals", "employee_eng"),
     }
     for name, expected in needles.items():
         text = cell_text(load_notebook(name))
