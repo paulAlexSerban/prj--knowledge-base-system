@@ -47,7 +47,8 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "up"
+                        "expr": "up",
+                        "legendFormat": "{{job}}"
                       },
                       "version": "v0"
                     },
@@ -59,7 +60,7 @@
               "transformations": []
             }
           },
-          "description": "",
+          "description": "1 means Prometheus or Alloy scraped the target. 0 is down. Red at 80 was wrong: up never reaches 80, so a dead target stayed green.",
           "id": 1,
           "links": [],
           "title": "Scrape targets up",
@@ -73,12 +74,12 @@
                     "mode": "absolute",
                     "steps": [
                       {
-                        "color": "green",
+                        "color": "red",
                         "value": 0
                       },
                       {
-                        "color": "red",
-                        "value": 80
+                        "color": "green",
+                        "value": 1
                       }
                     ]
                   }
@@ -99,7 +100,7 @@
                   "values": false
                 },
                 "showPercentChange": false,
-                "textMode": "auto",
+                "textMode": "value_and_name",
                 "wideLayout": true
               }
             },
@@ -125,7 +126,8 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "histogram_quantile(0.95, sum by (le) (rate(kbs_snapshot_object_lag_seconds_bucket[5m])))"
+                        "expr": "histogram_quantile(0.95, sum by (le, source_id) (rate(kbs_snapshot_object_lag_seconds_bucket[5m])))",
+                        "legendFormat": "{{source_id}}"
                       },
                       "version": "v0"
                     },
@@ -137,7 +139,7 @@
               "transformations": []
             }
           },
-          "description": "",
+          "description": "p95 of snapshot time minus the source updated_at, per source. Yellow at 30s is the HR contract. Red at 300s is the sales, product, and engineering contract. A single 30s red line marked a healthy slower source as failed.",
           "id": 11,
           "links": [],
           "title": "Snapshot lag p95",
@@ -155,8 +157,12 @@
                         "value": 0
                       },
                       {
-                        "color": "red",
+                        "color": "yellow",
                         "value": 30
+                      },
+                      {
+                        "color": "red",
+                        "value": 300
                       }
                     ]
                   },
@@ -178,7 +184,7 @@
                   "values": false
                 },
                 "showPercentChange": false,
-                "textMode": "auto",
+                "textMode": "value_and_name",
                 "wideLayout": true
               }
             },
@@ -204,7 +210,8 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "time() - kbs_connector_last_success_timestamp_seconds"
+                        "expr": "time() - kbs_connector_last_success_timestamp_seconds",
+                        "legendFormat": "{{source_id}}"
                       },
                       "version": "v0"
                     },
@@ -216,7 +223,7 @@
               "transformations": []
             }
           },
-          "description": "",
+          "description": "Seconds since the last sync that advanced the watermark, per source. A cursor watermark leaves this unset. Yellow at 30s, red at 300s, matching the contract targets. HR polls every 10s. The other sources poll every 60s.",
           "id": 12,
           "links": [],
           "title": "Last successful sync age",
@@ -234,8 +241,12 @@
                         "value": 0
                       },
                       {
-                        "color": "red",
+                        "color": "yellow",
                         "value": 30
+                      },
+                      {
+                        "color": "red",
+                        "value": 300
                       }
                     ]
                   },
@@ -257,7 +268,7 @@
                   "values": false
                 },
                 "showPercentChange": false,
-                "textMode": "auto",
+                "textMode": "value_and_name",
                 "wideLayout": true
               }
             },
@@ -283,8 +294,8 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate(kbs_snapshots_written_total[5m]))",
-                        "legendFormat": "written"
+                        "expr": "sum by (source_id) (rate(kbs_snapshots_written_total[5m]))",
+                        "legendFormat": "written {{source_id}}"
                       },
                       "version": "v0"
                     },
@@ -302,8 +313,8 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate(kbs_snapshots_skipped_unchanged_total[5m]))",
-                        "legendFormat": "skipped"
+                        "expr": "sum by (source_id) (rate(kbs_snapshots_skipped_unchanged_total[5m]))",
+                        "legendFormat": "skipped {{source_id}}"
                       },
                       "version": "v0"
                     },
@@ -315,7 +326,7 @@
               "transformations": []
             }
           },
-          "description": "",
+          "description": "Snapshots written or skipped per second, per source. A skip means version, ACL, and hash already matched. This is a rate, not an error, so it has no red threshold.",
           "id": 13,
           "links": [],
           "title": "Snapshot write and skip rate",
@@ -368,13 +379,10 @@
                       {
                         "color": "green",
                         "value": 0
-                      },
-                      {
-                        "color": "red",
-                        "value": 80
                       }
                     ]
-                  }
+                  },
+                  "unit": "ops"
                 },
                 "overrides": []
               },
@@ -414,7 +422,8 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum by (stage) (rate(kbs_snapshot_errors_total[5m]))"
+                        "expr": "sum by (source_id, stage) (rate(kbs_snapshot_errors_total[5m]))",
+                        "legendFormat": "{{source_id}} {{stage}}"
                       },
                       "version": "v0"
                     },
@@ -426,7 +435,7 @@
               "transformations": []
             }
           },
-          "description": "",
+          "description": "Snapshot failures per second by source and stage. A contract stage is an object that carried an excluded field. enqueue is a publish that failed after the snapshot write.",
           "id": 14,
           "links": [],
           "title": "Snapshot errors by stage",
@@ -525,7 +534,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "kbs_reconcile_drift",
+                        "expr": "abs(kbs_reconcile_drift)",
                         "legendFormat": "{{source_id}}"
                       },
                       "version": "v0"
@@ -538,7 +547,7 @@
               "transformations": []
             }
           },
-          "description": "",
+          "description": "Absolute difference between snapshot count and source count, per source. Zero is healthy. Negative drift is the same failure as positive drift. Red at one object.",
           "id": 15,
           "links": [],
           "title": "Reconciliation drift",
@@ -554,10 +563,6 @@
                       {
                         "color": "green",
                         "value": 0
-                      },
-                      {
-                        "color": "red",
-                        "value": 0.001
                       },
                       {
                         "color": "red",
@@ -582,7 +587,7 @@
                   "values": false
                 },
                 "showPercentChange": false,
-                "textMode": "auto",
+                "textMode": "value_and_name",
                 "wideLayout": true
               }
             },
@@ -608,7 +613,8 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "kbs_delete_verification_failures_total"
+                        "expr": "sum by (source_id, store) (increase(kbs_delete_verification_failures_total[$__range]))",
+                        "legendFormat": "{{source_id}} {{store}}"
                       },
                       "version": "v0"
                     },
@@ -620,7 +626,7 @@
               "transformations": []
             }
           },
-          "description": "Any failure is red. store is s3 on the connector, postgres or neo4j on the worker.",
+          "description": "Delete checks that still found the object, counted over the selected range. The raw counter showed the total since process start. store is s3 on the connector, postgres or neo4j on the worker. Red on any failure in the range.",
           "id": 16,
           "links": [],
           "title": "Delete verification failures",
@@ -642,7 +648,8 @@
                         "value": 1
                       }
                     ]
-                  }
+                  },
+                  "unit": "short"
                 },
                 "overrides": []
               },
@@ -660,7 +667,7 @@
                   "values": false
                 },
                 "showPercentChange": false,
-                "textMode": "auto",
+                "textMode": "value_and_name",
                 "wideLayout": true
               }
             },
@@ -688,7 +695,7 @@
                       "spec": {
                         "direction": "backward",
                         "editorMode": "code",
-                        "expr": "{service=\"connector-hr\"}",
+                        "expr": "{service=~\"connector-.*\"}",
                         "queryType": "range"
                       },
                       "version": "v0"
@@ -701,7 +708,7 @@
               "transformations": []
             }
           },
-          "description": "",
+          "description": "Logs from every connector. The old query was connector-hr only, so sales, product, and engineering failures were invisible.",
           "id": 17,
           "links": [],
           "title": "Connector logs",
@@ -751,7 +758,8 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "kbs_worker_up"
+                        "expr": "kbs_worker_up",
+                        "legendFormat": "{{job}} {{worker}}"
                       },
                       "version": "v0"
                     },
@@ -803,7 +811,7 @@
                   "values": false
                 },
                 "showPercentChange": false,
-                "textMode": "auto",
+                "textMode": "value_and_name",
                 "wideLayout": true
               }
             },
@@ -914,7 +922,8 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "kbs_worker_dependency_up"
+                        "expr": "kbs_worker_dependency_up",
+                        "legendFormat": "{{dependency}}"
                       },
                       "version": "v0"
                     },
@@ -966,7 +975,7 @@
                   "values": false
                 },
                 "showPercentChange": false,
-                "textMode": "auto",
+                "textMode": "value_and_name",
                 "wideLayout": true
               }
             },
@@ -992,7 +1001,8 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "histogram_quantile(0.95, sum by (le, source_id) (rate(kbs_ingest_event_lag_seconds_bucket[5m])))"
+                        "expr": "histogram_quantile(0.95, sum by (le, source_id) (rate(kbs_ingest_event_lag_seconds_bucket[5m])))",
+                        "legendFormat": "event {{source_id}}"
                       },
                       "version": "v0"
                     },
@@ -1011,7 +1021,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "expr": "kbs_connector_watermark_lag_seconds",
-                        "legendFormat": "{{source_id}}"
+                        "legendFormat": "watermark {{source_id}}"
                       },
                       "version": "v0"
                     },
@@ -1023,7 +1033,7 @@
               "transformations": []
             }
           },
-          "description": "Event lag is now minus occurred_at when the worker finishes the message. Watermark lag is one series per source. A cursor watermark is omitted. Red above 30 seconds. Not oldest-message age.",
+          "description": "Event lag is now minus occurred_at when the worker finishes the message, per source. Watermark lag is one series per source. A cursor watermark is omitted. Yellow at 30s is the HR contract. Red at 300s is the other contracts. This is not oldest-message age. SQS does not expose that outside CloudWatch.",
           "id": 21,
           "links": [],
           "title": "Sync lag per source",
@@ -1078,8 +1088,12 @@
                         "value": 0
                       },
                       {
-                        "color": "red",
+                        "color": "yellow",
                         "value": 30
+                      },
+                      {
+                        "color": "red",
+                        "value": 300
                       }
                     ]
                   },
@@ -1221,7 +1235,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "kbs_dlq_depth",
+                        "expr": "sum by (queue) (kbs_dlq_depth)",
                         "legendFormat": "{{queue}}"
                       },
                       "version": "v0"
@@ -1234,7 +1248,7 @@
               "transformations": []
             }
           },
-          "description": "Any message is red.",
+          "description": "Visible messages on each tier dead-letter queue right now. This is a gauge from GetQueueAttributes, not a counter, so it is not wrapped in increase(). Red when any message is visible.",
           "id": 23,
           "links": [],
           "title": "Dead-letter depth",
@@ -1256,7 +1270,8 @@
                         "value": 1
                       }
                     ]
-                  }
+                  },
+                  "unit": "short"
                 },
                 "overrides": []
               },
@@ -1274,7 +1289,7 @@
                   "values": false
                 },
                 "showPercentChange": false,
-                "textMode": "auto",
+                "textMode": "value_and_name",
                 "wideLayout": true
               }
             },
@@ -1416,7 +1431,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "kbs_index_drift",
+                        "expr": "abs(kbs_index_drift)",
                         "legendFormat": "{{source_id}}"
                       },
                       "version": "v0"
@@ -1429,7 +1444,7 @@
               "transformations": []
             }
           },
-          "description": "Indexed objects minus source_objects. Sits beside snapshot reconciliation drift.",
+          "description": "Absolute difference between indexed objects and source_objects, per source. Sits beside snapshot reconciliation drift. Red at one object.",
           "id": 25,
           "links": [],
           "title": "Index drift",
@@ -1448,7 +1463,7 @@
                       },
                       {
                         "color": "red",
-                        "value": 0.001
+                        "value": 1
                       }
                     ]
                   }
@@ -1469,7 +1484,7 @@
                   "values": false
                 },
                 "showPercentChange": false,
-                "textMode": "auto",
+                "textMode": "value_and_name",
                 "wideLayout": true
               }
             },
@@ -1594,7 +1609,8 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "kbs_store_errors_total"
+                        "expr": "sum by (store, op) (increase(kbs_store_errors_total[$__range]))",
+                        "legendFormat": "{{store}} {{op}}"
                       },
                       "version": "v0"
                     },
@@ -1606,7 +1622,7 @@
               "transformations": []
             }
           },
-          "description": "Failed Postgres or Neo4j writes.",
+          "description": "Failed Postgres or Neo4j writes over the selected range. The raw counter showed the total since process start. Red on any failure in the range.",
           "id": 27,
           "links": [],
           "title": "Store errors",
@@ -1628,7 +1644,8 @@
                         "value": 1
                       }
                     ]
-                  }
+                  },
+                  "unit": "short"
                 },
                 "overrides": []
               },
@@ -1646,7 +1663,7 @@
                   "values": false
                 },
                 "showPercentChange": false,
-                "textMode": "auto",
+                "textMode": "value_and_name",
                 "wideLayout": true
               }
             },
@@ -1719,38 +1736,6 @@
           }
         }
       },
-      "panel-29": {
-        "kind": "Panel",
-        "spec": {
-          "id": 29,
-          "title": "Not built",
-          "description": "",
-          "links": [],
-          "data": {
-            "kind": "QueryGroup",
-            "spec": {
-              "queries": [],
-              "queryOptions": {},
-              "transformations": []
-            }
-          },
-          "vizConfig": {
-            "kind": "VizConfig",
-            "group": "text",
-            "version": "13.2.3",
-            "spec": {
-              "fieldConfig": {
-                "defaults": {},
-                "overrides": []
-              },
-              "options": {
-                "mode": "markdown",
-                "content": "Traces are not built. Retrieval latency, empty-result rate, and auth failures are on the Retrieval row. A deny is a log line with decision deny. Grafana does not query kbs.audit_log."
-              }
-            }
-          }
-        }
-      },
       "panel-30": {
         "kind": "Panel",
         "spec": {
@@ -1769,7 +1754,8 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "histogram_quantile(0.95, sum by (le, tool) (rate(kbs_retrieval_seconds_bucket[5m])))"
+                        "expr": "histogram_quantile(0.95, sum by (le, tool) (rate(kbs_retrieval_seconds_bucket[5m])))",
+                        "legendFormat": "{{tool}}"
                       },
                       "version": "v0"
                     },
@@ -1781,7 +1767,7 @@
               "transformations": []
             }
           },
-          "description": "p95 of kbs_retrieval_seconds by tool. The 250 ms target is the 0.25 histogram bucket.",
+          "description": "p95 of kbs_retrieval_seconds by tool. Search includes the HR ACL re-check. The unit is seconds. Red above 0.25s, which is the 250 ms target and the 0.25 histogram bucket.",
           "id": 30,
           "links": [],
           "title": "Retrieval latency p95",
@@ -1825,8 +1811,22 @@
                       "mode": "none"
                     },
                     "thresholdsStyle": {
-                      "mode": "off"
+                      "mode": "line"
                     }
+                  },
+                  "unit": "s",
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      },
+                      {
+                        "color": "red",
+                        "value": 0.25
+                      }
+                    ]
                   }
                 },
                 "overrides": []
@@ -1867,7 +1867,8 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum by (permission_group) (rate(kbs_retrieval_empty_total[5m])) / sum by (permission_group) (rate(kbs_retrieval_total[5m]))"
+                        "expr": "sum by (permission_group) (rate(kbs_retrieval_empty_total[5m])) / sum by (permission_group) (rate(kbs_retrieval_total[5m]))",
+                        "legendFormat": "{{permission_group}}"
                       },
                       "version": "v0"
                     },
@@ -1879,7 +1880,7 @@
               "transformations": []
             }
           },
-          "description": "Searches with no chunk, divided by all searches, by permission group.",
+          "description": "Searches with no chunk, divided by all searches, by permission group. Shown as a fraction of 1.",
           "id": 31,
           "links": [],
           "title": "Empty-result rate",
@@ -1925,7 +1926,8 @@
                     "thresholdsStyle": {
                       "mode": "off"
                     }
-                  }
+                  },
+                  "unit": "percentunit"
                 },
                 "overrides": []
               },
@@ -2063,7 +2065,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum by (result) (kbs_webhook_events_total)",
+                        "expr": "sum by (result) (increase(kbs_webhook_events_total[$__range]))",
                         "legendFormat": "{{result}}"
                       },
                       "version": "v0"
@@ -2076,7 +2078,7 @@
               "transformations": []
             }
           },
-          "description": "Product notices the receiver accepted or refused.",
+          "description": "Product notices over the selected range. ok, invalid, and error are separate series. The raw counter showed the total since process start. invalid and error turn red. ok stays green.",
           "id": 40,
           "links": [],
           "title": "Webhook notices",
@@ -2094,9 +2096,35 @@
                         "value": 0
                       }
                     ]
-                  }
+                  },
+                  "unit": "short"
                 },
-                "overrides": []
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byRegexp",
+                      "options": "error|invalid"
+                    },
+                    "properties": [
+                      {
+                        "id": "thresholds",
+                        "value": {
+                          "mode": "absolute",
+                          "steps": [
+                            {
+                              "color": "green",
+                              "value": 0
+                            },
+                            {
+                              "color": "red",
+                              "value": 1
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                ]
               },
               "options": {
                 "colorMode": "value",
@@ -2112,7 +2140,7 @@
                   "values": false
                 },
                 "showPercentChange": false,
-                "textMode": "auto",
+                "textMode": "value_and_name",
                 "wideLayout": true
               }
             },
@@ -2138,12 +2166,31 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "kbs_hook_queue_depth",
-                        "legendFormat": "{{queue}}"
+                        "expr": "kbs_hook_queue_depth{queue=\"kbs-product-hooks.fifo\"}",
+                        "legendFormat": "main"
                       },
                       "version": "v0"
                     },
                     "refId": "A"
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "prometheus"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "kbs_hook_queue_depth{queue=\"kbs-product-hooks-dlq.fifo\"}",
+                        "legendFormat": "dlq"
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "B"
                   }
                 }
               ],
@@ -2151,7 +2198,7 @@
               "transformations": []
             }
           },
-          "description": "Visible messages on the product hook queue and its dead-letter queue. Any dead-letter message is red.",
+          "description": "Visible messages right now. The main hook queue can hold work, so it stays green. The dead-letter queue turns red at one message. The old panel turned both red.",
           "id": 41,
           "links": [],
           "title": "Hook queue depth",
@@ -2167,15 +2214,37 @@
                       {
                         "color": "green",
                         "value": 0
-                      },
+                      }
+                    ]
+                  },
+                  "unit": "short"
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "dlq"
+                    },
+                    "properties": [
                       {
-                        "color": "red",
-                        "value": 1
+                        "id": "thresholds",
+                        "value": {
+                          "mode": "absolute",
+                          "steps": [
+                            {
+                              "color": "green",
+                              "value": 0
+                            },
+                            {
+                              "color": "red",
+                              "value": 1
+                            }
+                          ]
+                        }
                       }
                     ]
                   }
-                },
-                "overrides": []
+                ]
               },
               "options": {
                 "colorMode": "value",
@@ -2191,7 +2260,7 @@
                   "values": false
                 },
                 "showPercentChange": false,
-                "textMode": "auto",
+                "textMode": "value_and_name",
                 "wideLayout": true
               }
             },
@@ -2487,19 +2556,6 @@
                         "height": 10,
                         "width": 16,
                         "x": 0,
-                        "y": 24
-                      }
-                    },
-                    {
-                      "kind": "GridLayoutItem",
-                      "spec": {
-                        "element": {
-                          "kind": "ElementReference",
-                          "name": "panel-29"
-                        },
-                        "height": 10,
-                        "width": 8,
-                        "x": 16,
                         "y": 24
                       }
                     }
