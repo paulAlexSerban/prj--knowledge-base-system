@@ -1,9 +1,10 @@
 """Read-only Cypher templates.
 
 Neo4j Community has no roles. The session is read-only. Each template filters
-on acl_groups, acl_departments, and min_clearance. The service then checks
-acl_rules, because one node can carry more than one rule. A missed predicate
-is not caught by the database. The gateway and the worker share the neo4j user.
+on acl_groups, acl_departments, and min_clearance, and drops a node whose
+acl_rules property is missing. The service then checks the rules, because one
+node can carry more than one rule. A missed predicate is not caught by the
+database. The gateway and the worker share the neo4j user.
 """
 
 from dataclasses import dataclass
@@ -21,41 +22,59 @@ _DEPARTMENT = """
   )
 """
 
-TEAMMATES = """
+TEAMMATES = (
+    """
 MATCH (p:Person {id: $id})-[:BELONGS_TO]->(t:Team)<-[:BELONGS_TO]-(other:Person)
-WHERE any(g IN coalesce(p.acl_groups, []) WHERE g IN $groups)
+WHERE p.acl_rules IS NOT NULL
+  AND any(g IN coalesce(p.acl_groups, []) WHERE g IN $groups)
   AND coalesce(p.min_clearance, 99) <= $clearance
-""" + _DEPARTMENT.format(alias="p") + """
+"""
+    + _DEPARTMENT.format(alias="p")
+    + """
+  AND other.acl_rules IS NOT NULL
   AND any(g IN coalesce(other.acl_groups, []) WHERE g IN $groups)
   AND coalesce(other.min_clearance, 99) <= $clearance
-""" + _DEPARTMENT.format(alias="other") + """
+"""
+    + _DEPARTMENT.format(alias="other")
+    + """
   AND other.id <> p.id
 RETURN p.id AS from_id, t.id AS team_id, other.id AS to_id, other.name AS to_name,
        p.acl_rules AS from_rules, other.acl_rules AS to_rules,
        coalesce(other.source_id, p.source_id, '') AS source_id
 LIMIT $limit
 """
+)
 
-TEAM = """
+TEAM = (
+    """
 MATCH (t:Team {id: $id})<-[:BELONGS_TO]-(p:Person)
-WHERE any(g IN coalesce(p.acl_groups, []) WHERE g IN $groups)
+WHERE p.acl_rules IS NOT NULL
+  AND any(g IN coalesce(p.acl_groups, []) WHERE g IN $groups)
   AND coalesce(p.min_clearance, 99) <= $clearance
-""" + _DEPARTMENT.format(alias="p") + """
+"""
+    + _DEPARTMENT.format(alias="p")
+    + """
 RETURN t.id AS team_id, p.id AS person_id, p.name AS name,
        p.acl_rules AS acl_rules, coalesce(p.source_id, '') AS source_id
 LIMIT $limit
 """
+)
 
-POLICIES = """
+POLICIES = (
+    """
 MATCH (p:Policy)
 WHERE ($id = "" OR p.id = $id)
+  AND p.acl_rules IS NOT NULL
   AND any(g IN coalesce(p.acl_groups, []) WHERE g IN $groups)
   AND coalesce(p.min_clearance, 99) <= $clearance
-""" + _DEPARTMENT.format(alias="p") + """
+"""
+    + _DEPARTMENT.format(alias="p")
+    + """
 RETURN p.id AS policy_id, p.title AS title, p.version AS version,
        p.source_id AS source_id, p.acl_rules AS acl_rules
 LIMIT $limit
 """
+)
 
 
 @dataclass(frozen=True)

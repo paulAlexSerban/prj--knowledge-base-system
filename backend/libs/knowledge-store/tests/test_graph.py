@@ -154,6 +154,49 @@ def test_owner_edge_keeps_the_team_after_the_person_is_deleted(neo4j_driver) -> 
     assert gone == 0
 
 
+def test_deleting_the_last_deal_removes_a_versionless_epic(neo4j_driver) -> None:
+    graph = GraphWriter(neo4j_driver)
+    neo4j_driver.execute_query("MATCH (n) DETACH DELETE n")
+    deal = {
+        "account_id": "acme",
+        "epic_id": "epic-missing",
+        "arr": 1000,
+        "quarter": "Q3",
+        "stage": "prospect",
+        "product_key": "checkout",
+    }
+    graph.write("sales", "deal", "deal-1", deal, "Acme", ACL, "1")
+    graph.write("sales", "deal", "deal-2", deal, "Acme", ACL, "1")
+    graph.write(
+        "engineering",
+        "epic",
+        "epic-real",
+        {"title": "Real", "status": "released", "product_key": "billing"},
+        "Real",
+        ACL,
+        "4",
+    )
+    stub = neo4j_driver.execute_query(
+        "MATCH (e:Epic {id: 'epic-missing'}) RETURN e.version AS version, e.acl_rules AS rules"
+    )[0][0]
+    assert stub["version"] is None
+    assert stub["rules"] is None
+    graph.delete("sales", "deal-1")
+    still = neo4j_driver.execute_query("MATCH (e:Epic {id: 'epic-missing'}) RETURN count(e) AS n")[
+        0
+    ][0]["n"]
+    assert still == 1
+    graph.delete("sales", "deal-2")
+    gone = neo4j_driver.execute_query("MATCH (e:Epic {id: 'epic-missing'}) RETURN count(e) AS n")[
+        0
+    ][0]["n"]
+    assert gone == 0
+    real = neo4j_driver.execute_query("MATCH (e:Epic {id: 'epic-real'}) RETURN count(e) AS n")[0][
+        0
+    ]["n"]
+    assert real == 1
+
+
 def test_blank_arr_is_stored_as_null() -> None:
     driver = FakeDriver()
     GraphWriter(driver).write(

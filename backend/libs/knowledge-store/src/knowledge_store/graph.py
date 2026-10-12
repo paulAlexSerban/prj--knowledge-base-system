@@ -43,6 +43,8 @@ SET d.source_id = $source_id, d.version = $version, d.account_id = $account_id,
     d.min_clearance = $min_clearance, d.acl_rules = $rules
 """
 
+# The epic may not have been ingested yet. The stub has no version and no ACL.
+# delete() removes it once no deal still points at it.
 LINK_EPIC = """
 MATCH (d:Deal {id: $id})
 MERGE (e:Epic {id: $epic_id})
@@ -89,6 +91,12 @@ ORPHAN_TEAMS = """
 MATCH (t:Team)
 WHERE NOT ()-[:BELONGS_TO]->(t) AND NOT ()-[:OWNED_BY]->(t)
 DETACH DELETE t
+"""
+
+STUB_EPICS = """
+MATCH (e:Epic)
+WHERE e.version IS NULL AND NOT (e)--()
+DETACH DELETE e
 """
 
 COUNT = """
@@ -184,6 +192,7 @@ class GraphWriter:
     def delete(self, source_id: str, object_id: str) -> None:
         self._run(DELETE, source_id=source_id, object_id=object_id)
         self._run(ORPHAN_TEAMS)
+        self._run(STUB_EPICS)
 
     def count_node(self, source_id: str, object_id: str) -> int:
         record = self._one(COUNT, source_id=source_id, object_id=object_id)
