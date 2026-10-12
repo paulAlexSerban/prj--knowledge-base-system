@@ -117,7 +117,15 @@ class GatewayService:
             (item.source_id for item in accesses if item.allowed and item.source_id),
             "none",
         )
-        self._record("find_related", principal, request_id, len(paths), source, empty_rate=False)
+        # A roadmap path is a sales deal. Counting it keeps the empty rate by source meaningful.
+        self._record(
+            "find_related",
+            principal,
+            request_id,
+            len(paths),
+            source,
+            empty_rate=kind == "roadmap_deals",
+        )
         return {"request_id": request_id, "kind": kind, "paths": paths}
 
     def _record(

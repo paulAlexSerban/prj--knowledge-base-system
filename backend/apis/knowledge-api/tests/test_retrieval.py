@@ -13,7 +13,7 @@ from sqlalchemy import text
 
 from gateway_core.auth import issue_token
 from gateway_core.graph_read import GraphReader
-from gateway_core.metrics import AUTH_FAILURES, EMPTY, RECHECK_FAILURES, REQUESTS
+from gateway_core.metrics import AUTH_FAILURES, EMPTY, RECHECK_FAILURES, REQUESTS, TOTAL
 from gateway_core.recheck import RecheckFailed
 from gateway_core.service import GatewayService
 from ingest_contract.events import RAW_BUCKET, ChangeEvent
@@ -543,6 +543,11 @@ def _deal_ids(body: dict) -> set[str]:
 def test_roadmap_deals_is_an_access_boundary(api) -> None:
     http, admin = api
     _seed_roadmap(http.app.state.service.graph.driver)
+    sales_before = TOTAL.labels(source_id="sales", permission_group="roadmap")._value.get()
+    sales_empty_before = EMPTY.labels(source_id="sales", permission_group="roadmap")._value.get()
+    none_before = TOTAL.labels(source_id="none", permission_group="none")._value.get()
+    none_empty_before = EMPTY.labels(source_id="none", permission_group="none")._value.get()
+    eng_empty_before = EMPTY.labels(source_id="none", permission_group="employees")._value.get()
     allowed = http.post(
         "/v1/graph/related",
         json={"kind": "roadmap_deals"},
@@ -564,6 +569,14 @@ def test_roadmap_deals_is_an_access_boundary(api) -> None:
     )
     assert engineer.json()["paths"] == []
     assert outsider.json()["paths"] == []
+    assert TOTAL.labels(source_id="sales", permission_group="roadmap")._value.get() == sales_before + 1
+    assert EMPTY.labels(source_id="sales", permission_group="roadmap")._value.get() == sales_empty_before
+    assert TOTAL.labels(source_id="none", permission_group="none")._value.get() == none_before + 1
+    assert EMPTY.labels(source_id="none", permission_group="none")._value.get() == none_empty_before + 1
+    assert (
+        EMPTY.labels(source_id="none", permission_group="employees")._value.get()
+        == eng_empty_before + 1
+    )
     assert http.post(
         "/v1/graph/related",
         json={"kind": "roadmap_deals", "quarter": "Q3"},

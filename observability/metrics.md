@@ -74,14 +74,14 @@ The API, the MCP server, and the webhook receiver expose these. `job` from the s
 
 ## Retrieval
 
-The API exposes these on `gateway-api:8000/metrics`. The MCP server exposes the same names on `gateway-mcp:8001/metrics`. `surface` is `rest` or `mcp`. A principal, an object id, and chunk text are not labels. `permission_group` is the caller's highest-privilege group (`hr_admins`, then `employees`), or `none`.
+The API exposes these on `gateway-api:8000/metrics`. The MCP server exposes the same names on `gateway-mcp:8001/metrics`. `surface` is `rest` or `mcp`. A principal, an object id, and chunk text are not labels. `permission_group` is the caller's highest-privilege group (`hr_admins`, then `roadmap`, then `employees`), or `none`. A product lead holds both `employees` and `roadmap`, and counts as `roadmap`.
 
 | Metric | Labels | Meaning |
 | ------ | ------ | ------- |
 | `kbs_retrieval_seconds` | `tool`, `surface` | Time in `search`, `get_document`, or `find_related`. The 0.25 bucket is the 250 ms target. |
 | `kbs_retrieval_requests_total` | `tool`, `surface`, `result` (`ok` or `empty`) | Finished retrieval calls. |
-| `kbs_retrieval_empty_total` | `source_id`, `permission_group` | Searches that returned no chunk. `source_id` is `none` when nothing matched. |
-| `kbs_retrieval_total` | `source_id`, `permission_group` | Searches, including ones that returned chunks. The empty-result rate is the empty counter divided by this one. |
+| `kbs_retrieval_empty_total` | `source_id`, `permission_group` | Searches that returned no chunk, and `find_related` kind `roadmap_deals` that returned no path. `source_id` is `none` when nothing matched. A roadmap path uses `sales`, the deal's source. Other graph lookups are not in this rate. |
+| `kbs_retrieval_total` | `source_id`, `permission_group` | Searches, including ones that returned chunks, plus `roadmap_deals` lookups. The empty-result rate is the empty counter divided by this one. |
 | `kbs_auth_failures_total` | `reason` (`missing`, `expired`, `invalid`, `missing_claim`, `clearance`, `secret`) | Rejected bearer tokens. |
 | `kbs_acl_recheck_seconds` | `source_id` | Time spent asking HR for the current policy ACL. |
 | `kbs_acl_recheck_failures_total` | `source_id` | A re-check that timed out or returned nothing usable. The search then returns no chunks. |

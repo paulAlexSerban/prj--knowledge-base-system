@@ -10,7 +10,8 @@ from knowledge_store.acl import Principal
 
 BUCKETS = (0.01, 0.05, 0.1, 0.25, 0.5, 1, 2, 5)
 # Highest privilege first. Anything else uses the caller's first group name.
-_RANK = ("hr_admins", "employees")
+# roadmap is ahead of employees so a product lead is not counted as a plain employee.
+_RANK = ("hr_admins", "roadmap", "employees")
 
 RETRIEVAL_SECONDS = Histogram(
     "kbs_retrieval_seconds",
