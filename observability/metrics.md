@@ -1,6 +1,6 @@
 # Metrics
 
-Alloy scrapes `gateway-api:8000`, `gateway-mcp:8001`, `connector-hr:9100`, `connector-engineering:9102`, `connector-sales:9103`, `connector-product:9104`, `ingestion-worker:9101`, and `webhook-receiver:8090`, and remote-writes to Prometheus. The four harnesses are scraped too. Labels are the ones named below. Object ids, principals, native ACL lists, and chunk text are not labels.
+Alloy scrapes `gateway-api:8000`, `gateway-mcp:8001`, `connector-hr:9100`, `connector-engineering:9102`, `connector-sales:9103`, `connector-product:9104`, `ingestion-worker:9101`, and `webhook-receiver:8090`, and remote-writes to Prometheus. The four harnesses are scraped too. Prometheus itself scrapes Alloy and Loki. `up` is the scrape result for every target: 1 is up, 0 is down. Labels are the ones named below. Object ids, principals, native ACL lists, and chunk text are not labels.
 
 `kbs_worker_up{worker="connector"}` stays 1 after the connector loads its contracts, including while it waits for Postgres or the bucket. `kbs_worker_up{worker="ingestion"}` stays 1 after the ingestion worker loads its contracts.
 
