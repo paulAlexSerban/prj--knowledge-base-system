@@ -31,7 +31,6 @@ services:
       LOKI_URL: http://loki:3100
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       OPENROUTER_MODEL: ${OPENROUTER_MODEL:-openai/gpt-4o-mini}
-      LANGSMITH_API_KEY: ${LANGSMITH_API_KEY:-}
       CONNECTOR_METRICS_URL: http://connector-hr:9100/metrics
       AWS_ENDPOINT_URL: http://floci:4566
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}

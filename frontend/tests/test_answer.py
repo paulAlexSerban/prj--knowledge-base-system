@@ -1,12 +1,10 @@
-"""The answer step stays offline when no key is set, and does not enable LangSmith."""
-
-import os
+"""The answer step stays offline when no key is set."""
 
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
-from chat_ui.answer import answer, configure_langsmith
+from chat_ui.answer import answer
 from chat_ui.gateway import Gateway
 from shared.telemetry import span
 
@@ -54,33 +52,16 @@ class _Response:
         return self._body
 
 
-def test_no_key_returns_passages_and_leaves_langsmith_off(monkeypatch) -> None:
-    monkeypatch.delenv("LANGSMITH_API_KEY", raising=False)
-    monkeypatch.setenv("LANGSMITH_TRACING", "true")
-    monkeypatch.setenv("LANGCHAIN_TRACING_V2", "true")
+def test_no_key_returns_passages() -> None:
     text, mode = answer("parental leave?", [HIT])
     assert mode == "retrieval"
     assert "14 weeks" in text
-    assert "LANGSMITH_TRACING" not in os.environ
-    assert "LANGCHAIN_TRACING_V2" not in os.environ
 
 
-def test_model_reply_uses_the_wrapper_and_enables_langsmith_only_with_a_key(monkeypatch) -> None:
-    monkeypatch.delenv("LANGSMITH_API_KEY", raising=False)
+def test_model_reply_uses_the_wrapper() -> None:
     text, mode = answer("parental leave?", [HIT], api_key="sk-test", model="offline", llm=_Reply(""))
     assert mode == "model"
     assert text == "Fourteen weeks [1]."
-    assert "LANGSMITH_TRACING" not in os.environ
-
-    monkeypatch.setenv("LANGSMITH_API_KEY", "ls-test")
-    answer("parental leave?", [HIT], api_key="sk-test", model="offline", llm=_Reply(""))
-    assert os.environ["LANGSMITH_TRACING"] == "true"
-    assert os.environ["LANGCHAIN_TRACING_V2"] == "true"
-    assert os.environ["LANGCHAIN_PROJECT"] == "kbs"
-    configure_langsmith()
-    monkeypatch.delenv("LANGSMITH_API_KEY")
-    configure_langsmith()
-    assert "LANGSMITH_TRACING" not in os.environ
 
 
 def test_a_failed_model_call_falls_back_to_passages() -> None:

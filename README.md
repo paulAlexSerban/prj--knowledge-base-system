@@ -57,7 +57,7 @@ Components
 | Knowledge graph                                   | Neo4j, small typed ontology.                                                                                                                                                |
 | Messaging and objects                             | SQS FIFO per object, with a dead-letter queue, and S3, both on floci. Scheduler, when added, drives P1/P2 polls and reconciliation. P0 polling is in the connector process. |
 | Models                                            | OpenRouter when `OPENROUTER_API_KEY` is set. The chat page calls it through LangChain and falls back to the cited snippets. A local embedder and a deterministic extractor for offline runs. |
-| Observability                                     | Alloy collects metrics, container logs, and OTLP traces. Prometheus stores metrics, Loki stores logs, Tempo stores traces, and Grafana shows them. LangSmith is off unless `LANGSMITH_API_KEY` is set. |
+| Observability                                     | Alloy collects metrics, container logs, and OTLP traces. Prometheus stores metrics, Loki stores logs, Tempo stores traces, and Grafana shows them. |
 
 
 Decisions, and what was rejected:

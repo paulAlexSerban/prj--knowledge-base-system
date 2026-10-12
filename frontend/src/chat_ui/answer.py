@@ -7,7 +7,6 @@ Each question is searched on its own. Query rewriting for follow-ups is not buil
 """
 
 import json
-import os
 
 import httpx
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -160,17 +159,6 @@ def _provider_message(response: httpx.Response) -> str:
     return message
 
 
-def configure_langsmith() -> None:
-    """Turn LangSmith on only when a key is set. Offline runs stay untraced."""
-    if not os.environ.get("LANGSMITH_API_KEY", "").strip():
-        os.environ.pop("LANGSMITH_TRACING", None)
-        os.environ.pop("LANGCHAIN_TRACING_V2", None)
-        return
-    os.environ["LANGSMITH_TRACING"] = "true"
-    os.environ["LANGCHAIN_TRACING_V2"] = "true"
-    os.environ.setdefault("LANGCHAIN_PROJECT", "kbs")
-
-
 def _langchain_messages(question: str, hits: list[dict]) -> list[SystemMessage | HumanMessage]:
     messages = build_messages(question, hits)
     return [
@@ -200,7 +188,6 @@ def model_answer(
     model: str,
     llm: object | None = None,
 ) -> str:
-    configure_langsmith()
     chat = llm or ChatOpenAI(
         model=model,
         api_key=api_key,
@@ -223,7 +210,6 @@ def answer(
     llm: object | None = None,
 ) -> tuple[str, str]:
     """Return (text, mode). Mode is none, model, or retrieval."""
-    configure_langsmith()
     if not hits:
         return NO_ACCESS, "none"
     if api_key and model:

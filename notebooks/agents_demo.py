@@ -82,17 +82,6 @@ def system_prompt(role_prompt: str) -> str:
     return f"{role}\n\n{UNTRUSTED}"
 
 
-def configure_langsmith() -> None:
-    """Turn LangSmith on only when a key is set. Offline runs stay untraced."""
-    if not os.environ.get("LANGSMITH_API_KEY", "").strip():
-        os.environ.pop("LANGSMITH_TRACING", None)
-        os.environ.pop("LANGCHAIN_TRACING_V2", None)
-        return
-    os.environ["LANGSMITH_TRACING"] = "true"
-    os.environ["LANGCHAIN_TRACING_V2"] = "true"
-    os.environ.setdefault("LANGCHAIN_PROJECT", "kbs")
-
-
 def chat_model() -> ChatOpenAI:
     key = os.environ.get("OPENROUTER_API_KEY", "").strip()
     model = os.environ.get("OPENROUTER_MODEL", "").strip()
@@ -102,7 +91,6 @@ def chat_model() -> ChatOpenAI:
             "The model must support tool calling. openai/gpt-4o-mini works. "
             "A small model usually does not."
         )
-    configure_langsmith()
     return ChatOpenAI(
         model=model,
         api_key=key,
@@ -149,7 +137,6 @@ def build_agent(persona: str, role_prompt: str, *, model=None, tools=None):
         if not str(bearer or "").strip():
             raise ValueError("persona token is empty")
         tools = load_tools(bearer)
-    configure_langsmith()
     return create_agent(model or chat_model(), tools=tools, system_prompt=prompt)
 
 
