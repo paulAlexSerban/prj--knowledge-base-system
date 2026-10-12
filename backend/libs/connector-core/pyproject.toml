@@ -5,6 +5,7 @@ description = "Connector interface, snapshot sync, object store, and sync state.
 requires-python = ">=3.12"
 dependencies = [
   "boto3>=1.43.111",
+  "httpx>=0.28.1",
   "ingest-contract",
   "prometheus-client>=0.26.0",
   "shared",
