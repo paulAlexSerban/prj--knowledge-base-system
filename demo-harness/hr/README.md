@@ -55,7 +55,7 @@ Use `"kind":"policy"` for policies. About 20 percent are PDF and about 5 percent
 
 ## Shared keys
 
-Team names (`people`, `platform`, `payments`, `identity`, `data`, `product`, `sales-emea`, `sales-amer`) are the shared keys the Sales, Product, and Engineering harnesses should reuse when they name an owning team.
+Team names (`people`, `platform`, `payments`, `identity`, `data`, `product`, `sales-emea`, `sales-amer`) are the shared keys the Sales, Product, and Engineering harnesses use when they name an owning team.
 
 ## Run and test
 

@@ -16,7 +16,7 @@ Treat ingestion as a stream of change events (create, update, delete, acl_change
 
 ### Pipeline
 
-1. Connector worker runs on the cadence in the source contract. P0 (HR) is an in-process loop, because EventBridge Scheduler cannot fire faster than once a minute. Scheduler, when wired, sends P1/P2 poll ticks and the reconciliation sweep to a queue. The Product harness calls the webhook receiver directly.
+1. Connector worker runs on the cadence in the source contract. P0 (HR) is an in-process loop, because EventBridge Scheduler cannot fire faster than once a minute. Scheduler, when wired, sends P1/P2 poll ticks and the reconciliation sweep to a queue. P1 polls in this POC are also in-process, every 60 seconds. The Product harness posts a pointer at the webhook receiver. The receiver enqueues it on `kbs-product-hooks`. The product connector fetches the spec, writes the snapshot, and emits the change event on the P1 queue.
 2. `list_changes` yields events. The HR connector writes the raw payload to S3, enqueues the change event, then upserts `kbs.source_objects`. The enqueue is before the state upsert, so a failed publish leaves the previous row in place and does not advance the watermark. The message `s3_pointer` is the key already stored, `raw/<source>/<type>/<id>.<ext>`. An ACL-only change (same version, different native ACL) is `acl_change`.
 3. The ingestion worker chunks, embeds, and upserts Postgres, then Neo4j, or applies a tombstone. It does not delete the S3 object. The connector does that, and checks the key is gone, before it emits `delete`.
 4. Retrieval reads the stores, plus the HR ACL re-check from spike 03. REST and MCP search call that store path. They do not read SQLite or S3 for the answer.
@@ -33,7 +33,7 @@ Message body: `source_id`, `object_id`, `event_type`, `version`, `content_hash`,
 
 ### Deletes
 
-- The connector removes every S3 version, checks the key is gone, enqueues `delete` with the version and content hash from the row and no pointer, then deletes the `kbs.source_objects` row. A failed check or a failed enqueue keeps the row. For HR this is the only delete path: the harness has no delete feed.
+- The connector removes every S3 version, checks the key is gone, enqueues `delete` with the version and content hash from the row and no pointer, then deletes the `kbs.source_objects` row. A failed check or a failed enqueue keeps the row. HR and Engineering have no delete feed, so this runs from the `/ids` sweep. Sales puts `op: delete` on the cursor feed, and the same verified delete runs immediately. The sweep stays the backstop. A product delete pointer takes the same path. A pointer whose object is already gone is treated as a delete.
 - The worker inserts `kbs.tombstones` (`source_id`, `object_id`, `version`, `content_hash`, `deleted_at`), hard-deletes the chunks and the graph nodes this object owns, then checks both counts are zero. There is no `documents` table. Lineage stays in `kbs.source_objects`. A failed verification increments `kbs_delete_verification_failures_total` with a `store` label (`s3` on the connector, `postgres` or `neo4j` on the worker) and the message retries.
 - A replayed create with the same version and content hash does not resurrect a tombstoned object. A newer version clears the tombstone and writes again.
 - Index reconciliation runs in the worker every `RECONCILE_INDEX_SECONDS` (default 60). Chunks with no `source_objects` row are deleted. A `source_objects` row with no chunk at the current version and embedding model is read back from S3 and processed. `kbs_index_drift` is the indexed object count minus the `source_objects` count. The sweep lists ids, not bodies.
@@ -88,6 +88,6 @@ Per source: last successful sync, event lag, queue depth, dead-letter depth, emb
 
 ## Open TODOs
 
-Built: the event schema in `backend/libs/ingest-contract`, `make dlq-replay`, and the index reconciliation sweep in the ingestion worker.
+Built: the event schema in `backend/libs/ingest-contract`, the product hook pointer, `make dlq-replay`, and the index reconciliation sweep in the ingestion worker. A cursor watermark is stored as the cursor. Lag is not computed from it, because it is not a timestamp.
 
-Still open: the product webhook does not enqueue. It remains a stub. The production path is API Gateway plus Lambda, and that function is not built. floci's FIFO redrive was not observed; the worker's own copy at receive count 5 is what the demo relies on.
+Still open: the production path for the receiver is API Gateway plus Lambda, and that function is not built. floci's FIFO redrive was not observed; the worker's own copy at receive count 5 is what the demo relies on. The live cycle replays that copy.

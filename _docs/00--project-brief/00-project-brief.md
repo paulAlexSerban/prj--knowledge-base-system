@@ -89,22 +89,22 @@ These are places where the stated requirements need a narrower reading before im
 ### Use cases that the demo must answer
 
 1. HR policy chatbot. "What is our parental leave policy in Germany?" returns an answer with a citation to the policy chunk, its source version, and its sync time.
-2. Cross-department roadmap question. "Which high-ARR Sales deals in Q3 depend on unreleased Engineering epics?" returns deals, epics, and the path that connects them (deal, account, product spec, epic, owning team).
+2. Cross-department roadmap question. "Which high-ARR Sales deals in Q3 depend on unreleased Engineering epics?" returns deals, epics, and the path that connects them (deal, epic, owning team). High ARR is 200,000 or more. Account fields sit on the deal. Specs stay prose and are not on this path.
 
 ### In scope (built)
 
-- One HR connector behind the shared interface, with a written data contract. Sales, Product, and Engineering have contracts and empty harness stubs. Their connectors are not built.
-- Change detection for HR: polling and an updated-since listing. The Product webhook receiver is a stub and does not enqueue.
-- An event pipeline: the HR connector, SQS with a dead-letter queue, and one ingestion worker.
-- Hybrid retrieval: Postgres with pgvector and full-text search, merged with reciprocal rank fusion. `hash-v1` only keeps a chunk that also matched the words.
-- A Neo4j knowledge graph with a small ontology, populated from structured HR records. The constrained extractor for product specs is not built. `Deal -DEPENDS_ON-> Epic` is tested with fixtures only.
+- Four connectors behind the shared interface, each with a written data contract. Sales is deals only: account fields sit on the deal, and there is no account object.
+- Change detection: HR and Engineering poll an updated-since listing. Sales reads a cursor feed that includes deletes. The Product harness posts a pointer to the webhook receiver, which enqueues it on `kbs-product-hooks`. The product connector snapshots the spec and emits the change event. A lost hook is recovered from `/ids`.
+- An event pipeline: the four connectors, SQS with a dead-letter queue per tier plus the hook queue, and one ingestion worker.
+- Hybrid retrieval: Postgres with pgvector and full-text search, merged with reciprocal rank fusion. `hash-v1` only keeps a chunk that also matched the words. Search covers HR. Deals, epics, and specs are stored and are not routed by the gateway yet.
+- A Neo4j knowledge graph with a small ontology. HR writes people, teams, and policies. A deal depends on an epic, and an epic is owned by an HR team. The constrained extractor for product specs is not built. Specs stay prose.
 - One service layer, `gateway-core`, exposed twice: a REST API and an MCP server (`search_knowledge`, `get_document`, `find_related`, `list_sources`). Search returns one chunk per object. Neither adapter writes an answer.
 - User-delegated authorization: an HS256 JWT, a coarse pre-filter, a fine-grained post-check, Postgres row-level security, and an audit record of which attributes justified a result. Graph checks are the Cypher template and a read-only session. Neo4j Community has no roles.
 - Delete propagation, content-hash skip, idempotent upserts, and a reconciliation sweep.
-- A demo harness: FastAPI services with SQLite for HR, Sales, Product, and Engineering. HR stores rows with SQLAlchemy and can bulk-load through `POST /admin/seed`. The HR connector polls that API, writes raw snapshots to S3, and enqueues change events. The other three sources are empty stubs.
+- A demo harness: FastAPI services with SQLite for HR, Sales, Product, and Engineering. HR stores rows with SQLAlchemy and can bulk-load through `POST /admin/seed`. The other three sources are a curated set and have no bulk seed. Each connector writes a raw snapshot to S3 and enqueues a change event.
 - Docker Compose, floci, and Terraform for the FIFO queues, dead-letter queues, and snapshot bucket. Alloy collects metrics and container logs. Prometheus stores metrics, Loki stores logs, and Grafana shows both, including retrieval latency and the deny line. Traces are deferred. The API key stays in the environment.
 
-Not built, though the list above used to imply they were: the other three connectors, the spec extractor, the query router, answer synthesis, demo question 2, OIDC, and a golden set of about 20 questions. API tests cover one known chunk, a query with no shared terms, two countries, and an access boundary.
+Not built: the spec extractor, the query router, answer synthesis, a gateway answer for demo question 2, OIDC, and a golden set of about 20 questions. The question-2 path is in the graph after ingestion. API tests cover one known chunk, a query with no shared terms, two countries, and an access boundary.
 
 ### Out of scope (production path, documented only)
 
@@ -137,18 +137,18 @@ The demo is the acceptance test. Each step is observable in the API response, th
 
 1. Demonstrable. Ask the Germany parental-leave question as `employee_eng`. The gateway returns the policy chunk, its source version, and its sync time. It does not write the answer. Notebook `41`.
 2. Demonstrable. The same question as `outsider` returns nothing. The audit row and a JSON log line record the deny (`decision` of `deny`, `request_id` in the line, not in a Loki label). Grafana opens that line from the dashboard. Notebook `41`.
-3. Not demonstrable. Sales and Engineering are not ingested, so there is no live path from a deal to an epic.
-4. Demonstrable for an HR policy. Notebook `43` creates a policy, closes its ACL, and deletes it. Search and `find_related` drop it. Deleting a deal is not demonstrable.
+3. Demonstrable on the graph, not through the gateway. After ingestion, a Q3 deal whose ARR is 200,000 or more and whose epic is not released has a path from the deal to that epic to the owning team. `find_related` does not return that path. Notebook `02` resets the three sources.
+4. Demonstrable for an HR policy. Notebook `43` creates a policy, closes its ACL, and deletes it. Search and `find_related` drop it. Deleting a deal is demonstrable in the snapshot, the chunks, and the graph. Notebook `14`. Search does not cover deals yet.
 5. Demonstrable at the worker. Stop an ingestion worker mid-batch, then start it again. In-flight messages return to the queue or land in the dead-letter queue. Replaying them does not duplicate chunks or edges. `make dlq-replay` sends dead-letter messages back, with a new deduplication id so FIFO does not drop them.
 
-`make up` and `make test` exist. `make up` starts the stack, including the HR connector, the ingestion worker, and both gateways. `seed`, `demo`, and `eval` are still to be written. HR bulk load is notebook `00`. Notebooks `40`–`43` call the gateway.
+`make up` and `make test` exist. `make up` starts the stack, including the four connectors, the ingestion worker, and both gateways. `seed`, `demo`, and `eval` are still to be written. HR bulk load is notebook `00`. Notebook `02` resets the other three sources. Notebooks `40`–`43` call the gateway.
 
 ## Risks and open questions
 
 - floci's documentation lists SQS, S3, Scheduler, IAM, and Bedrock Runtime, among others. A local apply created the FIFO queues and one send/receive worked. That is not a fidelity or load test. Model calls go to OpenRouter or the local fallback because the design should not depend on one cloud model API.
 - Two stores (Postgres and Neo4j) can diverge. The document in Postgres is the authority for prose. The graph is a derived index. The worker commits Postgres, then writes Neo4j. A failed graph write leaves the message unacknowledged, so the event retries. Until that retry the chunk can exist without the node. A retry whose content hash already matches still writes the graph.
 - LLM extraction of edges from product specs will be wrong some of the time. Every extracted edge carries confidence and a source span. The demo question is answered from deterministic edges extracted from structured records. Extracted edges are visible and are not trusted for the headline answer.
-- Permission propagation has a window. HR policy search re-checks the harness ACL and fails closed when that call does not answer. A failed check drops the whole page, not only the policy that timed out. People records are not re-checked. Sales, Product, and Engineering are not ingested, so their sync-window behavior is written on the contract and is not demonstrated.
+- Permission propagation has a window. HR policy search re-checks the harness ACL and fails closed when that call does not answer. A failed check drops the whole page, not only the policy that timed out. People records are not re-checked. Sales, Product, and Engineering contracts say the indexed ACL is authoritative inside the freshness window. That re-check is not wired for them, and the gateway does not search them yet.
 - Entity resolution beyond shared ids and email addresses is deferred. If Sales and Engineering use different identifiers for the same product, the demo data uses one shared product key on purpose. Production will need a resolution step; pretending the demo key is that step would be dishonest.
 - The 250 ms budget and the 30-second SLA are design targets with a metric, not a load-test result.
 
@@ -162,8 +162,8 @@ The demo is the acceptance test. Each step is observable in the API response, th
 | `_docs/03--adrs/` | Short ADRs for storage, observability, and embedding/chunk versioning. |
 | `backend/apis/knowledge-api` | REST gateway. Its own image. |
 | `backend/apis/mcp-server` | MCP gateway. Its own image. |
-| `backend/apis/webhook-receiver` | Product webhook stub. Its own image. The production path is API Gateway plus Lambda, and that function is not built. |
-| `backend/connectors/hr` | HR connector process, `connector-hr`. Its own image. |
+| `backend/apis/webhook-receiver` | Product webhook receiver. Its own image. It enqueues a pointer. The production path is API Gateway plus Lambda, and that function is not built. |
+| `backend/connectors/` | One connector process per source. Each has its own image. |
 | `backend/workers/ingestion-worker` | Queue consumer. Its own image. Writes chunks and the graph. |
 | `backend/libs/connector-core` | Connector interface and snapshot sync. A library, not a service. |
 | `backend/libs/ingest-contract` | Change events, queue names, and the snapshot hash. A library, not a service. |
@@ -171,11 +171,11 @@ The demo is the acceptance test. Each step is observable in the API response, th
 | `backend/libs/gateway-core` | Retrieval, JWT checks, Neo4j read templates, and the tool text. A library, not a service. |
 | `database` | Postgres and Neo4j schema. |
 | `demo-harness/` | HR, Sales, Product, and Engineering mock services. |
-| `notebooks/` | Jupyter notebooks for the HR harness (`00`–`30`) and the gateway (`40`–`43`). |
+| `notebooks/` | Jupyter notebooks for the HR harness (`00`–`30`), the other three sources (`02`, `14`–`16`), and the gateway (`40`–`43`). |
 | `infrastructure/` | Compose orchestration, Terraform provisioning, floci config, and `config/sources` YAML contracts. |
 | `observability` | Alloy, Loki, Prometheus, one dashboard, and metric definitions. |
 | `shared` | Contracts, the registry gate, and logging. Source contracts in `shared/src/shared/contracts` are checked by `make contracts-check`. |
-| `tools` | Seed, mutation, and evaluation scripts. |
+| `tools` | `scripts/dlq_replay.py`. Evaluation scripts are not written. |
 
 ## Related decisions
 

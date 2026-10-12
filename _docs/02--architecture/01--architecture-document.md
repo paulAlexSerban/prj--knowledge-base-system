@@ -106,7 +106,7 @@ Similarity search answers semantic questions and fails relational ones. A graph 
 | ----- | ----- |
 | Person, Team, Account, Deal, Epic, Spec, Policy | `OWNS`, `DEPENDS_ON`, `REFERENCES`, `BELONGS_TO` |
 
-- Edges from structured sources are extracted in code and are deterministic. The roadmap answer trusts only those. The writer builds `Person -BELONGS_TO-> Team` and a `Policy` node from HR. `Deal -DEPENDS_ON-> Epic` is built and tested with fixtures. Sales and Engineering are not ingested. Edges extracted from specs carry a confidence and a source span and are supporting evidence only. That extractor is not built.
+- Edges from structured sources are extracted in code and are deterministic. The roadmap answer trusts only those. The writer builds `Person -BELONGS_TO-> Team` and a `Policy` node from HR. A deal depends on an epic, and an epic is owned by an HR team. Specs are not graph nodes. Edges extracted from specs would carry a confidence and a source span and would be supporting evidence only. That extractor is not built.
 - Entities join on a shared source key or email. The demo data uses one product key across three sources on purpose. Fuzzy entity resolution is not built.
 
 The router in spike 02 is not built. The caller chooses search or `find_related`. Semantic questions would use chunk text, relational questions the graph, and hybrid questions both.
@@ -131,7 +131,7 @@ There is no write tool and no open SQL or Cypher. The token's claims become the 
 3. Postgres row-level security reads the principal from session settings and requires one `acl_rules` element to match. A query that forgets the predicate still cannot read another principal's rows.
 4. An audit row names the attributes that justified each allow. Denies are audited too. `gateway_ro` can insert those rows and cannot read them.
 
-Permission staleness is explicit. HR policy search calls the harness ACL endpoint before returning a chunk. A timeout returns nothing. `find_related` does not make that call. Sales, Engineering, and Product are not ingested. Their contracts still say the indexed ACL is authoritative inside the freshness window.
+Permission staleness is explicit. HR policy search calls the harness ACL endpoint before returning a chunk. A timeout returns nothing. `find_related` does not make that call. Sales, Engineering, and Product contracts say the indexed ACL is authoritative inside the freshness window. The gateway does not search those sources yet.
 
 Retrieved text is data. Snippets are wrapped as untrusted content. No tool can write, and the gateway does not write an answer. The calling agent does.
 
@@ -190,7 +190,7 @@ A golden set of about 20 questions runs on every change to chunking, the embeddi
 
 Faithfulness is a citation check: every claim maps to a returned chunk id. A model-graded judge is a production addition.
 
-Monitoring follows [ADR 0002](../03--adrs/0002-observability.md). The HR connector emits snapshot lag, last success, and reconciliation drift. The ingestion worker emits event lag, queue depth, dead-letter depth, embed calls, embeds skipped by hash, index drift, store write time, and dependency gauges. The gateway emits retrieval latency, empty-result rate by permission group, auth failures, and the HR ACL re-check. The Grafana dashboard charts those rows. A deny is a log line with `decision: deny`, opened from `request_id`. The dashboard does not query `kbs.audit_log`. POC alerts are dashboard thresholds: P0 lag over 30 seconds, any dead-letter message, any delete verification failure. There is no Alertmanager. The golden set of about 20 questions is not built. API tests cover one known chunk, a query with no shared terms, two countries, and an access boundary.
+Monitoring follows [ADR 0002](../03--adrs/0002-observability.md). Each connector emits snapshot lag, last success, and reconciliation drift. A cursor watermark is not a timestamp, so lag stays unset for that source. The product connector reports hook-queue depth, and the webhook receiver counts accepted and refused notices. The ingestion worker emits event lag, queue depth, dead-letter depth, embed calls, embeds skipped by hash, index drift, store write time, and dependency gauges. The gateway emits retrieval latency, empty-result rate by permission group, auth failures, and the HR ACL re-check. The Grafana dashboard charts those rows. A deny is a log line with `decision: deny`, opened from `request_id`. The dashboard does not query `kbs.audit_log`. POC alerts are dashboard thresholds: P0 lag over 30 seconds, any dead-letter message, any delete verification failure. There is no Alertmanager. The golden set of about 20 questions is not built. API tests cover one known chunk, a query with no shared terms, two countries, and an access boundary.
 
 | Symptom | Action |
 | ------- | ------ |
@@ -218,6 +218,6 @@ Monitoring follows [ADR 0002](../03--adrs/0002-observability.md). The HR connect
 
 Built: the design documents and diagrams, the source-contract gate with tests and CI, four YAML contracts, Compose, Terraform on floci (three FIFO queues, three dead-letter queues, one bucket), Postgres and Neo4j schema, the observability stack, a seeded HR harness, and the HR connector (`connector-hr`) which writes raw snapshots, enqueues change events, and records sync state. The ingestion worker consumes those events, chunks and embeds them, and writes Postgres and Neo4j. Store-level search applies row-level security, full-text and vector search, the fine ACL check, and an audit row. The API and the MCP server search (one chunk per object), fetch one chunk by id, and run the three HR graph templates under the caller's JWT. HR policy search re-checks the harness ACL. Retrieval latency, empty-result rate, and auth failures are on the dashboard. `make dlq-replay` exists. The running embedder is `hash-v1`, which is deterministic and not semantic. The gateway returns cited chunks and does not write an answer.
 
-Not built: the query router, answer synthesis, demo question 2, OIDC, the Sales, Product, and Engineering connectors and harness data, the golden set and `make eval`, traces, and the embedding rebuild command. There is no Lambda. `backend/functions` stays absent until a function exists. The webhook receiver in Compose is the stub; its production path is API Gateway plus Lambda.
+Not built: the query router, answer synthesis, a gateway answer for demo question 2, OIDC, the golden set and `make eval`, traces, and the embedding rebuild command. There is no Lambda. `backend/functions` stays absent until a function exists. The webhook receiver in Compose enqueues a pointer; its production path is API Gateway plus Lambda.
 
 Open gap: one diagram in the house drawio style showing every component, the data flow, and the transformation at each hop. The hop table above carries the transformations for now.

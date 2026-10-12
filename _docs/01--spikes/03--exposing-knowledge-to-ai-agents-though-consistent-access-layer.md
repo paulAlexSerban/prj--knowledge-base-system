@@ -109,6 +109,6 @@ The public HTTP API is `/v1`. Index metadata records `embedding_model` and `chun
 
 ## Open TODOs
 
-- The query router, answer synthesis, and the Sales-to-Engineering graph template are not built. Question 2 cannot be demonstrated.
+- The query router, answer synthesis, and the Sales-to-Engineering graph template are not built. The deal, epic, and team path is in Neo4j after ingestion. The gateway does not answer question 2.
 - OIDC is not built. The signer is the HS256 stub above.
 - The golden set of about 20 questions is not built. API tests cover one known chunk, a query with no shared terms, conflicting countries, and an access boundary.

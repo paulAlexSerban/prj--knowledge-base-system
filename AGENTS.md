@@ -16,21 +16,24 @@ This repository is a POC knowledge gateway: ingest four department sources, keep
 | `infrastructure/config/sources/` | One YAML contract per source. |
 | `backend/apis/knowledge-api/` | REST gateway. Own image. |
 | `backend/apis/mcp-server/` | MCP gateway. Own image. |
-| `backend/apis/webhook-receiver/` | Product webhook stub. Own image. Production path is API Gateway plus Lambda; that function does not exist yet. |
+| `backend/apis/webhook-receiver/` | Product webhook receiver. Own image. Enqueues a pointer on `kbs-product-hooks`. Production path is API Gateway plus Lambda; that function does not exist yet. |
 | `backend/workers/ingestion-worker/` | Queue consumer. Own image. Writes chunks and the graph through `knowledge-store`. |
 | `backend/connectors/hr/` | HR connector process (`connector-hr`). Own image. |
+| `backend/connectors/engineering/` | Engineering connector process (`connector-engineering`). Own image. |
+| `backend/connectors/sales/` | Sales connector process (`connector-sales`). Own image. |
+| `backend/connectors/product/` | Product connector process (`connector-product`). Own image. Reads the hook queue. |
 | `backend/libs/connector-core/` | Connector interface, snapshot sync, S3 store, Postgres sync state, and the SQS publisher. Library, no image. |
-| `backend/libs/ingest-contract/` | Change-event model, queue names, and the snapshot hash. Library, no image. |
+| `backend/libs/ingest-contract/` | Change-event model, the product hook pointer, queue names, and the snapshot hash. Library, no image. |
 | `backend/libs/knowledge-store/` | Chunkers, the hash embedder, Postgres chunks, ACL, and the Neo4j writer. Library, no image. |
 | `backend/libs/gateway-core/` | Retrieval service, principal and HS256 validation, Neo4j read templates, and the tool text shared by the API and the MCP server. Library, no image. |
 | `backend/tests/integration/` | Tests that cross a deployable boundary. |
 | `backend/tests/e2e/` | Opt-in live-stack test. `make e2e`. |
 | `database/` | Postgres migrations (sync state, chunks, full-text, vectors, ACL, row-level security) and Neo4j constraints. |
-| `demo-harness/` | One image per source. HR is built. Sales, Product, and Engineering are stubs on `harness-common`. |
+| `demo-harness/` | One image per source. HR is built and can bulk-load. Sales, Product, and Engineering are curated stores on `harness-common`. |
 | `frontend/` | Streamlit chat page (`chat-ui`). Own image. Calls the gateway REST API only; holds no store credentials. Writes the answer from cited snippets, with OpenRouter when a key is set. |
-| `notebooks/` | Jupyter notebooks that seed, inspect, and edit the HR harness (`00`–`30`) and call the gateway (`40`–`43`). |
+| `notebooks/` | Jupyter notebooks that seed, inspect, and edit the HR harness (`00`–`30`), reset and edit the other three sources (`02`, `14`–`16`), and call the gateway (`40`–`43`). |
 | `infrastructure/orchestration/` | One Compose file per trust area, plus `compose.yaml` which includes them. |
-| `infrastructure/provisioning/terraform/` | Queues, dead-letter queues, and the snapshot bucket on floci. |
+| `infrastructure/provisioning/terraform/` | Tier queues, the product hook queue, their dead-letter queues, and the snapshot bucket on floci. |
 | `observability/` | Alloy, Loki, Prometheus, one dashboard, and metric definitions. |
 | `tools/` | `scripts/dlq_replay.py`. Seed, mutation, and evaluation scripts are not written. |
 

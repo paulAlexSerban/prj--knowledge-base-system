@@ -32,15 +32,15 @@ Ontology for the demo question and the policy question only:
 
 | Nodes | Edges |
 | ----- | ----- |
-| Person, Team, Account, Deal, Epic, Spec, Policy | `OWNS`, `DEPENDS_ON`, `REFERENCES`, `BELONGS_TO` |
+| Person, Team, Deal, Epic, Policy | `BELONGS_TO`, `DEPENDS_ON`, `OWNED_BY` |
 
 Population rules:
 
-- Structured sources (Sales CRM, Engineering epics, HR directory) emit edges in connector code. These edges are deterministic and are the ones the roadmap answer trusts.
-- Unstructured product specs may emit `REFERENCES` edges from a constrained extractor (OpenRouter, or the offline stub). Each extracted edge stores confidence and the source span it came from. Extracted edges are returned as supporting evidence. They do not decide the headline answer.
+- Structured sources (Sales deals, Engineering epics, HR directory) emit edges in code. These edges are deterministic and are the ones the roadmap answer trusts. There is no account node. Account fields sit on the deal.
+- Product specs stay prose. They are not graph nodes. A later extractor could emit `REFERENCES` edges, each with a confidence and a source span, as supporting evidence only. That extractor is not built, and those edges would not decide the headline answer.
 - Entity identity is the shared source key or email. Fuzzy entity resolution is out of scope, and the demo data uses one product key across Sales, Product, and Engineering so the join is real.
 
-The graph writer is built and is not HR-specific. HR records write `Person -BELONGS_TO-> Team` and a `Policy` node. `Deal -DEPENDS_ON-> Epic` is merged from either side and is proven with fixtures only. Sales and Engineering are not ingested, so that edge is not on the live path. `OWNS`, `REFERENCES`, the spec extractor, and the query router are not built. The gateway reads three HR templates: teammates of a person, people on a team, and policies the caller may see. There is no Cypher template for the deals-and-epics question.
+The graph writer is built. HR records write `Person -BELONGS_TO-> Team` and a `Policy` node. A deal writes `DEPENDS_ON` to its epic. An epic writes `OWNED_BY` to the HR team named on the record. `OWNS`, `REFERENCES`, the spec extractor, and the query router are not built. The gateway reads three HR templates: teammates of a person, people on a team, and policies the caller may see. There is no Cypher template for the deals-and-epics question. After ingestion the path is in Neo4j and is read there, not through `find_related`.
 
 ### Query router
 

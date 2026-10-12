@@ -30,7 +30,7 @@ The gateway joins `kbs-sources` so it can call the HR harness `GET /policies/{id
 
 ## Startup
 
-Copy `.env.example` to `.env`. `make up` creates the networks, starts the stack, then runs Terraform on the host. `terraform` 1.5 or newer must be on `PATH`. The first run downloads images and the AWS provider into `infrastructure/provisioning/terraform/.terraform/`. Neo4j takes about two minutes. Terraform then creates `kbs-p0.fifo`, `kbs-p1.fifo`, `kbs-p2.fifo`, a FIFO dead-letter queue for each, and the `kbs-raw-snapshots` bucket.
+Copy `.env.example` to `.env`. `make up` creates the networks, starts the stack, then runs Terraform on the host. `terraform` 1.5 or newer must be on `PATH`. The first run downloads images and the AWS provider into `infrastructure/provisioning/terraform/.terraform/`. Neo4j takes about two minutes. Terraform then creates `kbs-p0.fifo`, `kbs-p1.fifo`, `kbs-p2.fifo`, a FIFO dead-letter queue for each, `kbs-product-hooks` and its dead-letter queue, and the `kbs-raw-snapshots` bucket.
 
 State is `infrastructure/provisioning/terraform/terraform.tfstate`. It is not committed. `.terraform.lock.hcl` is. `make tf-apply` refreshes and is a no-op while floci still has those resources. floci is in memory mode, so a restart of that container drops the queues and the bucket while the state file still lists them. Delete the state file, or run `make tf-destroy` before the restart, then `make tf-apply`.
 
@@ -38,7 +38,7 @@ Postgres 18 stores the cluster under `/var/lib/postgresql`. A volume created by 
 
 `make tools` starts pgAdmin, the four SQLite viewers, Postgres, and the harness. Open pgAdmin at `http://127.0.0.1:5050` (no login; the `kbs` server is preloaded). Open each harness database at `http://127.0.0.1:8111` (HR), `8112` (Sales), `8113` (Product), and `8114` (Engineering). pgAdmin and the SQLite viewers are not scraped: they have no `/metrics` endpoint.
 
-Scheduler schedules are not created. EventBridge Scheduler cannot run faster than once a minute, and a schedule needs an IAM role this stub does not invent. P0 polling is a loop in `connector-hr`.
+Scheduler schedules are not created. EventBridge Scheduler cannot run faster than once a minute, and a schedule needs an IAM role this stub does not invent. Polling is a loop in each connector. HR polls every 10 seconds. Engineering and Sales poll every 60 seconds. Product does not poll. It waits on `kbs-product-hooks`.
 
 The three tier queues use `visibility_timeout_seconds` 60 and `maxReceiveCount` 5. The worker also copies a message to the dead-letter queue when the receive count exceeds 5, because floci's redrive was not observed.
 
@@ -48,6 +48,6 @@ Worker environment that is not in `.env`: `EMBEDDER=hash` and `RECONCILE_INDEX_S
 
 ## What the processes do
 
-The gateway lists the four source contracts and exits if the registry is invalid. It does not search. `connector-hr` polls the harness, writes raw snapshots to `kbs-raw-snapshots` on floci, enqueues a change event, and records sync state in Postgres. The ingestion worker drains the three queues, chunks and embeds each object, and writes Postgres and Neo4j. The HR harness serves a seeded directory and policies from SQLite through SQLAlchemy. The other three harnesses still serve an empty change list and have no connector yet. Jupyter calls the HR admin API and can list the snapshot bucket. It is not scraped: it has no `/metrics` endpoint. pgAdmin and the SQLite viewers are the same kind of exception. REST and MCP retrieval do not run.
+The gateway lists the four source contracts and exits if the registry is invalid. It searches HR chunks. Each connector writes raw snapshots to `kbs-raw-snapshots` on floci, enqueues a change event, and records sync state in Postgres. The product connector reads `kbs-product-hooks` first. The ingestion worker drains the three tier queues, chunks and embeds each object, and writes Postgres and Neo4j. The HR harness serves a seeded directory and policies from SQLite through SQLAlchemy. Sales, Product, and Engineering serve a curated set. Jupyter calls the harness admin APIs and can list the snapshot bucket. It is not scraped: it has no `/metrics` endpoint. pgAdmin and the SQLite viewers are the same kind of exception.
 
 Alloy scrapes `/metrics` on `kbs-obs` and remote-writes to Prometheus. It also tails container logs through a read-only Docker socket and pushes them to Loki. That socket is a trust-boundary exception: it can see stdout from containers that are not on `kbs-obs`. Loki and Alloy publish no host ports. Grafana on port 3000 is how you read logs. Sign in as `admin`. The password is `GRAFANA_ADMIN_PASSWORD`, or `admin` when that variable is unset. Details are in [ADR 0002](../_docs/03--adrs/0002-observability.md).

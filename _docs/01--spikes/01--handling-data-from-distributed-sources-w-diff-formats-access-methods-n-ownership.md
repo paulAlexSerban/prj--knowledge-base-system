@@ -29,9 +29,11 @@ Capability flags on each contract: `webhook`, `cursor_feed`, `updated_since`, `s
 | Source | Shape | Change signal | Sensitivity |
 | ------ | ----- | ------------- | ----------- |
 | HR | Markdown and PDF policies, plus a SQLite people directory | Poll, no webhook | High. ACL re-checked at read time. |
-| Sales | SQLite CRM (accounts, deals) | Cursor-based change feed | Medium. Team scope. |
-| Product | Markdown specs on disk | Webhook on file change | Low. Bounded sync window. |
+| Sales | SQLite deals. Account fields sit on the deal. There is no account object. | Cursor-based change feed, including deletes | Medium. Team scope. |
+| Product | Markdown specs on disk | Webhook pointer, then a fetch | Low. Bounded sync window. |
 | Engineering | Jira-like epics in SQLite | `updated_since` listing | Medium. Project membership. |
+
+Sales does not model an account. Nothing in the demo question groups or filters by an account id that is not already a field on the deal. Product specs stay prose. The webhook is a pointer, not the document: the harness posts `{source_id, object_id, event_type}`, the receiver puts that on `kbs-product-hooks` (FIFO, with a dead-letter queue, deduplication off so two edits both arrive), and `connector-product` fetches the markdown. A second pointer for an unchanged spec is a no-op. `/ids` recovers a hook that never arrived.
 
 Each source ships a YAML contract in [infrastructure/config/sources](../../infrastructure/config/sources). Attributes are attached to the document at ingestion. Retrieval evaluates them as a policy decision. The audit log records which attributes justified showing a chunk to a user. See [ADR 0001](../03--adrs/0001-storage.md) and [spike 03](03--exposing-knowledge-to-ai-agents-though-consistent-access-layer.md).
 
@@ -94,4 +96,4 @@ Ingestion health is a first-class metric: sync recency per source, failed syncs,
 
 ## Open TODOs
 
-- HR connector is built as its own process, `connector-hr`. It calls `load_registry` at startup and implements `discover`, `list_changes`, `fetch`, and `get_acl`. It writes raw snapshots to S3, enqueues the change event, and records sync state in Postgres. There is no separate `normalize` step: the snapshot is the raw body plus metadata, and the ingestion worker chunks it. The Sales, Product, and Engineering connectors are not built.
+- Each connector is its own process. It calls `load_registry` at startup and implements `discover`, `list_changes`, `fetch`, and `get_acl`. It writes raw snapshots to S3, enqueues the change event, and records sync state in Postgres. There is no separate `normalize` step: the snapshot is the raw body plus metadata, and the ingestion worker chunks it. Product does not poll. It consumes `kbs-product-hooks` and reconciles from `/ids`.

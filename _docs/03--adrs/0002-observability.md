@@ -10,7 +10,7 @@ Demo step 2 is a denied query. The empty-result rate shows that denies are happe
 
 ## Decision
 
-Grafana Alloy is the collector. It scrapes `/metrics` on the API, the MCP server, `connector-hr`, the ingestion worker, the webhook receiver, and the harness, and remote-writes those series to Prometheus. Jupyter, pgAdmin, and the SQLite viewers have no metrics endpoint and are not scraped. It also tails container logs from the Docker socket and pushes them to Loki.
+Grafana Alloy is the collector. It scrapes `/metrics` on the API, the MCP server, the four connectors, the ingestion worker, the webhook receiver, and the four harnesses, and remote-writes those series to Prometheus. The product connector also reports hook-queue depth. The receiver counts accepted and refused notices. Jupyter, pgAdmin, and the SQLite viewers have no metrics endpoint and are not scraped. It also tails container logs from the Docker socket and pushes them to Loki.
 
 Prometheus stores metrics and runs with remote write enabled. It scrapes only Alloy and Loki, so the collector and the log store appear on the same dashboard as the services. Loki is one process with filesystem storage. That is the built tier. Object storage on the floci S3 bucket is the production path.
 
