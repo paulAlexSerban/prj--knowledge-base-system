@@ -49,6 +49,18 @@ Component view of the gateway:
 
 ![Components](/_docs/99--dagrams/00-c4-l3--component-diagram--knowledge-base-system.png)
 
+End to end data flow:
+
+![End to end data flow](/_docs/99--dagrams/02-end-to-end-data-flow.png)
+
+Ingestion pipeline sequence:
+
+![Ingestion pipeline sequence](/_docs/99--dagrams/03-sequence--ingestion-pipeline.png)
+
+Knowledge store read path sequence:
+
+![Knowledge store read path sequence](/_docs/99--dagrams/04-sequence--knowledge-store-flow.png)
+
 
 | Concern                                           | Choice                                                                                                                                                                      |
 | ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
