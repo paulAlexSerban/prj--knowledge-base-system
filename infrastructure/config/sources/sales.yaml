@@ -18,6 +18,7 @@ in_scope_fields:
   - stage
   - owner_email
   - product_key
+  - epic_id
 excluded_fields: []
 acl_mapping:
   - native: account_team

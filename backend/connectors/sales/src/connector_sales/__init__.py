@@ -1,0 +1,1 @@
+"""Sales connector process."""
