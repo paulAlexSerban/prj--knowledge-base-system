@@ -5,7 +5,8 @@ providers:
     folder: KBS
     type: file
     # UI saves go to Grafana's database. Export the JSON and commit it under
-    # observability/grafana/dashboards/. The file is kbs-overview.json.
+    # observability/grafana/dashboards/. One file per dashboard:
+    # kbs-overview, kbs-ingestion, kbs-retrieval-access, kbs-platform.
     allowUiUpdates: true
     disableDeletion: false
     options:

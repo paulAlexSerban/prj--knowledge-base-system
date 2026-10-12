@@ -18,7 +18,7 @@ Loki labels are `service`, `trust_area`, `level`, and `source_id`. Services writ
 
 Grafana requires a sign-in. The local account is `admin`, and the password is `GRAFANA_ADMIN_PASSWORD`, which defaults to `admin`. The UI stays on `127.0.0.1`. Changes made in the UI are stored in Grafana's database and kept across restarts while the JSON file is unchanged. To keep a change in git, export the JSON and commit it under `observability/grafana/dashboards/`.
 
-The dashboard is [kbs-overview.json](../../observability/grafana/dashboards/kbs-overview.json). Definitions are in [metrics.md](../../observability/metrics.md). Built panels:
+Definitions are in [metrics.md](../../observability/metrics.md). The overview is [kbs-overview.json](../../observability/grafana/dashboards/kbs-overview.json). It keeps the SLO row, scrape and worker health, and the error and deny log. Detail is on [kbs-ingestion.json](../../observability/grafana/dashboards/kbs-ingestion.json), [kbs-retrieval-access.json](../../observability/grafana/dashboards/kbs-retrieval-access.json), and [kbs-platform.json](../../observability/grafana/dashboards/kbs-platform.json). Each board links to the others. Built panels:
 
 | Panel | Source |
 | ----- | ------ |
