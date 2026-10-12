@@ -29,7 +29,7 @@ The discussion starts from the production set. The POC is sized to the second se
 | Queries | Semantic search and multi-hop traversal. | The two demo questions. |
 | Latency | Under 250 ms p95 for retrieval, excluding model generation. | A design target with a metric, not a load-test result. |
 | Infrastructure | Not specified. | Docker Compose, [floci](https://floci.io) for SQS, S3, and EventBridge Scheduler, Terraform against floci. |
-| Models | Not specified. | OpenRouter, with a local embedder and deterministic extractor for offline runs. |
+| Models | Not specified. | Local `bge-small-en-v1.5` for embeddings. OpenRouter for chat when a key is set. A hash embedder and a deterministic extractor for offline runs and tests. |
 
 Requirements I narrowed, and why:
 
@@ -41,9 +41,13 @@ Requirements I narrowed, and why:
 
 ## Architecture
 
+![End-to-end data flow](../00--project-brief/02-end-to-end-data-flow.png)
+
+The diagram above shows every component, the flow from source to agent, and the transformation at each hop. The C4 views below zoom in.
+
 ![Container diagram](../00--project-brief/00-c4-l2--container-diagram--knowledge-base-system.png)
 
-Further views: [system context](../00--project-brief/00-c4-l1--system-context.png), [connector containers](../00--project-brief/01-c4-l2--container-connectors.png), and [components](../00--project-brief/00-c4-l3--component-diagram--kowledge-base-system.png). The harness (HR, Sales, Product, Engineering) is outside the gateway. Postgres, Neo4j, and S3 are on an internal network. The only agent ingress is the API and the MCP server. pgAdmin is a dev-only loopback bridge onto that network; the stores stay unpublished.
+Further views (the end-to-end diagram source is [02-end-to-end-data-flow.drawio](../00--project-brief/02-end-to-end-data-flow.drawio)): [system context](../00--project-brief/00-c4-l1--system-context.png), [connector containers](../00--project-brief/01-c4-l2--container-connectors.png), and [components](../00--project-brief/00-c4-l3--component-diagram--kowledge-base-system.png). The harness (HR, Sales, Product, Engineering) is outside the gateway. Postgres, Neo4j, and S3 are on an internal network. The only agent ingress is the API and the MCP server. pgAdmin is a dev-only loopback bridge onto that network; the stores stay unpublished.
 
 ### Components
 
@@ -109,7 +113,7 @@ Similarity search answers semantic questions and fails relational ones. A graph 
 - Edges from structured sources are extracted in code and are deterministic. The roadmap answer trusts only those. The writer builds `Person -BELONGS_TO-> Team` and a `Policy` node from HR. A deal depends on an epic, and an epic is owned by an HR team. Specs are not graph nodes. Edges extracted from specs would carry a confidence and a source span and would be supporting evidence only. That extractor is not built.
 - Entities join on a shared source key or email. The demo data uses one product key across three sources on purpose. Fuzzy entity resolution is not built.
 
-The router in spike 02 is not built. The caller chooses search or `find_related`. Semantic questions would use chunk text, relational questions the graph, and hybrid questions both.
+The router in spike 02 is not built. The caller chooses search or `find_related`. Search ranks two lists from Postgres, cosine distance on 384-dimension bge-small vectors and full-text `ts_rank`, and merges them with reciprocal rank fusion. `ts_rank` is lexical scoring and not BM25. A vector-only candidate is kept only inside a cosine-distance floor, so a question with no answer returns nothing. Semantic questions would use chunk text, relational questions the graph, and hybrid questions both.
 
 ## Agent access
 
@@ -135,7 +139,7 @@ Permission staleness is explicit. HR policy search calls the harness ACL endpoin
 
 Retrieved text is data. Snippets are wrapped as untrusted content. No tool can write, and the gateway does not write an answer. The calling agent does.
 
-What runs today is narrower than the table above. Search is hybrid full-text plus the hash embedder. It is not a query router, and `hash-v1` is not semantic: a chunk is returned only when the words also match. `find_related` is four templates, each checked against the stored rule. `roadmap_deals` answers question 2 for `product_lead`. A `roadmap_readers` rule with `department: "*"` is what lets that one department read both the deal and the epic. That is a shortcut. The real fix is a principal with more than one department. Leadership objects do not carry the extra grant. The template is one fixed question. The router is the production path. The chat page sends the suggested question to `roadmap_deals` and a typed question to search. Notebooks `50` and `51` are the two demo agents. They are read-only, they call MCP with the caller's token, and the model picks the tool. There is no router and no second agent calling the first. Identity is HS256 with `GATEWAY_JWT_SECRET`, not OIDC. Neo4j Community has no roles. The gateway and the worker share the `neo4j` user. That shared credential is an accepted POC risk. The read path is a read-only session plus the template.
+What runs today is narrower than the table above. Search is hybrid full-text plus the bge-small vectors. It is not a query router. `find_related` is four templates, each checked against the stored rule. `roadmap_deals` answers question 2 for `product_lead`. A `roadmap_readers` rule with `department: "*"` is what lets that one department read both the deal and the epic. That is a shortcut. The real fix is a principal with more than one department. Leadership objects do not carry the extra grant. The template is one fixed question. The router is the production path. The chat page sends the suggested question to `roadmap_deals` and a typed question to search. Notebooks `50` and `51` are the two demo agents. They are read-only, they call MCP with the caller's token, and the model picks the tool. There is no router and no second agent calling the first. Identity is HS256 with `GATEWAY_JWT_SECRET`, not OIDC. Neo4j Community has no roles. The gateway and the worker share the `neo4j` user. That shared credential is an accepted POC risk. The read path is a read-only session plus the template.
 
 ## Self-maintenance
 
@@ -159,12 +163,29 @@ Detail: [spike 04](../01--spikes/04--self-maintaing-over-time-refelcting-additio
 | Messaging | SQS FIFO on floci, queue per tier, DLQ per queue | Per-object order, at-least-once delivery, visible poison messages. | Kafka or Kinesis: justified when a second consumer needs replay, not at about 1.2 events per second. |
 | Objects | S3 on floci | Raw payloads and blobs. Postgres holds the pointer. | Not evaluated in the spikes. |
 | Scheduling | In-process loop for P0, EventBridge Scheduler for P1/P2 and reconciliation | Scheduler cannot fire faster than once a minute. | Scheduler for P0. Full reindex on a schedule: re-embeds unchanged content or misses the tier. |
-| Local AWS and IaC | floci, Terraform with endpoint overrides | Real Terraform resources against an emulator. | CloudWatch on floci: metrics and logs stay on Prometheus and Loki so they behave the same in Compose. |
+| Local AWS and IaC | floci, Terraform with endpoint overrides, run in a one-shot container | Real Terraform resources against an emulator. No host install, and throwaway state matches an in-memory emulator. | CloudWatch on floci: metrics and logs stay on Prometheus and Loki so they behave the same in Compose. |
 | Ingestion | Custom connectors on one interface | The graded problem is ACL normalization, tombstones, and freshness contracts. | Airbyte or Fivetran: load a warehouse, own none of those three. Federated query: puts latency and partial failure inside the user's query. CDC: the platform does not own source databases. |
-| Models | OpenRouter for chat when a key is set. The chat page uses LangChain with no tools. Notebooks `50` and `51` use LangChain agents that call MCP. The running embedder is local `hash-v1` (384 dimensions, not semantic). | Tests pass without a key. Model names are config. | LangGraph for the chat page's single prompt. The notebook agents are the only tool loop, and they are not a service. Mixing vectors from two models in one active version. Fine-tuning: does not keep knowledge current or enforce per-user access. `fastembed` is optional and is not locked. |
+| Models | Embeddings: `BAAI/bge-small-en-v1.5` through fastembed, 384 dimensions, ONNX on CPU, baked into the images. Chat: OpenRouter through LangChain when a key is set. Notebooks `50` and `51` use LangChain agents that call MCP. `hash-v1` for tests and offline runs. | No key or network is needed at run time, model names are config, and tests pass without either. 384 dimensions keep the column and index unchanged if the model changes. | `multilingual-e5-small` (same width, 470 MB, the swap for multilingual policies), `bge-base` and `bge-large` (a migration with no measured gain here), `all-MiniLM-L6-v2` (weaker), OpenRouter embeddings (a network dependency inside ingestion), fine-tuning (does not keep knowledge current or enforce access), LangGraph for the chat page's single prompt. |
 | Identity | Mock IdP issuing JWTs | The claim contract is what the service enforces. | MCP as the authorization boundary. Per-agent store access. |
-| Retrieval extras | Reciprocal rank fusion only | No score calibration needed. | Reranker and community-summary GraphRAG: no measured gap yet. Vector-only search: fails the dependency question. |
+| Retrieval extras | Reciprocal rank fusion only | No score calibration needed. The golden set measures recall at 5 of 1.00 and MRR of 0.95, so there is no gap to close. | Cross-encoder reranker and community-summary GraphRAG: no measured gap. Vector-only search: fails exact identifiers and the dependency question. |
 | Observability | Alloy, Prometheus, Loki, Tempo, Grafana ([ADR 0002](../03--adrs/0002-observability.md)) | Freshness and authorization are distributions, a deny is one log line, and one change is one trace across the queue. | Logs only. Direct Prometheus scraping with no collector. Jaeger beside Tempo. LangGraph for a single chat prompt. |
+
+### Production path on AWS
+
+Nothing here is built. It is how each local component maps, and where the POC choices were made so the move is a swap and not a redesign.
+
+| Local | AWS production path | What changes |
+| ----- | ------------------- | ------------ |
+| floci SQS FIFO and S3 | SQS FIFO and S3 | Endpoint overrides go away. The Terraform stays, with a real provider block, a remote state backend, and KMS and bucket policies. |
+| Postgres 18 with pgvector | Aurora PostgreSQL or RDS with the `vector` extension | Row-level security and the ACL columns carry over. Connection pooling must set the principal per transaction, not per session. |
+| Neo4j Community | Neo4j Aura, or self-managed on EC2. Neptune only if openCypher is enough | The templates are plain Cypher. Per-service roles replace the shared user. |
+| Compose services | ECS on Fargate, one service per image, an ALB in front of the gateway | Each image already has a healthcheck and a metrics port. Workers scale on queue depth. |
+| Webhook receiver container | API Gateway plus Lambda that enqueues the pointer | The receiver is a pure enqueue, so the Lambda is a port of about one file. |
+| In-process P0 poll, Scheduler for P1 and P2 | The same, with EventBridge Scheduler for P1, P2 and reconciliation | P0 stays in the connector because Scheduler cannot fire faster than a minute. |
+| HS256 JWT and `/dev/token` | Cognito or the company OIDC provider. API Gateway or the ALB validates, the gateway still builds the principal | `gateway_core.auth` is the only file that knows the signer. |
+| Alloy, Prometheus, Loki, Tempo, Grafana | The same Alloy with OTLP to Datadog or Grafana Cloud. CloudWatch only for AWS-service metrics | Instrumentation is OpenTelemetry and Prometheus metrics, so the backend is a collector setting. Dashboards would be rebuilt there. |
+| OpenRouter for chat | Bedrock or an AI gateway in front of the models | Model names are config. An AI gateway adds central key management, rate limits, and logging of prompts. It is not needed to prove the design. |
+| fastembed in the worker and gateway images | The same, or a shared embedding service if CPU cost matters | Changing the model is `make reindex`, whatever hosts it. |
 
 ## Trade-offs
 
@@ -177,9 +198,30 @@ Detail: [spike 04](../01--spikes/04--self-maintaing-over-time-refelcting-additio
 | Deterministic versus extracted edges | Extracted edges never decide the headline answer, so recall on spec links is lower. | Path versus supporting edges. |
 | 250 ms versus the HR re-check | The re-check can miss 250 ms. Search latency includes it. The harness call has its own histogram. | `kbs_retrieval_seconds` and `kbs_acl_recheck_seconds`. |
 
+### Requirements I would question, and shortcuts I took
+
+Requirements I would question with the stakeholders before building more:
+
+- "Authorized at the moment they act" is a staleness budget, not a guarantee. Only HR policy search re-checks the source. Everything else is as fresh as its sync window. Who accepts that for Sales and Engineering?
+- "100,000 changes a day" is a daily average. The number that sizes the system is the burst after a bulk import or a reorganization, and the embedding bill for it.
+- "Without manual intervention" cannot include a source that changes its API. Each connector needs a named owner who is paged by the lag alert.
+- The two example agents want different things. The HR chatbot needs abstention and citations. The roadmap agent needs correct joins across departments, and that depends on shared keys that nobody has promised exist.
+
+Shortcuts in the POC, all deliberate and all visible in the code:
+
+| Shortcut | Why it is acceptable here | What replaces it |
+| -------- | ------------------------- | ---------------- |
+| HS256 JWT with a shared secret and a dev token endpoint | The claim contract is what is enforced | OIDC with the company IdP |
+| `roadmap_readers` rule with `department: "*"` | A principal has one department, and question 2 crosses departments | A principal that holds several departments |
+| One fixed graph template for question 2, no query router | The caller picks search or graph | The router in spike 02, justified by the golden set |
+| Shared `neo4j` user | Community edition has no roles | Per-service roles or a managed graph with IAM |
+| bge-small, English only, one similarity floor tuned on about 500 chunks | Fast on CPU, no network at run time | Re-measure on the real corpus; multilingual-e5 if needed |
+| Corpus is generated | Enough to show citations, boundaries, and a join | Real connectors will spend their time on pagination, tokens, and rate limits |
+| No Alertmanager | Dashboards carry the thresholds | Alerts routed to the contract owner |
+
 ## Quality evaluation
 
-A golden set of about 20 questions runs on every change to chunking, the embedding model, prompts, or retrieval parameters:
+The golden set is built: 20 cases in `tools/eval/golden.yaml`, run by `make eval` on every change to chunking, the embedding model, prompts, or retrieval parameters. It adds a paraphrase category (queries sharing no word with the policy) and three graph cases to these four:
 
 | Category | Pass condition |
 | -------- | -------------- |
@@ -190,7 +232,14 @@ A golden set of about 20 questions runs on every change to chunking, the embeddi
 
 Faithfulness is a citation check: every claim maps to a returned chunk id. A model-graded judge is a production addition.
 
-Monitoring follows [ADR 0002](../03--adrs/0002-observability.md). Each connector emits snapshot lag, last success, and reconciliation drift. A cursor watermark is not a timestamp, so lag stays unset for that source. The product connector reports hook-queue depth, and the webhook receiver counts accepted and refused notices. The ingestion worker emits event lag, queue depth, dead-letter depth, embed calls, embeds skipped by hash, index drift, store write time, and dependency gauges. The gateway emits retrieval latency, empty-result rate by permission group (`hr_admins`, then `roadmap`, then `employees`, or `none`), auth failures, HTTP rate, and the HR ACL re-check. `roadmap_deals` is included in that empty rate, with source `sales` when a path is returned. Grafana charts those rows on the overview, ingestion, retrieval, and platform boards. The retrieval board has a question 2 row. A deny is a log line with `decision: deny`, opened from `request_id` or from `trace_id`. The dashboard does not query `kbs.audit_log`. One search or one object change is one Tempo trace. POC alerts are dashboard thresholds: P0 lag over 30 seconds, any dead-letter message, any delete verification failure. There is no Alertmanager. The golden set of about 20 questions is not built. API tests cover one known chunk, a query with no shared terms, two countries, an access boundary, and the roadmap path.
+Monitoring follows [ADR 0002](../03--adrs/0002-observability.md). Each connector emits snapshot lag, last success, and reconciliation drift. A cursor watermark is not a timestamp, so lag stays unset for that source. The product connector reports hook-queue depth, and the webhook receiver counts accepted and refused notices. The ingestion worker emits event lag, queue depth, dead-letter depth, embed calls, embeds skipped by hash, index drift, store write time, and dependency gauges. The gateway emits retrieval latency, empty-result rate by permission group (`hr_admins`, then `roadmap`, then `employees`, or `none`), auth failures, HTTP rate, and the HR ACL re-check. `roadmap_deals` is included in that empty rate, with source `sales` when a path is returned. Grafana charts those rows on the overview, ingestion, retrieval, and platform boards. The retrieval board has a question 2 row. A deny is a log line with `decision: deny`, opened from `request_id` or from `trace_id`. The dashboard does not query `kbs.audit_log`. One search or one object change is one Tempo trace. POC alerts are dashboard thresholds: P0 lag over 30 seconds, any dead-letter message, any delete verification failure. There is no Alertmanager. `make eval` calls the REST API as each persona and prints recall at 5, MRR, and p95 latency per run, and exits non-zero below the thresholds in the file. Measured on the seeded stack (about 500 chunks):
+
+| Run | recall at 5 | paraphrase recall at 5 | MRR | no answer | access | graph | p95 |
+| --- | ----------- | ---------------------- | --- | --------- | ------ | ----- | --- |
+| `hash-v1` plus full-text, fused | 0.50 | 0.20 | 0.50 | 1.00 | 1.00 | 1.00 | 167 ms |
+| bge-small plus full-text, fused | 1.00 | 1.00 | 0.95 | 1.00 | 1.00 | 1.00 | 216 ms |
+
+The reranker question is answered by this table: there is no recall gap to close, so none was added. The corpus is small, the cases are written by the same person who wrote the corpus, and latency is a laptop running the whole stack through HTTP and a live HR ACL check. Treat the numbers as a regression gate, not as proof for 10 million objects. API tests also cover an access boundary and the roadmap path.
 
 | Symptom | Action |
 | ------- | ------ |
@@ -216,8 +265,6 @@ Monitoring follows [ADR 0002](../03--adrs/0002-observability.md). Each connector
 
 ## What is built
 
-Built: the design documents and diagrams, the source-contract gate with tests and CI, four YAML contracts, Compose, Terraform on floci (three FIFO queues, three dead-letter queues, one bucket), Postgres and Neo4j schema, the observability stack, a seeded HR harness, and the HR connector (`connector-hr`) which writes raw snapshots, enqueues change events, and records sync state. The ingestion worker consumes those events, chunks and embeds them, and writes Postgres and Neo4j. Store-level search applies row-level security, full-text and vector search, the fine ACL check, and an audit row. The API and the MCP server search (one chunk per object), fetch one chunk by id, and run four graph templates under the caller's JWT, including `roadmap_deals`. HR policy search re-checks the harness ACL. Retrieval latency, empty-result rate, and auth failures are on the dashboard. `make dlq-replay` exists. The running embedder is `hash-v1`, which is deterministic and not semantic. The gateway returns cited chunks or paths and does not write an answer. The chat page does, from those citations. Notebooks `50` and `51` are two read-only LangChain agents over the MCP server, one for the parental-leave question and one for `roadmap_deals`. They are not a deployed service.
+Built: the design documents and diagrams, the source-contract gate with tests and CI, four YAML contracts, Compose, Terraform on floci (three FIFO queues, three dead-letter queues, one bucket), Postgres and Neo4j schema, the observability stack, a seeded HR harness, and the HR connector (`connector-hr`) which writes raw snapshots, enqueues change events, and records sync state. The ingestion worker consumes those events, chunks and embeds them, and writes Postgres and Neo4j. Store-level search applies row-level security, full-text and vector search, the fine ACL check, and an audit row. The API and the MCP server search (one chunk per object), fetch one chunk by id, and run four graph templates under the caller's JWT, including `roadmap_deals`. HR policy search re-checks the harness ACL. Retrieval latency, empty-result rate, and auth failures are on the dashboard. `make dlq-replay` exists. The running embedder is bge-small (`make reindex` rebuilds on a model change); `hash-v1` is the offline and test default. `make setup`, `make seed`, `make demo`, and `make eval` exist. The gateway returns cited chunks or paths and does not write an answer. The chat page does, from those citations. Notebooks `50` and `51` are two read-only LangChain agents over the MCP server, one for the parental-leave question and one for `roadmap_deals`. They are not a deployed service.
 
-Not built: the query router, a deployed agent runtime, OIDC, the golden set and `make eval`, and the embedding rebuild command. Question 2 is one fixed template, not a router. There is no Lambda. `backend/functions` stays absent until a function exists. The webhook receiver in Compose enqueues a pointer; its production path is API Gateway plus Lambda.
-
-Open gap: one diagram in the house drawio style showing every component, the data flow, and the transformation at each hop. The hop table above carries the transformations for now.
+Not built: the query router, a deployed agent runtime, OIDC, and a model-graded faithfulness check. Question 2 is one fixed template, not a router. There is no Lambda. `backend/functions` stays absent until a function exists. The webhook receiver in Compose enqueues a pointer; its production path is API Gateway plus Lambda.

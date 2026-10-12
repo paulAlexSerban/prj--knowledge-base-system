@@ -56,7 +56,7 @@ Authority is code, not a prompt. Factual lookups on structured attributes trust 
 
 ### Evaluation, before tuning
 
-A golden set of about 20 questions, checked in under `tools/`, run by `make eval` on every change to chunking, the embedding model, prompts, or retrieval parameters:
+The golden set is built: 20 cases in `tools/eval/golden.yaml`, run by `make eval` on every change to chunking, the embedding model, prompts, or retrieval parameters. It adds a paraphrase category (queries that share no word with the policy) and three graph cases to the four below:
 
 - Questions with a known supporting chunk (recall@k, MRR on the retrieved set).
 - Questions whose answer is not in the corpus (the system must abstain).
@@ -69,7 +69,7 @@ Retrieval metrics and answer faithfulness are tracked separately. Faithfulness f
 
 - The two demo questions need different representations. Hybrid search answers the policy question. The graph answers the dependency question and can show the path, which is the explanation.
 - Putting both indexes in one design, and writing down which one is authoritative per question class, avoids a chatbot that improvises joins from retrieved prose.
-- Reciprocal rank fusion is enough. A reranker is justified only after the golden set shows recall is fine and precision is not. That evidence does not exist yet, so the reranker stays out.
+- Reciprocal rank fusion is enough. A reranker is justified only after the golden set shows recall is fine and precision is not. Measured on 20 cases and about 500 chunks: `bge-small-en-v1.5` plus full-text, fused, scores recall at 5 of 1.00 and MRR of 0.95. There is no gap to close, so the reranker stays out. The candidate if that changes is a small cross-encoder (`Xenova/ms-marco-MiniLM-L-6-v2` through fastembed) over the top 20, measured against the 250 ms budget. The same run with `hash-v1` scores 0.50 recall and 0.20 on paraphrases, which is the evidence that the dense side does the work.
 - Deterministic edges from SQL and JSON avoid the failure mode where plausible extracted triples compound across hops.
 
 ## Alternatives rejected
@@ -88,7 +88,7 @@ Retrieval metrics and answer faithfulness are tracked separately. Faithfulness f
 
 - Two indexes must stay consistent with the document. A bug in one produces an answer that looks authoritative and is assembled from mismatched pieces. The worker commits the chunk, then writes the graph. A failed graph write leaves the message unacknowledged so the event retries (spike 04). Until that retry, the chunk can exist without the node.
 - Chunks that are too small lose the context needed to interpret them. Chunks that are too large dilute the embedding and waste the context budget. The contextual header (title plus section path) is the mitigation that stays inside the chunk, so a retrieved passage still names the policy and the version.
-- Dense retrieval returns topically close and factually irrelevant passages. Lexical search and fusion reduce that. They do not remove it. The golden set is how regressions are caught.
+- Dense retrieval returns topically close and factually irrelevant passages. Lexical search and fusion reduce that. They do not remove it. The golden set is how regressions are caught. The corpus is small, so a clean score here is weak evidence for 10 million objects. The similarity floor (`VECTOR_MAX_DISTANCE`, 0.40) was set from observed distances (related 0.29 to 0.44, unrelated 0.57 or more) and must be re-measured on another corpus.
 - Routing mistakes send a relational question to vector search. The router is a small classifier with an explicit fallback: when the question names a known entity type (deal, epic, policy), prefer the graph.
 
 ## Production path
@@ -100,5 +100,5 @@ Retrieval metrics and answer faithfulness are tracked separately. Faithfulness f
 
 ## Open TODOs
 
-- Golden-set file format and the `make eval` report (recall@k, MRR, abstention, access-boundary pass/fail).
+- Built: the golden-set file format and the `make eval` report (recall@k, MRR, abstention, access-boundary pass/fail, p95 latency). Open: a model-graded faithfulness check, and a multilingual embedder if policies stop being English.
 - A query router that chooses search or `roadmap_deals`. The template itself is built.

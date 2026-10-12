@@ -36,7 +36,7 @@ up: networks $(ENV_FILE)
 
 # One command: preflight, .env, build, start, wait for health, seed, smoke test.
 setup:
-	bash tools/scripts/setup.sh
+	bash tools/scripts/setup.sh $(ARGS)
 
 # Rebuild the index under the active EMBEDDER (ADR 0003), then drop other models' chunks.
 reindex: networks $(ENV_FILE)

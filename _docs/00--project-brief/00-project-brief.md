@@ -71,7 +71,7 @@ Sanity check on volume. 100,000 events per day is about 1.2 events per second on
 | Corpus | A few hundred documents and records, enough to show citations, permission boundaries, and a multi-hop graph question. |
 | Freshness | The same three tiers exist as queue priority and a measured sync-lag metric. The 30-second and 5-minute targets are demonstrated on the local stack. They are not load-tested. |
 | Identity | A dev endpoint signs HS256 JWTs. Claims are subject, groups, clearance, and department. Region is not a claim. This stands in for OIDC. |
-| Language models | OpenRouter via `OPENROUTER_API_KEY` for chat, when a key is set. The running embedder is local `hash-v1` (deterministic, not semantic). A semantic local model is optional and not locked. The constrained extractor is not built. |
+| Language models | OpenRouter via `OPENROUTER_API_KEY` for chat, when a key is set. The running embedder is local `bge-small-en-v1.5` through fastembed, baked into the images. `hash-v1` is the offline and test default. The constrained extractor is not built. |
 | Infrastructure | Docker Compose plus [floci](https://floci.io) for AWS emulation (SQS, S3, EventBridge Scheduler). Terraform talks to floci endpoint overrides. |
 
 ## Questioned requirements
@@ -96,7 +96,7 @@ These are places where the stated requirements need a narrower reading before im
 - Four connectors behind the shared interface, each with a written data contract. Sales is deals only: account fields sit on the deal, and there is no account object.
 - Change detection: HR and Engineering poll an updated-since listing. Sales reads a cursor feed that includes deletes. The Product harness posts a pointer to the webhook receiver, which enqueues it on `kbs-product-hooks`. The product connector snapshots the spec and emits the change event. A lost hook is recovered from `/ids`.
 - An event pipeline: the four connectors, SQS with a dead-letter queue per tier plus the hook queue, and one ingestion worker.
-- Hybrid retrieval: Postgres with pgvector and full-text search, merged with reciprocal rank fusion. `hash-v1` only keeps a chunk that also matched the words. Search covers HR. Deals, epics, and specs are stored and are not routed by the gateway yet.
+- Hybrid retrieval: Postgres with pgvector and full-text search, merged with reciprocal rank fusion, with a similarity floor so a question with no answer returns nothing. Search covers HR. Deals, epics, and specs are stored and are not routed by the gateway yet.
 - A Neo4j knowledge graph with a small ontology. HR writes people, teams, and policies. A deal depends on an epic, and an epic is owned by an HR team. The constrained extractor for product specs is not built. Specs stay prose.
 - One service layer, `gateway-core`, exposed twice: a REST API and an MCP server (`search_knowledge`, `get_document`, `find_related`, `list_sources`). Search returns one chunk per object. Neither adapter writes an answer.
 - User-delegated authorization: an HS256 JWT, a coarse pre-filter, a fine-grained post-check, Postgres row-level security, and an audit record of which attributes justified a result. Graph checks are the Cypher template and a read-only session. Neo4j Community has no roles.
@@ -104,7 +104,7 @@ These are places where the stated requirements need a narrower reading before im
 - A demo harness: FastAPI services with SQLAlchemy on SQLite for HR, Sales, Product, and Engineering. HR can bulk-load through `POST /admin/seed`. The other three sources are a curated set and have no bulk seed. Each connector writes a raw snapshot to S3 and enqueues a change event.
 - Docker Compose, floci, and Terraform for the FIFO queues, dead-letter queues, and snapshot bucket. Alloy collects metrics, container logs, and OTLP traces. Prometheus stores metrics, Loki stores logs, Tempo stores traces, and Grafana shows all four boards plus the trace list, including retrieval latency and the deny line. The API key stays in the environment.
 
-Not built: the spec extractor, the query router, answer synthesis, OIDC, and a golden set of about 20 questions. Question 2 is built as one graph template, `roadmap_deals`. The router is the production path. A `roadmap_readers` rule with `department: "*"` lets one persona read a sales deal and an engineering epic. A principal still has one department, so that star rule is a deliberate widening. The real fix is a principal that can hold more than one department. Leadership deals and leadership epics do not carry the extra grant. `hash-v1` is lexical, so question 2 uses the graph and does not depend on shared words. API tests cover one known chunk, a query with no shared terms, two countries, an access boundary, and the roadmap path.
+Not built: the spec extractor, the query router, answer synthesis, and OIDC. Built: a 20-case golden set and `make eval`. Question 2 is built as one graph template, `roadmap_deals`. The router is the production path. A `roadmap_readers` rule with `department: "*"` lets one persona read a sales deal and an engineering epic. A principal still has one department, so that star rule is a deliberate widening. The real fix is a principal that can hold more than one department. Leadership deals and leadership epics do not carry the extra grant. Question 2 uses the graph and does not depend on search. API tests cover one known chunk, a query with no shared terms, two countries, an access boundary, and the roadmap path.
 
 ### Out of scope (production path, documented only)
 
@@ -121,7 +121,7 @@ Finance and other departments beyond the four. Real OAuth against Google, Notion
 | Object storage | S3 on floci for raw snapshots and document blobs. |
 | Scheduling | P0 poll loop inside the connector worker. EventBridge Scheduler, one-minute minimum, for P1/P2 polls and reconciliation. |
 | Workers | Connector workers (extract, detect change, emit). Ingestion workers (normalize, chunk, embed, upsert vectors and graph, tombstone deletes). |
-| Models | OpenRouter for chat when a key is set. The running embedder is local `hash-v1`. `fastembed` is optional and not locked. The constrained extractor is not built. |
+| Models | OpenRouter for chat when a key is set. The running embedder is local `fastembed-bge-small-v1`. `hash-v1` is the test default. The constrained extractor is not built. |
 | Identity | Dev-only HS256 JWTs. Claims are subject, groups, clearance, and department. |
 | Infra | Docker Compose. Terraform with floci endpoint overrides for queues and the snapshot bucket. |
 | Observability | Prometheus, Alloy, Loki, Tempo, and Grafana. One change or one search is one trace. |
@@ -141,7 +141,7 @@ The demo is the acceptance test. Each step is observable in the API response, th
 4. Demonstrable for an HR policy. Notebook `43` creates a policy, closes its ACL, and deletes it. Search and `find_related` drop it. Releasing the epic, or deleting the deal, drops that path from `roadmap_deals`. Notebook `14` deletes a deal. `hash-v1` is lexical, so question 2 does not use search.
 5. Demonstrable at the worker. Stop an ingestion worker mid-batch, then start it again. In-flight messages return to the queue or land in the dead-letter queue. Replaying them does not duplicate chunks or edges. `make dlq-replay` sends dead-letter messages back, with a new deduplication id so FIFO does not drop them.
 
-`make up` and `make test` exist. `make up` starts the stack, including the four connectors, the ingestion worker, and both gateways. `seed`, `demo`, and `eval` are still to be written. HR bulk load is notebook `00`. Notebook `02` resets the other three sources. Notebooks `40`–`44` call the gateway.
+`make setup` does everything: preflight, build, start, health wait, `make seed`, and a smoke run of steps 1 to 3. `make demo` runs the script above over HTTP (`ARGS=--chaos` adds step 5), `make eval` runs the golden set, `make reindex` rebuilds under a new `EMBEDDER`. HR bulk load without a notebook is `make seed`; notebook `00` does the same by hand. Notebooks `40`–`44` call the gateway.
 
 ## Risks and open questions
 
@@ -156,7 +156,7 @@ The demo is the acceptance test. Each step is observable in the API response, th
 
 | Path | Role |
 | ---- | ---- |
-| `_docs/00--project-brief/` | This brief, the C4 system-context diagram, and the [C4 container diagram](01-c4-l2--container-connectors.png) for connector workers. |
+| `_docs/00--project-brief/` | This brief, the C4 system-context diagram, and the [C4 container diagram](01-c4-l2--container-connectors.png) for connector workers, and the [end-to-end data-flow diagram](02-end-to-end-data-flow.png). |
 | `_docs/01--spikes/` | Decision records for ingestion, knowledge representation, access, and synchronization. |
 | `_docs/02--architecture/` | Architecture document. Deliverable 1, written from this brief, the spikes, and the ADRs. |
 | `_docs/03--adrs/` | Short ADRs for storage, observability, and embedding/chunk versioning. |
@@ -175,7 +175,7 @@ The demo is the acceptance test. Each step is observable in the API response, th
 | `infrastructure/` | Compose orchestration, Terraform provisioning, floci config, and `config/sources` YAML contracts. |
 | `observability` | Alloy, Loki, Prometheus, Tempo, five Grafana dashboards, and metric definitions. |
 | `shared` | Contracts, the registry gate, and logging. Source contracts in `shared/src/shared/contracts` are checked by `make contracts-check`. |
-| `tools` | `scripts/dlq_replay.py`. Evaluation scripts are not written. |
+| `tools` | `scripts/` (setup, seed, demo, dead-letter replay), `eval/` (golden set and runner). |
 
 ## Related decisions
 

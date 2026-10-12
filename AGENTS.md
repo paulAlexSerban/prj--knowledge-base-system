@@ -24,7 +24,7 @@ This repository is a POC knowledge gateway: ingest four department sources, keep
 | `backend/connectors/product/` | Product connector process (`connector-product`). Own image. Reads the hook queue. |
 | `backend/libs/connector-core/` | Connector interface, snapshot sync, S3 store, Postgres sync state, and the SQS publisher. Library, no image. |
 | `backend/libs/ingest-contract/` | Change-event model, the product hook pointer, queue names, and the snapshot hash. Library, no image. |
-| `backend/libs/knowledge-store/` | Chunkers, the hash embedder, Postgres chunks, ACL, and the Neo4j writer. Library, no image. |
+| `backend/libs/knowledge-store/` | Chunkers, the embedders (fastembed bge-small and the offline hash), Postgres chunks, reindex, ACL, and the Neo4j writer. Library, no image. |
 | `backend/libs/gateway-core/` | Retrieval service, principal and HS256 validation, Neo4j read templates (HR plus `roadmap_deals`), and the tool text shared by the API and the MCP server. Library, no image. |
 | `backend/tests/integration/` | Tests that cross a deployable boundary. |
 | `backend/tests/e2e/` | Opt-in live-stack test. `make e2e`. |
@@ -35,7 +35,7 @@ This repository is a POC knowledge gateway: ingest four department sources, keep
 | `infrastructure/orchestration/` | One Compose file per trust area, plus `compose.yaml` which includes them. |
 | `infrastructure/provisioning/terraform/` | Tier queues, the product hook queue, their dead-letter queues, and the snapshot bucket on floci. |
 | `observability/` | Alloy, Loki, Prometheus, Tempo, five dashboards, and metric definitions. |
-| `tools/` | `scripts/dlq_replay.py`. Seed, mutation, and evaluation scripts are not written. |
+| `tools/` | `scripts/` (`setup.sh`, `seed.py`, `demo.py`, `kbs_client.py`, `dlq_replay.py`), `eval/` (`golden.yaml`, `run.py`), and `tests/`. Scripts call the gateway and harnesses over HTTP only. |
 
 ## Stack and commands
 
@@ -50,7 +50,7 @@ uv run ruff check shared backend demo-harness
 
 Add a dependency to the package that imports it: `uv add --package connector-hr <name>`. Add a test-only dependency with `uv add --group dev`. The notebooks group is `uv add --group notebooks`. Commit `uv.lock`. Do not use `pip` or `python -m venv`. Do not add dependencies outside a `pyproject.toml`.
 
-`make up` starts the stack, then applies Terraform on the host. `make notebooks` starts Jupyter. `make tools` starts pgAdmin and the SQLite viewers. `make e2e` runs the live HR snapshot cycle and is not part of `make test`. `make dlq-replay` re-sends dead-letter messages to the tier queues. floci must already be up. `make seed`, `make demo`, and `make eval` are not written yet. Add a target only when the command it wraps exists, and update the README quickstart in that same change. HR bulk load is the notebook, which calls `POST /admin/seed`.
+`make setup` is the one-command start: preflight, `.env`, `uv sync`, `make up`, health wait, `make seed`, and the quick demo. `make up` starts the stack. Terraform runs in the one-shot `terraform-apply` container against floci. `make seed` resets the four harnesses and waits for the index. `make demo` runs the five demo steps over HTTP (`ARGS=--quick`, `ARGS=--chaos`). `make eval` runs the golden set and exits non-zero below the thresholds. `make reindex` rebuilds under the active `EMBEDDER` and removes other models' chunks. `make notebooks` starts Jupyter. `make tools` starts pgAdmin and the SQLite viewers. `make e2e` runs the live HR snapshot cycle and is not part of `make test`. `make dlq-replay` re-sends dead-letter messages to the tier queues. floci must already be up. Add a target only when the command it wraps exists, and update the README quickstart in that same change.
 
 Dockerfiles install one package with `uv sync --frozen --no-dev --no-default-groups --package <name>`. There is no Lambda directory until a function exists. Do not publish Postgres or Neo4j ports. One Compose network per trust boundary (`kbs-data` is internal). Service names are globally unique. New services need a healthcheck and a Prometheus target. Jupyter, the chat page, pgAdmin, and the SQLite viewers are the exception: they have a healthcheck and no `/metrics` endpoint, and Alloy does not scrape them. Harness images stay root because they write a SQLite file on a volume. The other images run as `nobody`.
 
@@ -85,7 +85,7 @@ Write in plain sentences. No emojis. No mermaid in docs. C4 diagrams are drawio 
 
 ## Secrets and local files
 
-Read `OPENROUTER_API_KEY` from the environment. Model names belong in config. Offline runs use the local embedder and the deterministic extractor, and tests must pass without a key. Never commit API keys, `.env` files, `.venv`, `__pycache__`, `.ruff_cache`, or `*.egg-info`.
+Read `OPENROUTER_API_KEY` from the environment. Model names belong in config. The default embedder is `fastembed` (bge-small, baked into the images). Offline runs and tests use `EMBEDDER=hash` and the deterministic extractor, and tests must pass without a key or a model download. Never commit API keys, `.env` files, `.venv`, `__pycache__`, `.ruff_cache`, or `*.egg-info`.
 
 ## Git
 

@@ -30,9 +30,9 @@ The gateway joins `kbs-sources` so it can call the HR harness `GET /policies/{id
 
 ## Startup
 
-Copy `.env.example` to `.env`. `make up` creates the networks, starts the stack, then runs Terraform on the host. `terraform` 1.5 or newer must be on `PATH`. The first run downloads images and the AWS provider into `infrastructure/provisioning/terraform/.terraform/`. Neo4j takes about two minutes. Terraform then creates `kbs-p0.fifo`, `kbs-p1.fifo`, `kbs-p2.fifo`, a FIFO dead-letter queue for each, `kbs-product-hooks` and its dead-letter queue, and the `kbs-raw-snapshots` bucket.
+`make setup` does the whole start (see the README). By hand: copy `.env.example` to `.env`, then `make up` creates the networks and starts the stack. Terraform runs as the one-shot `terraform-apply` service in `compose.aws.yaml`, so no host install is needed. It copies the configuration, runs `init` and `apply` against `http://floci:4566`, and exits. The first run downloads images and the AWS provider. Neo4j takes about two minutes. Terraform creates `kbs-p0.fifo`, `kbs-p1.fifo`, `kbs-p2.fifo`, a FIFO dead-letter queue for each, `kbs-product-hooks` and its dead-letter queue, and the `kbs-raw-snapshots` bucket.
 
-State is `infrastructure/provisioning/terraform/terraform.tfstate`. It is not committed. `.terraform.lock.hcl` is. `make tf-apply` refreshes and is a no-op while floci still has those resources. floci is in memory mode, so a restart of that container drops the queues and the bucket while the state file still lists them. Delete the state file, or run `make tf-destroy` before the restart, then `make tf-apply`.
+State is throwaway and lives inside the container. floci runs in memory mode, so a restart of that container drops the queues and the bucket, and empty state is the correct starting point. After a floci restart run `make tf-apply`; it re-runs the container. There is no `tf-destroy`. `.terraform.lock.hcl` is committed.
 
 Postgres 18 stores the cluster under `/var/lib/postgresql`. A volume created by Postgres 16 cannot be opened. Remove it once: `docker volume rm kbs_pgdata`. There is no upgrade step.
 
