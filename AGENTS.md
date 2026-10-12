@@ -25,13 +25,13 @@ This repository is a POC knowledge gateway: ingest four department sources, keep
 | `backend/libs/connector-core/` | Connector interface, snapshot sync, S3 store, Postgres sync state, and the SQS publisher. Library, no image. |
 | `backend/libs/ingest-contract/` | Change-event model, the product hook pointer, queue names, and the snapshot hash. Library, no image. |
 | `backend/libs/knowledge-store/` | Chunkers, the hash embedder, Postgres chunks, ACL, and the Neo4j writer. Library, no image. |
-| `backend/libs/gateway-core/` | Retrieval service, principal and HS256 validation, Neo4j read templates, and the tool text shared by the API and the MCP server. Library, no image. |
+| `backend/libs/gateway-core/` | Retrieval service, principal and HS256 validation, Neo4j read templates (HR plus `roadmap_deals`), and the tool text shared by the API and the MCP server. Library, no image. |
 | `backend/tests/integration/` | Tests that cross a deployable boundary. |
 | `backend/tests/e2e/` | Opt-in live-stack test. `make e2e`. |
 | `database/` | Postgres migrations (sync state, chunks, full-text, vectors, ACL, row-level security) and Neo4j constraints. |
 | `demo-harness/` | One image per source. HR is built and can bulk-load. Sales, Product, and Engineering are curated stores on `harness-common`. |
 | `frontend/` | Streamlit chat page (`chat-ui`). Own image. Calls the gateway REST API only; holds no store credentials. Writes the answer from cited snippets with LangChain when an OpenRouter key is set. LangSmith is on only when `LANGSMITH_API_KEY` is set. |
-| `notebooks/` | Jupyter notebooks that seed, inspect, and edit the HR harness (`00`–`30`), reset and edit the other three sources (`02`, `14`–`16`), and call the gateway (`40`–`43`). |
+| `notebooks/` | Jupyter notebooks that seed, inspect, and edit the HR harness (`00`–`30`), reset and edit the other three sources (`02`, `14`–`16`), and call the gateway (`40`–`44`). |
 | `infrastructure/orchestration/` | One Compose file per trust area, plus `compose.yaml` which includes them. |
 | `infrastructure/provisioning/terraform/` | Tier queues, the product hook queue, their dead-letter queues, and the snapshot bucket on floci. |
 | `observability/` | Alloy, Loki, Prometheus, Tempo, five dashboards, and metric definitions. |

@@ -18,7 +18,7 @@ Change signal: `cursor_feed`. `GET /changes?cursor=` returns the log after that 
 | `GET /deals`, `/deals/{id}` | Deal records. |
 | `GET /deals/{id}/acl` | Live native ACL. |
 
-Native ACL names are `account_team` and `sales_leadership`. Leadership deals in the seed are `deal-contoso-q3`, `deal-tailspin-q3`, and `deal-coho-q2`. An ACL change does not bump `version`. A field change does.
+Native ACL names are `account_team`, `sales_leadership`, and `roadmap_readers`. A deal carries `account_team` and `roadmap_readers`, except the leadership deals `deal-contoso-q3`, `deal-tailspin-q3`, and `deal-coho-q2`, which stay `sales_leadership` only. Those two Q3 leadership deals are invisible to `product_lead`. An ACL change does not bump `version`. A field change does.
 
 ## Data minimization
 

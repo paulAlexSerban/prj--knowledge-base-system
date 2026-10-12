@@ -40,7 +40,8 @@ Definitions are in [metrics.md](../../observability/metrics.md). The overview is
 | HTTP rate, errors, and duration | `kbs_http_requests_total` and `kbs_http_request_seconds` on the API, the MCP server, and the webhook receiver. `route` is a template or `unmatched`. Health and metrics scrapes are filtered out of the panels. |
 | Retrieval latency | `kbs_retrieval_seconds` p95 by tool. The 0.25 bucket is the 250 ms target. Search includes the HR ACL re-check. |
 | ACL re-check | `kbs_acl_recheck_seconds` and `kbs_acl_recheck_failures_total`. |
-| Empty-result rate | `kbs_retrieval_empty_total` divided by `kbs_retrieval_total`, by permission group. |
+| Empty-result rate | `kbs_retrieval_empty_total` divided by `kbs_retrieval_total`, by permission group. The rank is `hr_admins`, then `roadmap`, then `employees`, or `none`. `roadmap_deals` is included. A returned path counts as source `sales`. |
+| Question 2 | `find_related` p95, and the empty rate for the `roadmap` group. |
 | Auth failures | `kbs_auth_failures_total` by reason. |
 | Audit denies | Loki `{service=~".+"} \| json \| decision="deny"`. `request_id` and `trace_id` are derived fields, not labels. |
 | Traces | Tempo. Recent traces, search spans slower than 250 ms, and error spans. No service map. |

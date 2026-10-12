@@ -25,11 +25,12 @@ Run the notebooks in this order. `00` resets the harness, so do not run it while
 4. [20-person-create-read.ipynb](20-person-create-read.ipynb) through [22-person-acl-and-delete.ipynb](22-person-acl-and-delete.ipynb) do the same for a person. `manager_id` is the field a "who reports to whom" answer is read from. A person write bumps the version, including an ACL-only change.
 5. [30-end-to-end-cycle.ipynb](30-end-to-end-cycle.ipynb) is the live demo: one policy through create, update, ACL change, and delete, then drift back to 0. `make e2e` is the same cycle in pytest and is not part of `make test`.
 6. [02-seed-sales-product-eng.ipynb](02-seed-sales-product-eng.ipynb) resets Sales, Product, and Engineering to the curated set: 40 deals, 25 epics, and 12 specs. There is no bulk seed.
-7. [14-sales-mutate.ipynb](14-sales-mutate.ipynb), [15-engineering-mutate.ipynb](15-engineering-mutate.ipynb), and [16-product-mutate.ipynb](16-product-mutate.ipynb) create, edit, and delete one deal, one epic, and one spec. Sales and Engineering also change the ACL. Product accepts only `product_org`. A deal never returns `commission_rate`.
+7. [14-sales-mutate.ipynb](14-sales-mutate.ipynb), [15-engineering-mutate.ipynb](15-engineering-mutate.ipynb), and [16-product-mutate.ipynb](16-product-mutate.ipynb) create, edit, and delete one deal, one epic, and one spec. Sales and Engineering also change the ACL. Product accepts `product_org` and `roadmap_readers`. A deal never returns `commission_rate`.
 8. [40-gateway-identity.ipynb](40-gateway-identity.ipynb) mints `employee_eng`, `hr_admin`, and `outsider`, and checks that a missing token, a bad token, and an unknown persona fail.
 9. [41-gateway-search-abac.ipynb](41-gateway-search-abac.ipynb) searches for Germany parental leave as those personas and reads the allow and deny lines from Loki.
 10. [42-gateway-mcp.ipynb](42-gateway-mcp.ipynb) lists the four MCP tools and repeats one search. The MCP result matches REST.
 11. [43-gateway-freshness.ipynb](43-gateway-freshness.ipynb) creates a policy, closes its ACL, and deletes it. Search and `find_related` follow.
+12. [44-roadmap-question.ipynb](44-roadmap-question.ipynb) asks which high-ARR Q3 deals depend on an unreleased epic. `product_lead` sees the six non-leadership paths. `employee_eng` sees none. Run notebook `02` first if the curated set is not loaded.
 
 Each CRUD notebook uses its own id (`pol-demo-*`, `emp-900001` to `emp-900003`) and deletes it at the end. The delete waits for the reconcile sweep (about a minute, up to `hr_demo.DELETE_WAIT`). The harness has no delete feed. Create, update, and ACL changes usually land on the next 10 second poll.
 

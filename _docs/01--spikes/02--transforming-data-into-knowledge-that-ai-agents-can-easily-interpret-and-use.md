@@ -40,7 +40,7 @@ Population rules:
 - Product specs stay prose. They are not graph nodes. A later extractor could emit `REFERENCES` edges, each with a confidence and a source span, as supporting evidence only. That extractor is not built, and those edges would not decide the headline answer.
 - Entity identity is the shared source key or email. Fuzzy entity resolution is out of scope, and the demo data uses one product key across Sales, Product, and Engineering so the join is real.
 
-The graph writer is built. HR records write `Person -BELONGS_TO-> Team` and a `Policy` node. A deal writes `DEPENDS_ON` to its epic. An epic writes `OWNED_BY` to the HR team named on the record. `OWNS`, `REFERENCES`, the spec extractor, and the query router are not built. The gateway reads three HR templates: teammates of a person, people on a team, and policies the caller may see. There is no Cypher template for the deals-and-epics question. After ingestion the path is in Neo4j and is read there, not through `find_related`.
+The graph writer is built. HR records write `Person -BELONGS_TO-> Team` and a `Policy` node. A deal writes `DEPENDS_ON` to its epic and stores the account name. An epic writes `OWNED_BY` to the HR team named on the record. `OWNS`, `REFERENCES`, the spec extractor, and the query router are not built. The gateway reads four templates: teammates of a person, people on a team, policies the caller may see, and `roadmap_deals` (`Deal -DEPENDS_ON-> Epic -OWNED_BY-> Team`, quarter and minimum ARR, epic not released). That last template is the built answer for question 2. It is one fixed question. The router is the production path. `hash-v1` is lexical, so the path does not depend on shared words.
 
 ### Query router
 
@@ -101,4 +101,4 @@ Retrieval metrics and answer faithfulness are tracked separately. Faithfulness f
 ## Open TODOs
 
 - Golden-set file format and the `make eval` report (recall@k, MRR, abstention, access-boundary pass/fail).
-- Cypher templates for the roadmap question, parameterized, with the same ACL pre-filter as SQL (spike 03).
+- A query router that chooses search or `roadmap_deals`. The template itself is built.

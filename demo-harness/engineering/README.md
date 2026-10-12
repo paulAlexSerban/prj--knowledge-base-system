@@ -16,7 +16,7 @@ Change signal: `updated_since`. There is no webhook and no delete feed. A delete
 | `GET /epics`, `/epics/{id}` | Epic records. |
 | `GET /epics/{id}/acl` | Live native ACL. |
 
-Native ACL names are `project_member` and `eng_leadership`. Three epics are leadership-only: `epic-identity-sso`, `epic-billing-usage`, and `epic-platform-cost`. An ACL change moves `updated_at` but not `version`. A status or title change increments `version`.
+Native ACL names are `project_member`, `eng_leadership`, and `roadmap_readers`. An epic carries `project_member` and `roadmap_readers`, except three leadership epics that stay `eng_leadership` only: `epic-identity-sso`, `epic-billing-usage`, and `epic-platform-cost`. An internal roadmap reader does not see those. An ACL change moves `updated_at` but not `version`. A status or title change increments `version`.
 
 ## Admin API
 
