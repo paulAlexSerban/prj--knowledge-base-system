@@ -525,7 +525,8 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "kbs_reconcile_drift"
+                        "expr": "kbs_reconcile_drift",
+                        "legendFormat": "{{source_id}}"
                       },
                       "version": "v0"
                     },
@@ -1009,7 +1010,8 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "kbs_connector_watermark_lag_seconds"
+                        "expr": "kbs_connector_watermark_lag_seconds",
+                        "legendFormat": "{{source_id}}"
                       },
                       "version": "v0"
                     },
@@ -1021,7 +1023,7 @@
               "transformations": []
             }
           },
-          "description": "Event lag is now minus occurred_at when the worker finishes the message. HR is the P0 source. Red above 30 seconds. Not oldest-message age.",
+          "description": "Event lag is now minus occurred_at when the worker finishes the message. Watermark lag is one series per source. A cursor watermark is omitted. Red above 30 seconds. Not oldest-message age.",
           "id": 21,
           "links": [],
           "title": "Sync lag per source",
@@ -1219,7 +1221,8 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "kbs_dlq_depth"
+                        "expr": "kbs_dlq_depth",
+                        "legendFormat": "{{queue}}"
                       },
                       "version": "v0"
                     },
@@ -1413,7 +1416,8 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "kbs_index_drift"
+                        "expr": "kbs_index_drift",
+                        "legendFormat": "{{source_id}}"
                       },
                       "version": "v0"
                     },
@@ -2040,6 +2044,160 @@
             "version": "13.2.3"
           }
         }
+      },
+      "panel-40": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "prometheus"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "sum by (result) (kbs_webhook_events_total)",
+                        "legendFormat": "{{result}}"
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Product notices the receiver accepted or refused.",
+          "id": 40,
+          "links": [],
+          "title": "Webhook notices",
+          "vizConfig": {
+            "group": "stat",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  }
+                },
+                "overrides": []
+              },
+              "options": {
+                "colorMode": "value",
+                "graphMode": "area",
+                "justifyMode": "auto",
+                "orientation": "auto",
+                "percentChangeColorMode": "standard",
+                "reduceOptions": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "fields": "",
+                  "values": false
+                },
+                "showPercentChange": false,
+                "textMode": "auto",
+                "wideLayout": true
+              }
+            },
+            "version": "13.2.3"
+          }
+        }
+      },
+      "panel-41": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "prometheus"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "kbs_hook_queue_depth",
+                        "legendFormat": "{{queue}}"
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Visible messages on the product hook queue and its dead-letter queue. Any dead-letter message is red.",
+          "id": 41,
+          "links": [],
+          "title": "Hook queue depth",
+          "vizConfig": {
+            "group": "stat",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      },
+                      {
+                        "color": "red",
+                        "value": 1
+                      }
+                    ]
+                  }
+                },
+                "overrides": []
+              },
+              "options": {
+                "colorMode": "value",
+                "graphMode": "area",
+                "justifyMode": "auto",
+                "orientation": "auto",
+                "percentChangeColorMode": "standard",
+                "reduceOptions": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "fields": "",
+                  "values": false
+                },
+                "showPercentChange": false,
+                "textMode": "auto",
+                "wideLayout": true
+              }
+            },
+            "version": "13.2.3"
+          }
+        }
       }
     },
     "layout": {
@@ -2215,7 +2373,7 @@
                   ]
                 }
               },
-              "title": "Ingestion: HR connector"
+              "title": "Ingestion: connectors"
             }
           },
           {
@@ -2343,6 +2501,47 @@
                         "width": 8,
                         "x": 16,
                         "y": 24
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "kind": "RowsLayoutRow",
+            "spec": {
+              "collapse": false,
+              "hideHeader": false,
+              "title": "Product webhooks",
+              "layout": {
+                "kind": "GridLayout",
+                "spec": {
+                  "items": [
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-40"
+                        },
+                        "height": 8,
+                        "width": 12,
+                        "x": 0,
+                        "y": 0
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-41"
+                        },
+                        "height": 8,
+                        "width": 12,
+                        "x": 12,
+                        "y": 0
                       }
                     }
                   ]
