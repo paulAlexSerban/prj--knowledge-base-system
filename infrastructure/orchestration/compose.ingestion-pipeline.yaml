@@ -96,7 +96,15 @@ services:
       context: ../..
       dockerfile: backend/apis/webhook-receiver/Dockerfile
     command: ["python", "-m", "webhook_receiver"]
-    networks: [kbs-sources, kbs-obs]
+    depends_on:
+      floci-ready:
+        condition: service_completed_successfully
+    environment:
+      AWS_ENDPOINT_URL: http://floci:4566
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION}
+    networks: [kbs-sources, kbs-obs, kbs-aws]
     ports:
       - "127.0.0.1:8090:8090"
     healthcheck:

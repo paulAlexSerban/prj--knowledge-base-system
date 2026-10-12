@@ -48,6 +48,26 @@ resource "aws_sqs_queue" "tier" {
   })
 }
 
+# Pointers, not change events. Dedup is off so two edits of the same spec
+# inside the FIFO window both arrive. The connector no-ops a pointer whose
+# version and ACL already match.
+resource "aws_sqs_queue" "product_hooks_dlq" {
+  name                        = "kbs-product-hooks-dlq.fifo"
+  fifo_queue                  = true
+  content_based_deduplication = false
+}
+
+resource "aws_sqs_queue" "product_hooks" {
+  name                        = "kbs-product-hooks.fifo"
+  fifo_queue                  = true
+  content_based_deduplication = false
+  visibility_timeout_seconds  = 60
+  redrive_policy = jsonencode({
+    deadLetterTargetArn = aws_sqs_queue.product_hooks_dlq.arn
+    maxReceiveCount     = 5
+  })
+}
+
 resource "aws_s3_bucket" "raw_snapshots" {
   bucket = "kbs-raw-snapshots"
 }

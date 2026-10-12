@@ -39,13 +39,33 @@ def select_source(contracts: list[SourceContract], source_id: str) -> SourceCont
     raise SystemExit(f"refusing to start: the {source_id} contract is not in the registry")
 
 
-def run_poll(
+class Ready:
+    """Dependencies a connector process needs after startup."""
+
+    def __init__(
+        self,
+        contract: SourceContract,
+        state: State,
+        snapshots: SnapshotStore,
+        connector: SourceConnector,
+        publisher: SqsPublisher,
+        log: logging.Logger,
+    ) -> None:
+        self.contract = contract
+        self.state = state
+        self.snapshots = snapshots
+        self.connector = connector
+        self.publisher = publisher
+        self.log = log
+
+
+def prepare(
     service: str,
     source_id: str,
     harness_env: str,
     factory: Callable[[str], SourceConnector],
-) -> None:
-    """Block until dependencies answer, then poll and reconcile until the process stops."""
+) -> Ready:
+    """Load the contract and block until Postgres, S3, the harness, and the tier queue answer."""
     log = logging.getLogger(service)
     configure(service, "ingestion")
     port = int(os.environ.get("METRICS_PORT", "9100"))
@@ -59,6 +79,23 @@ def run_poll(
     )
     _up().labels(worker=service).set(1)
     state, snapshots, connector, publisher = _wait_until_ready(contract, harness_env, factory, log)
+    return Ready(contract, state, snapshots, connector, publisher, log)
+
+
+def run_poll(
+    service: str,
+    source_id: str,
+    harness_env: str,
+    factory: Callable[[str], SourceConnector],
+) -> None:
+    """Block until dependencies answer, then poll and reconcile until the process stops."""
+    ready = prepare(service, source_id, harness_env, factory)
+    contract = ready.contract
+    state = ready.state
+    snapshots = ready.snapshots
+    connector = ready.connector
+    publisher = ready.publisher
+    log = ready.log
     interval = _poll_seconds()
     reconcile_every = int(os.environ.get("RECONCILE_SECONDS", "60"))
     workers = int(os.environ.get("SYNC_WORKERS", "8"))

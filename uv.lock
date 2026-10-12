@@ -16,6 +16,7 @@ members = [
     "connector-core",
     "connector-engineering",
     "connector-hr",
+    "connector-product",
     "connector-sales",
     "gateway-core",
     "harness-common",
@@ -572,6 +573,33 @@ requires-dist = [
 name = "connector-hr"
 version = "0.1.0"
 source = { editable = "backend/connectors/hr" }
+dependencies = [
+    { name = "boto3" },
+    { name = "connector-core" },
+    { name = "httpx" },
+    { name = "ingest-contract" },
+    { name = "prometheus-client" },
+    { name = "psycopg", extra = ["binary"] },
+    { name = "shared" },
+    { name = "sqlalchemy" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "boto3", specifier = ">=1.43.111" },
+    { name = "connector-core", editable = "backend/libs/connector-core" },
+    { name = "httpx", specifier = ">=0.28.1" },
+    { name = "ingest-contract", editable = "backend/libs/ingest-contract" },
+    { name = "prometheus-client", specifier = ">=0.26.0" },
+    { name = "psycopg", extras = ["binary"], specifier = ">=3.3.6" },
+    { name = "shared", editable = "shared" },
+    { name = "sqlalchemy", specifier = ">=2.1.4" },
+]
+
+[[package]]
+name = "connector-product"
+version = "0.1.0"
+source = { editable = "backend/connectors/product" }
 dependencies = [
     { name = "boto3" },
     { name = "connector-core" },
@@ -1527,6 +1555,7 @@ dev = [
     { name = "connector-core" },
     { name = "connector-engineering" },
     { name = "connector-hr" },
+    { name = "connector-product" },
     { name = "connector-sales" },
     { name = "gateway-core" },
     { name = "harness-common" },
@@ -1560,6 +1589,7 @@ dev = [
     { name = "connector-core", editable = "backend/libs/connector-core" },
     { name = "connector-engineering", editable = "backend/connectors/engineering" },
     { name = "connector-hr", editable = "backend/connectors/hr" },
+    { name = "connector-product", editable = "backend/connectors/product" },
     { name = "connector-sales", editable = "backend/connectors/sales" },
     { name = "gateway-core", editable = "backend/libs/gateway-core" },
     { name = "harness-common", editable = "demo-harness/common" },
@@ -3494,7 +3524,9 @@ name = "webhook-receiver"
 version = "0.1.0"
 source = { editable = "backend/apis/webhook-receiver" }
 dependencies = [
+    { name = "boto3" },
     { name = "fastapi" },
+    { name = "ingest-contract" },
     { name = "prometheus-client" },
     { name = "shared" },
     { name = "uvicorn", extra = ["standard"] },
@@ -3502,7 +3534,9 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "boto3", specifier = ">=1.43.111" },
     { name = "fastapi", specifier = ">=0.143.0" },
+    { name = "ingest-contract", editable = "backend/libs/ingest-contract" },
     { name = "prometheus-client", specifier = ">=0.26.0" },
     { name = "shared", editable = "shared" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.54.0" },

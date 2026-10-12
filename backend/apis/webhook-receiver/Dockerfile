@@ -21,6 +21,7 @@ COPY backend/workers/ingestion-worker/pyproject.toml backend/workers/ingestion-w
 COPY backend/connectors/hr/pyproject.toml backend/connectors/hr/pyproject.toml
 COPY backend/connectors/engineering/pyproject.toml backend/connectors/engineering/pyproject.toml
 COPY backend/connectors/sales/pyproject.toml backend/connectors/sales/pyproject.toml
+COPY backend/connectors/product/pyproject.toml backend/connectors/product/pyproject.toml
 COPY demo-harness/common/pyproject.toml demo-harness/common/pyproject.toml
 COPY demo-harness/hr/pyproject.toml demo-harness/hr/pyproject.toml
 COPY demo-harness/sales/pyproject.toml demo-harness/sales/pyproject.toml
@@ -29,6 +30,7 @@ COPY demo-harness/engineering/pyproject.toml demo-harness/engineering/pyproject.
 COPY frontend/pyproject.toml frontend/pyproject.toml
 
 COPY shared shared
+COPY backend/libs/ingest-contract backend/libs/ingest-contract
 COPY backend/apis/webhook-receiver backend/apis/webhook-receiver
 
 RUN uv sync --frozen --no-dev --no-default-groups --package webhook-receiver

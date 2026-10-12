@@ -1,16 +1,19 @@
 [project]
 name = "webhook-receiver"
 version = "0.1.0"
-description = "Product webhook receiver. Accepts the body and does not enqueue it yet."
+description = "Product webhook receiver. Validates a pointer and enqueues it."
 requires-python = ">=3.12"
 dependencies = [
+  "boto3>=1.43.111",
   "fastapi>=0.143.0",
+  "ingest-contract",
   "prometheus-client>=0.26.0",
   "shared",
   "uvicorn[standard]>=0.54.0",
 ]
 
 [tool.uv.sources]
+ingest-contract = { workspace = true }
 shared = { workspace = true }
 
 [build-system]

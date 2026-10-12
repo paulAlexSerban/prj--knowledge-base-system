@@ -22,6 +22,7 @@ dev = [
   "connector-hr",
   "connector-engineering",
   "connector-sales",
+  "connector-product",
   "knowledge-api",
   "mcp-server",
   "webhook-receiver",
@@ -54,6 +55,7 @@ members = [
   "backend/connectors/hr",
   "backend/connectors/engineering",
   "backend/connectors/sales",
+  "backend/connectors/product",
   "demo-harness/common",
   "demo-harness/hr",
   "demo-harness/sales",
@@ -71,6 +73,7 @@ gateway-core = { workspace = true }
 connector-hr = { workspace = true }
 connector-engineering = { workspace = true }
 connector-sales = { workspace = true }
+connector-product = { workspace = true }
 knowledge-api = { workspace = true }
 mcp-server = { workspace = true }
 webhook-receiver = { workspace = true }
@@ -95,6 +98,7 @@ known-first-party = [
   "connector_hr",
   "connector_engineering",
   "connector_sales",
+  "connector_product",
   "knowledge_api",
   "mcp_server",
   "webhook_receiver",
@@ -120,6 +124,8 @@ testpaths = [
   "backend/connectors/hr/tests",
   "backend/connectors/engineering/tests",
   "backend/connectors/sales/tests",
+  "backend/connectors/product/tests",
+  "backend/apis/webhook-receiver/tests",
   "backend/workers/ingestion-worker/tests",
   "backend/tests/integration",
   "demo-harness/hr/tests",

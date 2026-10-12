@@ -1,0 +1,93 @@
+"""Product connector. Consumes hook pointers and reconciles on a timer.
+
+There is no updated_since poll. A lost hook is recovered from /ids.
+"""
+
+import logging
+import os
+import time
+
+import httpx
+
+from connector_core.runtime import prepare, sqs_client
+from connector_core.sync import Syncer
+from connector_product.apply import apply_notice
+from connector_product.client import ProductConnector
+from connector_product.queue import HookQueue
+from shared.logging import log_event
+
+LOG = logging.getLogger("connector-product")
+
+
+def _client(base_url: str) -> ProductConnector:
+    return ProductConnector(httpx.Client(base_url=base_url, timeout=30))
+
+
+def main() -> None:
+    ready = prepare("connector-product", "product", "HARNESS_PRODUCT_URL", _client)
+    hooks = HookQueue(sqs_client())
+    delay = 2.0
+    while not hooks.ready():
+        log_event(LOG, "waiting for the hook queue", level=logging.WARNING, source_id="product")
+        time.sleep(delay)
+        delay = min(delay * 2, 30)
+    syncer = Syncer(
+        ready.connector,
+        ready.contract,
+        ready.state,
+        ready.snapshots,
+        int(os.environ.get("SYNC_WORKERS", "4")),
+        ready.publisher,
+    )
+    try:
+        syncer.reconcile()
+    except Exception as exc:  # noqa: BLE001 - startup backfill must not kill the process
+        log_event(
+            LOG, "reconcile crashed", level=logging.ERROR, source_id="product", error=str(exc)
+        )
+    reconcile_every = int(os.environ.get("RECONCILE_SECONDS", "60"))
+    last = time.monotonic()
+    while True:
+        for notice, handle in hooks.receive():
+            try:
+                report = apply_notice(
+                    ready.connector,
+                    ready.contract,
+                    ready.state,
+                    ready.snapshots,
+                    ready.publisher,
+                    notice,
+                )
+            except Exception as exc:  # noqa: BLE001 - one bad notice must not kill the process
+                log_event(
+                    LOG,
+                    "hook crashed",
+                    level=logging.ERROR,
+                    source_id="product",
+                    object_id=notice.object_id,
+                    error=str(exc),
+                )
+                continue
+            if report.ok:
+                hooks.ack(handle)
+            else:
+                log_event(
+                    LOG,
+                    "hook not applied",
+                    level=logging.WARNING,
+                    source_id="product",
+                    object_id=notice.object_id,
+                    errors=report.errors,
+                )
+        if time.monotonic() - last >= reconcile_every:
+            try:
+                syncer.reconcile()
+            except Exception as exc:  # noqa: BLE001
+                log_event(
+                    LOG,
+                    "reconcile crashed",
+                    level=logging.ERROR,
+                    source_id="product",
+                    error=str(exc),
+                )
+            last = time.monotonic()
