@@ -34,6 +34,21 @@ services:
       retries: 10
       start_period: 20s
 
+  tempo:
+    image: grafana/tempo:2.8.2
+    command: ["-config.file=/etc/tempo/tempo.yaml"]
+    volumes:
+      - ../../observability/tempo/tempo.yaml:/etc/tempo/tempo.yaml:ro
+      - tempo-data:/var/tempo
+    networks: [kbs-obs]
+    # No host port. Grafana is the way to read traces.
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:3200/ready || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 15s
+
   alloy:
     image: grafana/alloy:v1.20.1
     # Root is required to read the Docker socket. The image has no wget;
@@ -55,6 +70,8 @@ services:
       prometheus:
         condition: service_healthy
       loki:
+        condition: service_healthy
+      tempo:
         condition: service_healthy
     healthcheck:
       test:
@@ -90,6 +107,8 @@ services:
         condition: service_healthy
       loki:
         condition: service_healthy
+      tempo:
+        condition: service_healthy
 
 networks:
   kbs-obs:
@@ -99,3 +118,4 @@ networks:
 volumes:
   loki-data:
   grafana-data:
+  tempo-data:

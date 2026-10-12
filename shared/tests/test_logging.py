@@ -125,7 +125,7 @@ def test_alloy_does_not_label_principal_or_request() -> None:
 
 def test_metric_relabel_copies_service_and_trust_area() -> None:
     text = ALLOY_CONFIG.read_text()
-    block = text.split('prometheus.relabel "kbs"', 1)[1]
+    block = text.split('prometheus.relabel "kbs"', 1)[1].split("otelcol.receiver", 1)[0]
     assert 'target_label  = "service"' in block
     assert 'replacement   = "access"' in block
     assert 'replacement   = "sources"' in block

@@ -1,8 +1,8 @@
 // Collector for the POC. Metrics are remote-written to Prometheus.
-// Logs are pushed to Loki.
+// Logs are pushed to Loki. Traces arrive on OTLP and are exported to Tempo.
 //
 // Loki labels are only service, trust_area, level, and source_id.
-// request_id, principal, and chunk_id stay in the JSON line.
+// request_id, principal, chunk_id, trace_id, and span_id stay in the JSON line.
 
 logging {
   level = "info"
@@ -98,6 +98,34 @@ prometheus.relabel "kbs" {
     regex         = "connector-hr|connector-sales|connector-product|connector-engineering|ingestion-worker"
     target_label  = "trust_area"
     replacement   = "ingestion"
+  }
+}
+
+// Applications export OTLP to Alloy. Tempo is the only trace store.
+otelcol.receiver.otlp "kbs" {
+  grpc {
+    endpoint = "0.0.0.0:4317"
+  }
+  http {
+    endpoint = "0.0.0.0:4318"
+  }
+  output {
+    traces = [otelcol.processor.batch.kbs.input]
+  }
+}
+
+otelcol.processor.batch "kbs" {
+  output {
+    traces = [otelcol.exporter.otlp.tempo.input]
+  }
+}
+
+otelcol.exporter.otlp "tempo" {
+  client {
+    endpoint = "tempo:4317"
+    tls {
+      insecure = true
+    }
   }
 }
 

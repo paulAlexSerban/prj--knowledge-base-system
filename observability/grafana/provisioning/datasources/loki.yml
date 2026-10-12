@@ -13,3 +13,8 @@ datasources:
           url: '{service=~".+"} | json | request_id="$${__value.raw}"'
           urlDisplayLabel: Logs for this request
           datasourceUid: loki
+        - name: trace_id
+          matcherRegex: '"trace_id":"([0-9a-f]+)"'
+          url: "$${__value.raw}"
+          urlDisplayLabel: Trace
+          datasourceUid: tempo
