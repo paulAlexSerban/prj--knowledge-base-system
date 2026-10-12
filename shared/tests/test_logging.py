@@ -6,7 +6,9 @@ from pathlib import Path
 
 from shared.logging import LABEL_KEYS, audit_decision, configure, log_event
 
-ALLOY_CONFIG = Path(__file__).resolve().parents[2] / "observability" / "alloy" / "config.alloy"
+ROOT = Path(__file__).resolve().parents[2]
+ALLOY_CONFIG = ROOT / "observability" / "alloy" / "config.alloy"
+LOKI_CONFIG = ROOT / "observability" / "loki" / "loki.yaml"
 
 
 def test_audit_line_keeps_decision_in_the_body(capsys) -> None:
@@ -121,6 +123,18 @@ def test_alloy_does_not_label_principal_or_request() -> None:
         assert forbidden not in labeled
     for required in ("service", "trust_area", "level", "source_id"):
         assert required in labeled
+
+
+def test_loki_copies_service_for_logs_drilldown() -> None:
+    text = LOKI_CONFIG.read_text()
+    assert "discover_log_levels: true" in text
+    assert "discover_service_name:" in text
+    assert "- service" in text.split("discover_service_name:", 1)[1].split("analytics:", 1)[0]
+    assert "discover_service_name: []" not in text
+    alloy = ALLOY_CONFIG.read_text()
+    labeled = alloy.split("stage.labels", 1)[1].split("}", 1)[0]
+    for forbidden in ("request_id", "trace_id"):
+        assert forbidden not in labeled
 
 
 def test_metric_relabel_copies_service_and_trust_area() -> None:

@@ -32,10 +32,12 @@ schema_config:
 
 limits_config:
   allow_structured_metadata: true
-  # Loki would otherwise copy level into detected_level and service into
-  # service_name. The label set is the four names in ADR 0002.
-  discover_log_levels: false
-  discover_service_name: []
+  # Logs Drilldown lists services by service_name and colors lines by
+  # detected_level. Copy the Compose service label, and let Loki index the
+  # level it already sees. An empty service list disables the copy. See ADR 0002.
+  discover_log_levels: true
+  discover_service_name:
+    - service
 
 analytics:
   reporting_enabled: false

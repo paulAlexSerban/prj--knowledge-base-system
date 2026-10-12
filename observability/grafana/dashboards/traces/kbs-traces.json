@@ -34,7 +34,7 @@
         "spec": {
           "id": 70,
           "title": "Recent traces",
-          "description": "Traces for the selected service. There is no service map. Open a trace, then use the trace id to jump to the matching log line. A missing trace means the process has no OTEL_EXPORTER_OTLP_ENDPOINT or Alloy is down.",
+          "description": "Traces for the selected service. There is no service map. The trace id cell opens the trace. A missing row means the process has no OTEL_EXPORTER_OTLP_ENDPOINT or Alloy is down.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -57,7 +57,8 @@
                         "filters": [],
                         "limit": 20,
                         "query": "{ resource.service.name =~ \"$service\" }",
-                        "queryType": "traceql"
+                        "queryType": "traceql",
+                        "tableType": "traces"
                       }
                     }
                   }
@@ -69,10 +70,20 @@
           },
           "vizConfig": {
             "kind": "VizConfig",
-            "group": "traces",
-            "version": "",
+            "group": "table",
+            "version": "13.2.3",
             "spec": {
-              "options": {},
+              "options": {
+                "cellHeight": "sm",
+                "showHeader": true,
+                "footer": {
+                  "countRows": false,
+                  "enablePagination": false,
+                  "fields": "",
+                  "reducer": ["sum"],
+                  "show": false
+                }
+              },
               "fieldConfig": {
                 "defaults": {},
                 "overrides": []
@@ -86,7 +97,7 @@
         "spec": {
           "id": 71,
           "title": "Search spans slower than 250 ms",
-          "description": "Retrieval spans over the 250 ms target. Open the trace and compare it with the Retrieval and access latency panel. No rows means search is inside the target or nobody searched.",
+          "description": "Retrieval spans over the 250 ms target. The trace id cell opens the trace. Compare it with the Retrieval and access latency panel. No rows means search is inside the target or nobody searched.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -109,7 +120,8 @@
                         "filters": [],
                         "limit": 20,
                         "query": "{ resource.service.name =~ \"$service\" && name = \"retrieval\" && duration > 250ms }",
-                        "queryType": "traceql"
+                        "queryType": "traceql",
+                        "tableType": "traces"
                       }
                     }
                   }
@@ -121,10 +133,20 @@
           },
           "vizConfig": {
             "kind": "VizConfig",
-            "group": "traces",
-            "version": "",
+            "group": "table",
+            "version": "13.2.3",
             "spec": {
-              "options": {},
+              "options": {
+                "cellHeight": "sm",
+                "showHeader": true,
+                "footer": {
+                  "countRows": false,
+                  "enablePagination": false,
+                  "fields": "",
+                  "reducer": ["sum"],
+                  "show": false
+                }
+              },
               "fieldConfig": {
                 "defaults": {},
                 "overrides": []
@@ -138,7 +160,7 @@
         "spec": {
           "id": 72,
           "title": "Error spans",
-          "description": "Spans marked error. Open the trace, then the log line with the same trace id. A deny is not an error span. An error here is a failed call, a store exception, or an HTTP 5xx.",
+          "description": "Spans marked error. The trace id cell opens the trace, then the log line with the same trace id. A deny is not an error span. An error here is a failed call, a store exception, or an HTTP 5xx.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -161,7 +183,8 @@
                         "filters": [],
                         "limit": 20,
                         "query": "{ resource.service.name =~ \"$service\" && status = error }",
-                        "queryType": "traceql"
+                        "queryType": "traceql",
+                        "tableType": "traces"
                       }
                     }
                   }
@@ -173,10 +196,20 @@
           },
           "vizConfig": {
             "kind": "VizConfig",
-            "group": "traces",
-            "version": "",
+            "group": "table",
+            "version": "13.2.3",
             "spec": {
-              "options": {},
+              "options": {
+                "cellHeight": "sm",
+                "showHeader": true,
+                "footer": {
+                  "countRows": false,
+                  "enablePagination": false,
+                  "fields": "",
+                  "reducer": ["sum"],
+                  "show": false
+                }
+              },
               "fieldConfig": {
                 "defaults": {},
                 "overrides": []
