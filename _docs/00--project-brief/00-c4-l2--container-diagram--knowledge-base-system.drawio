@@ -77,7 +77,7 @@
                         <mxGeometry x="960" y="400" width="240" height="120" as="geometry"/>
                     </mxCell>
                 </object>
-                <object placeholders="1" c4Name="Observability" c4Type="Operations" c4Description="Alloy collects metrics and logs. Loki stores logs. Prometheus and Grafana." label="&lt;font style=&quot;font-size: 16px&quot;&gt;&lt;b&gt;%c4Name%&lt;/b&gt;&lt;/font&gt;&lt;div&gt;[%c4Type%]&lt;/div&gt;&lt;br&gt;&lt;div&gt;&lt;font style=&quot;font-size: 11px&quot;&gt;&lt;font&gt;%c4Description%&lt;/font&gt;&lt;/font&gt;&lt;/div&gt;" id="obs">
+                <object placeholders="1" c4Name="Observability" c4Type="Operations" c4Description="Alloy collects metrics, logs, and OTLP. Loki, Tempo, Prometheus, Grafana." label="&lt;font style=&quot;font-size: 16px&quot;&gt;&lt;b&gt;%c4Name%&lt;/b&gt;&lt;/font&gt;&lt;div&gt;[%c4Type%]&lt;/div&gt;&lt;br&gt;&lt;div&gt;&lt;font style=&quot;font-size: 11px&quot;&gt;&lt;font&gt;%c4Description%&lt;/font&gt;&lt;/font&gt;&lt;/div&gt;" id="obs">
                     <mxCell style="rounded=1;whiteSpace=wrap;html=1;labelBackgroundColor=none;fillColor=#F5F5F5;fontColor=#000000;align=center;arcSize=10;strokeColor=#0D5091;metaEdit=1;resizable=0;points=[[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0.25,0],[1,0.5,0],[1,0.75,0],[0.75,1,0],[0.5,1,0],[0.25,1,0],[0,0.75,0],[0,0.5,0],[0,0.25,0]];fontFamily=Helvetica;sketch=1;curveFitting=1;jiggle=2;fillStyle=solid;" parent="1" vertex="1">
                         <mxGeometry x="80" y="100" width="240" height="120" as="geometry"/>
                     </mxCell>
@@ -90,7 +90,7 @@
                         <mxPoint x="690" y="240" as="sourcePoint"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="lObsGw" value="metrics and logs" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontFamily=Helvetica;fontSize=12;labelBackgroundColor=#000000;fontColor=#FFFFFF;" parent="eObsGw" vertex="1" connectable="0">
+                <mxCell id="lObsGw" value="metrics, logs, OTLP" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontFamily=Helvetica;fontSize=12;labelBackgroundColor=#000000;fontColor=#FFFFFF;" parent="eObsGw" vertex="1" connectable="0">
                     <mxGeometry x="-0.2" relative="1" as="geometry">
                         <mxPoint x="-80" y="-10" as="offset"/>
                     </mxGeometry>

@@ -102,7 +102,7 @@ These are places where the stated requirements need a narrower reading before im
 - User-delegated authorization: an HS256 JWT, a coarse pre-filter, a fine-grained post-check, Postgres row-level security, and an audit record of which attributes justified a result. Graph checks are the Cypher template and a read-only session. Neo4j Community has no roles.
 - Delete propagation, content-hash skip, idempotent upserts, and a reconciliation sweep.
 - A demo harness: FastAPI services with SQLite for HR, Sales, Product, and Engineering. HR stores rows with SQLAlchemy and can bulk-load through `POST /admin/seed`. The other three sources are a curated set and have no bulk seed. Each connector writes a raw snapshot to S3 and enqueues a change event.
-- Docker Compose, floci, and Terraform for the FIFO queues, dead-letter queues, and snapshot bucket. Alloy collects metrics and container logs. Prometheus stores metrics, Loki stores logs, and Grafana shows both, including retrieval latency and the deny line. Traces are deferred. The API key stays in the environment.
+- Docker Compose, floci, and Terraform for the FIFO queues, dead-letter queues, and snapshot bucket. Alloy collects metrics, container logs, and OTLP traces. Prometheus stores metrics, Loki stores logs, Tempo stores traces, and Grafana shows all four boards plus the trace list, including retrieval latency and the deny line. The API key stays in the environment.
 
 Not built: the spec extractor, the query router, answer synthesis, a gateway answer for demo question 2, OIDC, and a golden set of about 20 questions. The question-2 path is in the graph after ingestion. API tests cover one known chunk, a query with no shared terms, two countries, and an access boundary.
 
@@ -124,7 +124,7 @@ Finance and other departments beyond the four. Real OAuth against Google, Notion
 | Models | OpenRouter for chat when a key is set. The running embedder is local `hash-v1`. `fastembed` is optional and not locked. The constrained extractor is not built. |
 | Identity | Dev-only HS256 JWTs. Claims are subject, groups, clearance, and department. |
 | Infra | Docker Compose. Terraform with floci endpoint overrides for queues and the snapshot bucket. |
-| Observability | Prometheus, Alloy, Loki, and Grafana. Traces are deferred. |
+| Observability | Prometheus, Alloy, Loki, Tempo, and Grafana. One change or one search is one trace. |
 
 
 ![Container Diagram](00-c4-l2--container-diagram--knowledge-base-system.png)
@@ -136,7 +136,7 @@ Finance and other departments beyond the four. Real OAuth against Google, Notion
 The demo is the acceptance test. Each step is observable in the API response, the graph path, or the dashboard.
 
 1. Demonstrable. Ask the Germany parental-leave question as `employee_eng`. The gateway returns the policy chunk, its source version, and its sync time. It does not write the answer. Notebook `41`.
-2. Demonstrable. The same question as `outsider` returns nothing. The audit row and a JSON log line record the deny (`decision` of `deny`, `request_id` in the line, not in a Loki label). Grafana opens that line from the dashboard. Notebook `41`.
+2. Demonstrable. The same question as `outsider` returns nothing. The audit row and a JSON log line record the deny (`decision` of `deny`, `request_id` in the line, not in a Loki label). Open the trace on KBS / Traces, then jump to that deny line by `trace_id`. Notebook `41`.
 3. Demonstrable on the graph, not through the gateway. After ingestion, a Q3 deal whose ARR is 200,000 or more and whose epic is not released has a path from the deal to that epic to the owning team. `find_related` does not return that path. Notebook `02` resets the three sources.
 4. Demonstrable for an HR policy. Notebook `43` creates a policy, closes its ACL, and deletes it. Search and `find_related` drop it. Deleting a deal is demonstrable in the snapshot, the chunks, and the graph. Notebook `14`. Search does not cover deals yet.
 5. Demonstrable at the worker. Stop an ingestion worker mid-batch, then start it again. In-flight messages return to the queue or land in the dead-letter queue. Replaying them does not duplicate chunks or edges. `make dlq-replay` sends dead-letter messages back, with a new deduplication id so FIFO does not drop them.
@@ -173,7 +173,7 @@ The demo is the acceptance test. Each step is observable in the API response, th
 | `demo-harness/` | HR, Sales, Product, and Engineering mock services. |
 | `notebooks/` | Jupyter notebooks for the HR harness (`00`–`30`), the other three sources (`02`, `14`–`16`), and the gateway (`40`–`43`). |
 | `infrastructure/` | Compose orchestration, Terraform provisioning, floci config, and `config/sources` YAML contracts. |
-| `observability` | Alloy, Loki, Prometheus, one dashboard, and metric definitions. |
+| `observability` | Alloy, Loki, Prometheus, Tempo, five Grafana dashboards, and metric definitions. |
 | `shared` | Contracts, the registry gate, and logging. Source contracts in `shared/src/shared/contracts` are checked by `make contracts-check`. |
 | `tools` | `scripts/dlq_replay.py`. Evaluation scripts are not written. |
 
