@@ -193,7 +193,7 @@ services:
       EMBEDDER: ${EMBEDDER:-fastembed}
       # Only used if EMBEDDER is fastembed.
       # set higher for more diverse results and lower for more similar results
-      VECTOR_MAX_DISTANCE: ${VECTOR_MAX_DISTANCE:-0.40}
+      VECTOR_MAX_DISTANCE: ${VECTOR_MAX_DISTANCE:-0.20}
       POSTGRES_HOST: postgres
       POSTGRES_DB: kbs
       POSTGRES_USER: ingestion_rw

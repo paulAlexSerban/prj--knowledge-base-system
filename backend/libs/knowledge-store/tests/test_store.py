@@ -12,7 +12,7 @@ from sqlalchemy import text
 from ingest_contract.events import RAW_BUCKET, ChangeEvent
 from knowledge_store.acl import AclView, Principal
 from knowledge_store.chunkers import ChunkDraft
-from knowledge_store.embedder import HashEmbedder
+from knowledge_store.embedder import DIMENSIONS, HashEmbedder
 from knowledge_store.graph import GraphWriter
 from knowledge_store.postgres import ChunkTable
 from knowledge_store.store import KnowledgeStore
@@ -47,7 +47,7 @@ class TopicEmbedder:
     def _vector(self, text: str) -> list[float]:
         words = {w.strip(".,#").lower() for w in text.split()}
         axis = 0 if words & self.LEAVE else 2
-        vector = [0.0] * 384
+        vector = [0.0] * DIMENSIONS
         vector[axis] = 1.0
         return vector
 

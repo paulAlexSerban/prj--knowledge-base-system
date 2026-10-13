@@ -34,7 +34,7 @@ The discussion should start here. The first column is what I assume for the real
 | Latency        | Under 250 ms p95 for retrieval, excluding model generation.                                                              | A target with a metric. Measured once on a laptop, which is not a load test.             |
 | Language       | English policies. Germany appears in the demo but the policy text is English.                                            | English only.                                                                            |
 | Infrastructure | Not specified. I assume AWS because the assignment mentions SQS-style services and the local stack emulates AWS.         | Docker Compose, floci for SQS and S3, Terraform against floci.                           |
-| Models         | Not specified.                                                                                                           | Local bge-small embeddings. OpenRouter for chat if a key is set. Offline hash embedder.  |
+| Models         | Not specified.                                                                                                           | Local multilingual-e5-large embeddings, 1024 dimensions. OpenRouter for chat if a key is set. Optional router model for low-confidence questions. Offline hash embedder. |
 | Source shapes  | Each department exposes at least one of: a pollable listing, a change feed, or a webhook. Native permissions are mappable. | Four cooperative mock sources built for this.                                            |
 | Shared keys    | Cross-department joins rely on a key or email that exists in more than one system.                                        | The demo data has one product key across three sources, on purpose.                      |
 
@@ -118,7 +118,7 @@ Prose (Postgres):
 
 - Structure-aware chunks: markdown by heading, PDF by paragraph, records as one chunk per row.
 - Each chunk keeps a contextual header, the chunker version, the embedding model, the content hash, the source object and version, the sync time, and the ACL attributes.
-- Retrieval is dense (pgvector, 384-dimension bge-small) plus full-text for exact identifiers, merged with reciprocal rank fusion. A vector-only hit is kept only inside a distance floor, so a question with no answer returns nothing.
+- Retrieval is dense (pgvector, 1024-dimension multilingual-e5-large) plus English full-text for exact identifiers, merged with reciprocal rank fusion. A vector-only hit is kept only inside a distance floor, so a question with no answer returns nothing. The dense side is multilingual. The lexical side is not.
 
 Relations (Neo4j):
 
@@ -139,7 +139,7 @@ Rejected:
 
 Honest limits:
 
-- The router that chooses between search and graph is not built. The caller picks. Question 2 is one fixed template (`roadmap_deals`), not general multi-hop reasoning.
+- The router is built. It chooses search, one of four graph templates, or both for `roadmap_deals`. Question 2 is still that one template. A relational question with no template stays unanswered as a path.
 - The join works because the demo data was written with a shared key. Whether real Sales, Product, and Engineering systems share one is an open question for the stakeholders.
 
 ## 6. Agent access
@@ -150,6 +150,7 @@ MCP gives every client the same tools. It does not authenticate users or enforce
 
 | MCP tool           | REST                     | Behavior                                                                    |
 | ------------------ | ------------------------ | --------------------------------------------------------------------------- |
+| `ask_knowledge`    | `POST /v1/ask`           | Rules route the question, then search or a template. Optional model tie-break. |
 | `search_knowledge` | `POST /v1/search`        | Hybrid retrieval for the caller. One chunk per object, with provenance.     |
 | `get_document`     | `GET /v1/documents/{id}` | One authorized chunk with provenance.                                       |
 | `find_related`     | `POST /v1/graph/related` | Bounded graph templates. Returns the path.                                  |
@@ -166,7 +167,7 @@ Retrieved text is data. Snippets are marked as untrusted, no tool can write, and
 
 Staleness is explicit. HR policy search calls the source ACL endpoint before returning a chunk and fails closed on timeout. Other sources trust the indexed ACL inside the freshness window stated in their contract.
 
-Status: built for REST and MCP, with two principals tested against one pool. Not built: OIDC (the POC uses HS256 and a dev token endpoint), a principal holding several departments (a `roadmap_readers` rule with `department: "*"` stands in), and per-service Neo4j roles. Neo4j Community has no roles, so the gateway and worker share one user. That is an accepted POC risk.
+Status: built for REST and MCP, including `/v1/ask`, with two principals tested against one pool. The router is rules first. A model is used only for a low-confidence question when a key and `OPENROUTER_ROUTER_MODEL` are set, and a bad label is discarded. Not built: OIDC (the POC uses HS256 and a dev token endpoint), a principal holding several departments (a `roadmap_readers` rule with `department: "*"` stands in), and per-service Neo4j roles. Neo4j Community has no roles, so the gateway and worker share one user. That is an accepted POC risk.
 
 Rejected:
 
@@ -210,7 +211,7 @@ Status: built, including the delete verification and the DLQ replay. Not built: 
 | Connectors                 | Custom, one interface                                          | The hard problems are ACL normalization, tombstones, and freshness.                                                | Airbyte, Fivetran, federation, CDC (see section 4).                                                                                                      |
 | Service                    | Python, FastAPI, Pydantic v2                                   | Typed contracts, one shared service layer for two adapters, same language as the workers.                          | Flask, Django, Litestar. Not compared in a spike.                                                                                                        |
 | Agent protocol             | MCP plus REST                                                  | MCP for agents, REST for the chat page, scripts, and eval. Same service layer.                                     | MCP only: no non-agent clients. REST only: every agent framework writes its own tool wrapper.                                                            |
-| Embeddings                 | `BAAI/bge-small-en-v1.5` via fastembed, 384 dimensions, CPU     | No key or network at run time. Baked into images. Name is config. Tests use a deterministic hash embedder.         | multilingual-e5-small (the swap for multilingual policies), bge-base and bge-large (migration with no measured gain here), hosted embeddings (network dependency inside ingestion). |
+| Embeddings                 | `intfloat/multilingual-e5-large` via fastembed, 1024 dimensions, CPU | No key at run time. Multilingual dense search. About 2.2 GB in each of three images. Tests use a hash embedder. | bge-small (the previous English-only model), e5-small (weaker), bge-base and bge-large (English only), mxbai-embed-large (English only), hosted embeddings (a network dependency inside ingestion). |
 | Chat answer                | OpenRouter through LangChain when a key is set                 | Model names are config. The gateway itself never calls a model.                                                    | LangGraph for a single prompt.                                                                                                                           |
 | Identity                   | Mock IdP issuing JWTs                                          | The claim contract is what the service enforces. Only `gateway_core.auth` knows the signer.                        | MCP as the boundary. Per-agent store access.                                                                                                             |
 | Local AWS and IaC          | floci and Terraform with endpoint overrides, one-shot container | Real Terraform resources against an emulator. Same files move to AWS with a provider block and a state backend.    | LocalStack (heavier). CloudWatch on floci: metrics and logs stay on Prometheus and Loki so they behave the same in Compose.                              |
@@ -255,7 +256,7 @@ Status: built, including the delete verification and the DLQ replay. Not built: 
 
 ### Before release and on every change
 
-A golden set of 20 cases (`tools/eval/golden.yaml`) runs with `make eval` against the REST API as each persona. It exits non-zero below the thresholds in the file. It runs on every change to chunking, the embedding model, prompts, or retrieval parameters.
+A golden set of 23 cases (`tools/eval/golden.yaml`) runs with `make eval` against `POST /v1/ask` as each persona. It exits non-zero below the thresholds in the file. It runs on every change to chunking, the embedding model, prompts, or retrieval parameters.
 
 | Category                | Pass condition                                                                  |
 | ----------------------- | ------------------------------------------------------------------------------- |
@@ -270,10 +271,11 @@ Measured on the seeded stack:
 
 | Run                             | recall at 5 | paraphrase recall at 5 | MRR  | no answer | access | graph | p95    |
 | ------------------------------- | ----------- | ---------------------- | ---- | --------- | ------ | ----- | ------ |
-| `hash-v1` plus full-text, fused | 0.50        | 0.20                   | 0.50 | 1.00      | 1.00   | 1.00  | 167 ms |
-| bge-small plus full-text, fused | 1.00        | 1.00                   | 0.95 | 1.00      | 1.00   | 1.00  | 216 ms |
+| `hash-v1` plus full-text, fused (20 cases, previous) | 0.50        | 0.20                   | 0.50 | 1.00      | 1.00   | 1.00  | 167 ms |
+| bge-small plus full-text, fused (20 cases, previous) | 1.00        | 1.00                   | 0.95 | 1.00      | 1.00   | 1.00  | 216 ms |
+| e5-large plus full-text, fused, routed (23 cases)    | 1.00        | 1.00                   | 0.90 | 1.00      | 1.00   | 1.00  | 372 ms |
 
-Read these numbers carefully. The corpus is about 500 generated chunks. The cases were written by the person who wrote the corpus. Latency is a laptop running everything through HTTP including a live HR ACL call. This is a regression gate. It is not evidence that retrieval works on 10 million real objects.
+Read these numbers carefully. The corpus is about 500 generated chunks. The cases were written by the person who wrote the corpus. Latency is a laptop running everything through HTTP including a live HR ACL call. The e5-large p95 is 372 ms, which misses the 250 ms design target. A query embed on this CPU is about 150 to 300 ms. The regression gate stays 500 ms, and the 250 ms target is not raised. Recall at 5 is still 1.00, so no reranker was added. MRR is 0.90 because a neighbour sometimes ranks above the expected policy. This is a regression gate. It is not evidence that retrieval works on 10 million real objects.
 
 Faithfulness is a citation check: every claim must map to a returned chunk id. A model-graded judge is a production addition and is not built.
 
@@ -329,10 +331,10 @@ Built:
 - Postgres and Neo4j schemas, including row-level security and an audit table.
 - Four demo harnesses and four connectors.
 - Ingestion worker with chunking, embedding, hash skip, tombstones, verified deletes, and graph writes.
-- REST API and MCP server with search, `get_document`, `find_related` (four templates including `roadmap_deals`), and `list_sources`.
+- REST API and MCP server with `ask` (the router), search, `get_document`, `find_related` (four templates including `roadmap_deals`), and `list_sources`.
 - HR ACL re-check, audit rows, and dead-letter replay.
 - Observability stack with dashboards and alert thresholds.
 - Golden set and `make eval`.
 - Chat page and two read-only notebook agents over MCP.
 
-Not built: the query router, OIDC, a deployed agent runtime, a model-graded faithfulness check, automatic intake pause, Alertmanager, the Lambda for the webhook path, and the model-based edge extractor.
+Not built: OIDC, a deployed agent runtime, a model-graded faithfulness check, automatic intake pause, Alertmanager, the Lambda for the webhook path, and the model-based edge extractor. The router selects templates. It does not plan open traversals.

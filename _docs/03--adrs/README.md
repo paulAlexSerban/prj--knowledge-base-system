@@ -8,10 +8,10 @@ One decision per file. Spikes hold the longer reasoning. These records say what 
 | [0002](0002-neo4j-graph.md)           | Neo4j for a small typed graph. Account and Spec constraints are unused. |
 | [0003](0003-postgres-then-neo4j.md)   | Postgres commits first. A failed graph write retries.                   |
 | [0004](0004-s3-snapshots.md)          | S3 holds the raw snapshot. Postgres holds the pointer.                  |
-| [0005](0005-embedding-model.md)       | Local bge-small. `hash-v1` for tests. English only.                     |
+| [0005](0005-embedding-model.md)       | Local multilingual-e5-large, 1024 dimensions. `hash-v1` for tests.      |
 | [0006](0006-chunk-versioning.md)      | Chunk and embedding versions. A rebuild, not a mixed index.             |
 | [0007](0007-chunker-registry.md)      | One chunker per format. PDF sections are not recovered.                 |
-| [0008](0008-hybrid-retrieval.md)      | Reciprocal rank fusion only. No reranker and no query router.           |
+| [0008](0008-hybrid-retrieval.md)      | Reciprocal rank fusion only. No reranker.                               |
 | [0009](0009-observability-stack.md)   | Alloy, Prometheus, Loki, Tempo, Grafana.                                |
 | [0010](0010-dashboards-as-code.md)    | Dashboards in git. Red panels, no Alertmanager.                         |
 | [0011](0011-alloy-docker-socket.md)   | Alloy's read-only Docker socket.                                        |
@@ -29,3 +29,4 @@ One decision per file. Spikes hold the longer reasoning. These records say what 
 | [0023](0023-uv-workspace.md)          | A uv workspace. One image per deployable.                               |
 | [0024](0024-demo-harness.md)          | FastAPI and SQLite harnesses. HTTP only.                                |
 | [0025](0025-chat-answer.md)           | LangChain writes the answer. The gateway does not.                      |
+| [0026](0026-query-router.md)          | Rules first. A model may only break a low-confidence tie.               |

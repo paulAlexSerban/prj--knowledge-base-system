@@ -90,6 +90,7 @@ class KnowledgeStore:
         principal: Principal,
         limit: int = 5,
         request_id: str = "",
+        object_ids: list[str] | None = None,
     ) -> list[Hit]:
         with span("embed"):
             vector = self.embedder.embed_query(query)
@@ -102,6 +103,7 @@ class KnowledgeStore:
             limit,
             request_id,
             semantic=self.embedder.semantic,
+            object_ids=object_ids,
         )
 
     def reconcile_index(self) -> None:

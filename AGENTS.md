@@ -25,8 +25,8 @@ This repository is a POC knowledge gateway: ingest four department sources, keep
 | `backend/connectors/product/`            | Product connector process (`connector-product`). Own image. Reads the hook queue.                                                                                                                                                |
 | `backend/libs/connector-core/`           | Connector interface, snapshot sync, S3 store, Postgres sync state, and the SQS publisher. Library, no image.                                                                                                                     |
 | `backend/libs/ingest-contract/`          | Change-event model, the product hook pointer, queue names, and the snapshot hash. Library, no image.                                                                                                                             |
-| `backend/libs/knowledge-store/`          | Chunkers, the embedders (fastembed bge-small and the offline hash), Postgres chunks, reindex, ACL, and the Neo4j writer. Library, no image.                                                                                      |
-| `backend/libs/gateway-core/`             | Retrieval service, principal and HS256 validation, Neo4j read templates (HR plus `roadmap_deals`), and the tool text shared by the API and the MCP server. Library, no image.                                                    |
+| `backend/libs/knowledge-store/`          | Chunkers, the embedders (fastembed multilingual-e5-large and the offline hash), Postgres chunks, reindex, ACL, and the Neo4j writer. Library, no image.                                                                          |
+| `backend/libs/gateway-core/`             | Retrieval service, the query router, principal and HS256 validation, Neo4j read templates (HR plus `roadmap_deals`), and the tool text shared by the API and the MCP server. Library, no image.                                 |
 | `backend/tests/integration/`             | Tests that cross a deployable boundary.                                                                                                                                                                                          |
 | `backend/tests/e2e/`                     | Opt-in live-stack test. `make e2e`.                                                                                                                                                                                              |
 | `database/`                              | Postgres migrations (sync state, chunks, full-text, vectors, ACL, row-level security) and Neo4j constraints.                                                                                                                     |
@@ -86,7 +86,7 @@ Write in plain sentences. No emojis. No mermaid in docs. Diagrams are drawio fil
 
 ## Secrets and local files
 
-Read `OPENROUTER_API_KEY` from the environment. Model names belong in config. The default embedder is `fastembed` (bge-small, baked into the images). Offline runs and tests use `EMBEDDER=hash` and the deterministic extractor, and tests must pass without a key or a model download. Never commit API keys, `.env` files, `.venv`, `__pycache__`, `.ruff_cache`, or `*.egg-info`.
+Read `OPENROUTER_API_KEY` from the environment. Model names belong in config. The default embedder is `fastembed` (multilingual-e5-large, baked into the images). Offline runs and tests use `EMBEDDER=hash` and the deterministic extractor, and tests must pass without a key or a model download. Never commit API keys, `.env` files, `.venv`, `__pycache__`, `.ruff_cache`, or `*.egg-info`.
 
 ## Git
 

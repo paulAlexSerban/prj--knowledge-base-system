@@ -17,8 +17,9 @@ from shared.telemetry import span
 
 RRF_K = 60
 # Cosine distance above which a vector-only hit is not an answer (semantic models only).
-# bge-small puts unrelated English text near 0.5; calibrated with `make eval`.
-DEFAULT_MAX_DISTANCE = float(os.environ.get("VECTOR_MAX_DISTANCE", "0.40"))
+# e5-large on the seeded chunks: paraphrases about 0.11 to 0.18,
+# and "xylophone quantum payroll" about 0.21. The floor sits between them.
+DEFAULT_MAX_DISTANCE = float(os.environ.get("VECTOR_MAX_DISTANCE", "0.20"))
 OVERFETCH = 3
 
 
@@ -241,6 +242,7 @@ class ChunkTable:
         request_id: str,
         semantic: bool = False,
         max_distance: float = DEFAULT_MAX_DISTANCE,
+        object_ids: list[str] | None = None,
     ) -> list[Hit]:
         fetch = max(limit * OVERFETCH, limit)
         params = {
@@ -251,9 +253,16 @@ class ChunkTable:
             "department": principal.department,
             "clearance": principal.clearance,
             "fetch": fetch,
+            "restrict_objects": object_ids is not None,
+            "object_ids": _pg_array(object_ids or []),
         }
+        object_filter = """
+              AND (
+                NOT :restrict_objects
+                OR object_id = ANY (CAST(:object_ids AS text[]))
+              )"""
         vector_sql = text(
-            """
+            f"""
             SELECT id, source_id, object_id, object_type, version, section_path,
                    content, acl_rules, synced_at,
                    embedding <=> CAST(:vector AS vector) AS distance
@@ -265,12 +274,13 @@ class ChunkTable:
                 OR :department = ANY (acl_departments)
               )
               AND min_clearance <= kbs.clearance_rank(:clearance)
+              {object_filter}
             ORDER BY embedding <=> CAST(:vector AS vector)
             LIMIT :fetch
             """
         )
         lexical_sql = text(
-            """
+            f"""
             SELECT id, source_id, object_id, object_type, version, section_path,
                    content, acl_rules, synced_at
             FROM chunks
@@ -282,6 +292,7 @@ class ChunkTable:
               )
               AND min_clearance <= kbs.clearance_rank(:clearance)
               AND fts @@ plainto_tsquery('english', :query)
+              {object_filter}
             ORDER BY ts_rank(fts, plainto_tsquery('english', :query)) DESC
             LIMIT :fetch
             """
