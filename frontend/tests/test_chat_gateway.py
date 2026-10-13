@@ -5,6 +5,7 @@ from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.trace import SpanKind
 
 from chat_ui.gateway import Gateway
 
@@ -40,6 +41,9 @@ def test_ask_continues_one_trace_and_hides_the_token() -> None:
     by_name = {item.name: item for item in finished}
     assert set(by_name) == {"chat.token", "chat.gateway.ask"}
     assert by_name["chat.token"].parent.span_id == by_name["chat.gateway.ask"].context.span_id
+    ask = by_name["chat.gateway.ask"]
+    assert ask.kind == SpanKind.CLIENT
+    assert ask.attributes["peer.service"] == "gateway-api"
     rendered = " ".join(str(item.attributes) for item in finished)
     assert "secret-token" not in rendered
     assert "parental leave" not in rendered

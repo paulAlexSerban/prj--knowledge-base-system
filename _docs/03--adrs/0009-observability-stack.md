@@ -8,7 +8,7 @@ Freshness and authorization are distributions, so the demo needs metrics. The de
 
 ## Decision
 
-Grafana Alloy (`grafana/alloy:v1.20.1`) is the collector. It scrapes `/metrics` and remote-writes to Prometheus, pushes container logs to Loki, and exports OTLP traces to Tempo. Grafana is the UI. Every feature process writes JSON logs to stdout and exposes metrics. The publisher puts a W3C `traceparent` on the queue message, and the worker continues that trace. Definitions are in [observability/metrics.md](../../observability/metrics.md). Cardinality is bounded: source id and permission group, not user id, object id, or chunk text. Per-user detail stays in `kbs.audit_log` and in the log line.
+Grafana Alloy (`grafana/alloy:v1.20.1`) is the collector. It scrapes `/metrics` and remote-writes to Prometheus, pushes container logs to Loki, and exports OTLP traces to Tempo. Grafana is the UI. Every feature process writes JSON logs to stdout and exposes metrics. The publisher puts a W3C `traceparent` on the queue message, and the worker continues that trace. Outbound HTTP does the same with a client span. Tempo remote-writes a service graph and span metrics to Prometheus. How the spans join is [ADR 0027](0027-service-graph.md). Definitions are in [observability/metrics.md](../../observability/metrics.md). Cardinality is bounded: source id and permission group, not user id, object id, or chunk text. Per-user detail stays in `kbs.audit_log` and in the log line.
 
 ## Alternatives rejected
 

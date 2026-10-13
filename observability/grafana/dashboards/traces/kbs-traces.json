@@ -34,7 +34,7 @@
         "spec": {
           "id": 70,
           "title": "Recent traces",
-          "description": "Feature traces for the selected service. Health checks, metrics scrapes, and readiness probes are left out. There is no service map. The trace id cell opens the trace. A missing row means the process has no OTEL_EXPORTER_OTLP_ENDPOINT, Alloy is down, or only probes ran.",
+          "description": "Feature traces for the selected service. Health checks, metrics scrapes, and readiness probes are left out. The service graph board draws the edges. The trace id cell opens the trace. A missing row means the process has no OTEL_EXPORTER_OTLP_ENDPOINT, Alloy is down, or only probes ran.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -476,6 +476,18 @@
         "icon": "external link",
         "tooltip": "HTTP, search latency, empty results, and denies",
         "url": "/d/kbs-retrieval-access/kbs-retrieval-access",
+        "tags": [],
+        "asDropdown": false,
+        "targetBlank": false,
+        "includeVars": true,
+        "keepTime": true
+      },
+      {
+        "title": "Service graph",
+        "type": "link",
+        "icon": "external link",
+        "tooltip": "Edges between processes, and one trace with its logs",
+        "url": "/d/kbs-service-graph/kbs-service-graph",
         "tags": [],
         "asDropdown": false,
         "targetBlank": false,

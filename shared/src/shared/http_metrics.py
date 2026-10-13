@@ -9,7 +9,7 @@ import time
 from collections.abc import Awaitable, Callable, Iterable
 
 from opentelemetry.propagate import extract
-from opentelemetry.trace import Status, StatusCode
+from opentelemetry.trace import SpanKind, Status, StatusCode
 from prometheus_client import Counter, Histogram
 
 from shared.telemetry import operational_path, span
@@ -119,7 +119,13 @@ class HttpMetricsMiddleware:
 
         parent = extract(_carrier(scope))
         try:
-            with span(f"{method} {route}", context=parent, method=method, route=route) as current:
+            with span(
+                f"{method} {route}",
+                context=parent,
+                span_kind=SpanKind.SERVER,
+                method=method,
+                route=route,
+            ) as current:
                 try:
                     await self.app(scope, receive, send_wrapper)
                 finally:

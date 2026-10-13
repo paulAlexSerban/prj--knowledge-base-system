@@ -65,9 +65,20 @@ Exposed on `ingestion-worker:9101`. Queue depth is `GetQueueAttributes` (`Approx
 
 `kbs_delete_verification_failures_total` is the same series as the connector, with `store` `postgres` or `neo4j`. The dashboard uses `increase` over the selected range, by source and store. The raw counter is the total since process start.
 
+## Harness
+
+The four harnesses expose these on port 8080, and they expose the HTTP series in the next section. The process sets `service` to `hr`, `sales`, `product`, or `engineering`. Alloy then writes the Compose service name into that same label, so Prometheus shows `harness-hr` and the rest. `object_type` is unchanged.
+
+| Metric | Labels | Meaning |
+| ------ | ------ | ------- |
+| `kbs_harness_up` | `service` | 1 when that harness is serving. |
+| `kbs_harness_objects` | `service`, `object_type` | Live objects in the source. A gauge, not a rate. |
+
+Logs are JSON on stdout. `trust_area` is `sources`. `trace_id` and `span_id` are null until a request span is current.
+
 ## HTTP
 
-The API, the MCP server, and the webhook receiver expose these. `job` from the scrape names the process. A principal and the raw URL are not labels. `route` is a path template the process registered, or `unmatched` when the path matches none of them. `/health` and `/metrics` are templates. The dashboard leaves them out of the rate so scrapes do not hide real traffic.
+The API, the MCP server, the webhook receiver, and the four harnesses expose these. `job` from the scrape names the process. A principal and the raw URL are not labels. `route` is a path template the process registered, or `unmatched` when the path matches none of them. `/health` and `/metrics` are templates. The dashboard leaves them out of the rate so scrapes do not hide real traffic.
 
 | Metric | Labels | Meaning |
 | ------ | ------ | ------- |
@@ -112,4 +123,4 @@ A chat log line has `request_id`, `persona`, `route`, `mode`, `outcome`, `trace_
 
 ## Traces
 
-Traces are not Prometheus series. Each process exports OTLP to Alloy only when `OTEL_EXPORTER_OTLP_ENDPOINT` is set. Alloy forwards to Tempo. A change event carries `traceparent` as an SQS message attribute, and the worker continues that trace. That ingestion trace is separate from a later chat question. Find it by `source_id` on the connector and worker spans. A chat question is one trace: `chat.turn` is the root, then `chat.token`, `chat.gateway.ask`, `POST /v1/ask`, `router.classify`, `retrieval`, `embed.query`, `chunks.vector`, `chunks.full_text`, `graph.related`, `acl.recheck`, `audit.write`, `chat.answer`, `llm.invoke`, and `chat.render_graph`, whichever of those the route actually runs. Span attributes are `tool`, `surface`, `source_id`, `count`, `store`, `op`, `queue`, `event_type`, `kind`, `route`, `source`, `graph`, `model`, `mode`, and `hops`. A principal, a query, an object id, and chunk text are not attributes. FastAPI's built-in telemetry is off, because it records the raw path. `/health`, `/metrics`, and the same readiness paths are counted and are not traced. The traces board leaves those roots out, and Loki does not keep the matching access lines. The traces board is `kbs-traces`. The chat row filters `chat.turn` and the chat logs for one trace id. There is no service map.
+The spans themselves are not Prometheus series. Tempo derives the series named at the end of this section. Each process exports OTLP to Alloy only when `OTEL_EXPORTER_OTLP_ENDPOINT` is set. Alloy forwards to Tempo. A change event carries `traceparent` as an SQS message attribute, and the worker continues that trace. That ingestion trace is separate from a later chat question. Find it by `source_id` on the connector and worker spans. A chat question is one trace: `chat.turn` is the root, then `chat.token`, `chat.gateway.ask`, `POST /v1/ask`, `router.classify`, `retrieval`, `embed.query`, `chunks.vector`, `chunks.full_text`, `graph.related`, `acl.recheck`, `audit.write`, `chat.answer`, `llm.invoke`, and `chat.render_graph`, whichever of those the route actually runs. Span attributes are `tool`, `surface`, `source_id`, `count`, `store`, `op`, `queue`, `event_type`, `kind`, `route`, `source`, `graph`, `model`, `mode`, `hops`, and `peer.service` on a client span. A principal, a query, an object id, and chunk text are not attributes. FastAPI's built-in telemetry is off, because it records the raw path. `/health`, `/metrics`, and the same readiness paths are counted and are not traced. The traces board leaves those roots out, and Loki does not keep the matching access lines. The traces board is `kbs-traces`. The chat row filters `chat.turn` and the chat logs for one trace id. Tempo's metrics generator remote-writes span metrics and a service graph. `traces_spanmetrics_calls_total` and `traces_spanmetrics_latency` count finished spans by `service`, `span_name`, `span_kind`, and `status_code`. `traces_service_graph_request_total`, `traces_service_graph_request_failed_total`, and `traces_service_graph_request_server_seconds` count an edge from a client or producer span to the matching server or consumer span. The service graph board is `kbs-service-graph`. Component boards are `kbs-frontend`, `kbs-gateway`, `kbs-ingestion-pipeline`, `kbs-store`, and `kbs-harness`. Chat rate and latency are on the frontend board. A malformed `traceparent` starts a new trace.

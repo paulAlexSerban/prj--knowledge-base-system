@@ -30,3 +30,4 @@ One decision per file. Spikes hold the longer reasoning. These records say what 
 | [0024](0024-demo-harness.md)          | FastAPI and SQLite harnesses. HTTP only.                                |
 | [0025](0025-chat-answer.md)           | LangChain writes the answer. The gateway does not.                      |
 | [0026](0026-query-router.md)          | Rules first. A model may only break a low-confidence tie.               |
+| [0027](0027-service-graph.md)         | One telemetry path. The service graph comes from span kind.             |

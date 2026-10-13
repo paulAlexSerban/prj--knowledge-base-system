@@ -9,6 +9,7 @@ import time
 
 import httpx
 from botocore.exceptions import BotoCoreError, ClientError
+from opentelemetry.trace import SpanKind
 
 from connector_core.runtime import prepare, sqs_client
 from connector_core.sync import Syncer
@@ -77,6 +78,7 @@ def main() -> None:
                 with span(
                     "hook.apply",
                     context=parent,
+                    span_kind=SpanKind.CONSUMER,
                     source_id="product",
                     event_type=notice.event_type,
                 ):

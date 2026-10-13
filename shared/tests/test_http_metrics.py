@@ -107,6 +107,46 @@ def test_server_span_continues_traceparent_and_drops_the_raw_path(monkeypatch) -
     assert "ada-lovelace" not in str(current.attributes)
 
 
+def test_malformed_traceparent_starts_a_new_trace(monkeypatch) -> None:
+    exporter = InMemorySpanExporter()
+    provider = TracerProvider()
+    provider.add_span_processor(SimpleSpanProcessor(exporter))
+    monkeypatch.setattr(
+        "shared.telemetry.trace.get_tracer",
+        lambda *_args, **_kwargs: provider.get_tracer("kbs"),
+    )
+
+    async def app(scope, receive, send) -> None:
+        await send({"type": "http.response.start", "status": 200, "headers": []})
+        await send({"type": "http.response.body", "body": b""})
+
+    wrapped = HttpMetricsMiddleware(app, templates=("/changes",))
+
+    async def receive() -> dict:
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+    async def send(_message: dict) -> None:
+        return None
+
+    asyncio.run(
+        wrapped(
+            {
+                "type": "http",
+                "path": "/changes",
+                "method": "GET",
+                "headers": [(b"traceparent", b"not-a-traceparent")],
+            },
+            receive,
+            send,
+        )
+    )
+    finished = exporter.get_finished_spans()
+    assert len(finished) == 1
+    assert finished[0].name == "GET /changes"
+    assert finished[0].parent is None or not finished[0].parent.is_valid
+    assert format(finished[0].context.trace_id, "032x") != "notatraceparent"
+
+
 def test_health_is_counted_and_not_traced(monkeypatch) -> None:
     exporter = InMemorySpanExporter()
     provider = TracerProvider()

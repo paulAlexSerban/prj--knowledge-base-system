@@ -14,6 +14,7 @@ from gateway_core.metrics import RECHECK_FAILURES, RECHECK_SECONDS
 from knowledge_store.acl import Principal, allows, map_acl
 from knowledge_store.postgres import Hit
 from shared.contracts.source_contract import SourceContract
+from shared.telemetry import client_span, peer_host, trace_headers
 
 
 class RecheckFailed(Exception):
@@ -35,9 +36,17 @@ class HttpAclRecheck(AclSource):
         if not self.base_url:
             raise RecheckFailed("no harness url")
         url = f"{self.base_url}/policies/{object_id}/acl"
+        peer = peer_host(self.base_url) or "harness-hr"
         try:
-            with urllib.request.urlopen(url, timeout=self.timeout) as response:
-                body = json.loads(response.read().decode())
+            with client_span(peer, "acl.recheck.http"):
+                request = urllib.request.Request(url, headers=trace_headers())
+                try:
+                    with urllib.request.urlopen(request, timeout=self.timeout) as response:
+                        body = json.loads(response.read().decode())
+                except urllib.error.HTTPError as exc:
+                    if exc.code == 404:
+                        return None
+                    raise
             values = body["native_acl"]
         except urllib.error.HTTPError as exc:
             if exc.code == 404:

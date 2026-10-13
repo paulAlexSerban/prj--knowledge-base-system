@@ -8,6 +8,7 @@ user's OIDC token replaces the persona token.
 import time
 
 import httpx
+from opentelemetry.trace import SpanKind
 
 from chat_ui.metrics import record_gateway
 from shared.telemetry import span, trace_headers
@@ -30,7 +31,8 @@ class Gateway:
     def ask(self, persona: str, query: str, limit: int = 5) -> dict:
         started = time.perf_counter()
         try:
-            with span("chat.gateway.ask"):
+            with span("chat.gateway.ask", span_kind=SpanKind.CLIENT) as current:
+                current.set_attribute("peer.service", "gateway-api")
                 with span("chat.token"):
                     bearer = self.token(persona)
                 response = self._client.post(

@@ -35,7 +35,7 @@ This repository is a POC knowledge gateway: ingest four department sources, keep
 | `notebooks/`                             | Jupyter notebooks that seed, inspect, and edit the HR harness (`00`–`30`), reset and edit the other three sources (`02`, `14`–`16`), call the gateway (`40`–`44`), and run two read-only LangChain agents over MCP (`50`, `51`). |
 | `infrastructure/orchestration/`          | One Compose file per trust area, plus `compose.yaml` which includes them.                                                                                                                                                        |
 | `infrastructure/provisioning/terraform/` | Tier queues, the product hook queue, their dead-letter queues, and the snapshot bucket on floci.                                                                                                                                 |
-| `observability/`                         | Alloy, Loki, Prometheus, Tempo, five dashboards, and metric definitions.                                                                                                                                                         |
+| `observability/`                         | Alloy, Loki, Prometheus, Tempo, Grafana boards, and metric definitions.                                                                                                                                                          |
 | `tools/`                                 | `scripts/` (`setup.sh`, `seed.py`, `demo.py`, `kbs_client.py`, `dlq_replay.py`), `eval/` (`golden.yaml`, `run.py`), and `tests/`. Scripts call the gateway and harnesses over HTTP only.                                         |
 
 ## Stack and commands
@@ -82,7 +82,7 @@ Stay on the POC: four sources, the two demo questions, hybrid search, a small on
 
 ## Docs and diagrams
 
-Write in plain sentences. No emojis. No mermaid in docs. Diagrams are drawio files plus a PNG export in `_docs/99--dagrams/`. Match the files already there: black canvas, Courier New labels, white arrows, and blue containers (`#1061B0` on the data-flow boxes, the C4 stencil blue on the context diagrams). Link files with relative paths.
+Write in plain sentences. No emojis. Architecture diagrams stay drawio files plus a PNG export in `_docs/99--dagrams/`. Match the files already there: black canvas, Courier New labels, white arrows, and blue containers (`#1061B0` on the data-flow boxes, the C4 stencil blue on the context diagrams). Observability diagrams are mermaid in the doc. Link files with relative paths.
 
 ## Secrets and local files
 

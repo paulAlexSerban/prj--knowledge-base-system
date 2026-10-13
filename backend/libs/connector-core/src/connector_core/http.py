@@ -6,6 +6,7 @@ import time
 import httpx
 
 from connector_core.base import ConnectorError
+from shared.telemetry import client_span, peer_host, trace_headers
 
 
 def canonical_record(record: dict) -> bytes:
@@ -29,11 +30,16 @@ class HarnessClient:
         self.backoff = backoff
 
     def get(self, path: str, params: dict | None = None) -> httpx.Response:
+        peer = peer_host(str(self.client.base_url)) or "harness"
+        with client_span(peer, "harness.get"):
+            return self._get(path, params)
+
+    def _get(self, path: str, params: dict | None) -> httpx.Response:
         delay = self.backoff
         last: Exception | None = None
         for attempt in range(self.attempts):
             try:
-                response = self.client.get(path, params=params)
+                response = self.client.get(path, params=params, headers=trace_headers())
             except httpx.TransportError as exc:
                 last = exc
             else:

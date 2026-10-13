@@ -12,6 +12,7 @@ import logging
 from datetime import UTC, datetime
 
 from botocore.exceptions import BotoCoreError, ClientError
+from opentelemetry.trace import SpanKind
 from pydantic import ValidationError
 
 from ingest_contract.events import DLQ_FOR, TIER_ORDER, ChangeEvent, fit_sqs_id
@@ -116,7 +117,12 @@ class Consumer:
 
     def _handle_message(self, queue_name: str, message: dict) -> bool:
         """True when the message was deleted. False when it stays in flight."""
-        with span("sqs.consume", context=sqs_parent(message), queue=queue_name) as current:
+        with span(
+            "sqs.consume",
+            context=sqs_parent(message),
+            span_kind=SpanKind.CONSUMER,
+            queue=queue_name,
+        ) as current:
             return self._apply(queue_name, message, current)
 
     def _apply(self, queue_name: str, message: dict, current) -> bool:

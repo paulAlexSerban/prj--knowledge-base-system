@@ -3,7 +3,9 @@ apiVersion: 1
 providers:
   - name: kbs
     # foldersFromFilesStructure places each subdirectory in its own folder.
-    # The directory names are overview, ingestion, retrieval-access, and platform.
+    # Each subdirectory is a folder: overview, ingestion, retrieval-access,
+    # platform, traces, frontend, gateway, ingestion-pipeline, store,
+    # harness, and service-graph.
     # UI edits are not written back. Change the JSON and commit it.
     folder: KBS
     type: file

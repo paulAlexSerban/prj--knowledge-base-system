@@ -4,6 +4,8 @@ import json
 import urllib.error
 import urllib.request
 
+from shared.telemetry import client_span, peer_host, trace_headers
+
 EVENTS = frozenset({"create", "update", "delete"})
 
 
@@ -18,14 +20,16 @@ class Notifier:
         body = json.dumps(
             {"source_id": "product", "object_id": object_id, "event_type": event_type}
         ).encode()
-        request = urllib.request.Request(
-            self.url,
-            data=body,
-            headers={"content-type": "application/json"},
-            method="POST",
-        )
+        peer = peer_host(self.url) or "webhook-receiver"
         try:
-            with urllib.request.urlopen(request, timeout=self.timeout) as response:
-                return 200 <= response.status < 300
+            with client_span(peer, "product.hook"):
+                request = urllib.request.Request(
+                    self.url,
+                    data=body,
+                    headers={"content-type": "application/json", **trace_headers()},
+                    method="POST",
+                )
+                with urllib.request.urlopen(request, timeout=self.timeout) as response:
+                    return 200 <= response.status < 300
         except (urllib.error.URLError, TimeoutError, OSError):
             return False

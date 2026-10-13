@@ -170,7 +170,7 @@ Contracts live in [infrastructure/config/sources](infrastructure/config/sources)
 | `frontend/`                         | Streamlit chat page `chat-ui`. Own image. Calls the REST API only. Metrics on port 9105, scraped by Alloy.                                                                                          |
 | `notebooks/`                        | Jupyter notebooks that seed and edit HR (`00`–`30`), reset and edit the other three sources (`02`, `14`–`16`), call the gateway (`40`–`44`), and run two read-only LangChain agents (`50`, `51`). |
 | `infrastructure/`                   | Compose projects, Terraform for floci, source contracts.                                                                                                                                          |
-| `observability/`                    | Alloy, Loki, Tempo, Prometheus, five Grafana dashboards, and metric definitions.                                                                                                                  |
+| `observability/`                    | Alloy, Loki, Tempo, Prometheus, Grafana boards including a service graph, and metric definitions.                                                                                                 |
 | `tools/`                            | `scripts/` (`setup.sh`, `seed.py`, `demo.py`, `dlq_replay.py`), `eval/` (golden set and runner), and their tests.                                                                                 |
 | `.github/workflows/`                | Contract gate and Compose config CI.                                                                                                                                                              |
 

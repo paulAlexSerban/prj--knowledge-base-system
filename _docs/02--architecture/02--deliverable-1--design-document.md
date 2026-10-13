@@ -65,7 +65,7 @@ Source drawio: [02-end-to-end-data-flow.drawio](../99--dagrams/02-end-to-end-dat
 | Neo4j             | Derived graph. Rebuildable from Postgres and the structured sources.                                          |
 | Service layer     | Retrieval, graph templates, principal handling, authorization, audit. Shared by both adapters.                |
 | REST API, MCP     | Thin adapters. Validate the token, call the service layer, return cited results.                              |
-| Observability     | Alloy, Prometheus, Loki, Tempo, Grafana.                                                                      |
+| Observability     | Alloy, Prometheus, Loki, Tempo, Grafana. Tempo draws the service graph from span kind.                |
 
 ### Data flow, source to agent
 
@@ -216,7 +216,7 @@ Status: built, including the delete verification and the DLQ replay. Not built: 
 | Identity                   | Mock IdP issuing JWTs                                          | The claim contract is what the service enforces. Only `gateway_core.auth` knows the signer.                        | MCP as the boundary. Per-agent store access.                                                                                                             |
 | Local AWS and IaC          | floci and Terraform with endpoint overrides, one-shot container | Real Terraform resources against an emulator. Same files move to AWS with a provider block and a state backend.    | LocalStack (heavier). CloudWatch on floci: metrics and logs stay on Prometheus and Loki so they behave the same in Compose.                              |
 | Retrieval extras           | Reciprocal rank fusion only                                    | No score calibration needed. The measured recall leaves no gap to close.                                           | Cross-encoder reranker, community-summary GraphRAG: no measured gap.                                                                                     |
-| Observability              | Alloy, Prometheus, Loki, Tempo, Grafana, dashboards as code    | Freshness and authorization are distributions, a deny is one log line, one change is one trace across the queue.   | Logs only. Scraping without a collector. Jaeger beside Tempo.                                                                                            |
+| Observability              | Alloy, Prometheus, Loki, Tempo, Grafana, dashboards as code    | Freshness and authorization are distributions, a deny is one log line, one change is one trace across the queue. The service graph is the same traces. | Logs only. Scraping without a collector. Jaeger beside Tempo.                                                                                            |
 | Packaging                  | uv workspace, one image per deployable, Compose per trust area | Reproducible installs, separate blast radius for the gateway, workers, and connectors.                             | pip and venv. One image for everything.                                                                                                                  |
 
 ### Production path on AWS (not built)

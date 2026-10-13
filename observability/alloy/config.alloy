@@ -147,9 +147,10 @@ otelcol.receiver.otlp "kbs" {
   }
 }
 
-// Drop probe spans and FastAPI's internal handler spans. A feature span stays:
-// chat.turn, router.classify, embed.query, retrieval, and connector.sync.
-// The name filter does not drop those.
+// Drop probe spans and FastAPI's internal handler spans. A feature span stays,
+// including client and server spans the service graph needs: harness.get,
+// product.hook, acl.recheck.http, chat.gateway.ask, and GET or POST feature
+// routes. sqs.publish and sqs.consume stay too. The name filter does not drop those.
 otelcol.processor.filter "features" {
   error_mode = "ignore"
 

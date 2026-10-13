@@ -13,6 +13,7 @@ import boto3
 import uvicorn
 from botocore.exceptions import BotoCoreError, ClientError
 from fastapi import FastAPI, HTTPException, Request
+from opentelemetry.trace import SpanKind
 from prometheus_client import REGISTRY, Counter, make_asgi_app
 from pydantic import ValidationError
 
@@ -90,6 +91,7 @@ def enqueue(notice: HookNotice) -> None:
     url = client.get_queue_url(QueueName=HOOK_QUEUE)["QueueUrl"]
     with span(
         "sqs.publish",
+        span_kind=SpanKind.PRODUCER,
         queue=HOOK_QUEUE,
         source_id="product",
         event_type=notice.event_type,
