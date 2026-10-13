@@ -2,15 +2,13 @@ apiVersion: 1
 
 providers:
   - name: kbs
-    # foldersFromFilesStructure places each subdirectory in its own folder.
-    # Each subdirectory is a folder: overview, ingestion, retrieval-access,
-    # platform, traces, frontend, gateway, ingestion-pipeline, store,
-    # harness, and service-graph.
-    # UI edits are not written back. Change the JSON and commit it.
+    # One folder. Subdirectories stay in git so the files are grouped.
+    # They are not Grafana folders. UI edits are not written back.
     folder: KBS
+    folderUid: kbs
     type: file
     allowUiUpdates: false
     disableDeletion: true
     options:
       path: /var/lib/grafana/dashboards
-      foldersFromFilesStructure: true
+      foldersFromFilesStructure: false
