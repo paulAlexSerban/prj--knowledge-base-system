@@ -1,6 +1,6 @@
 # Chat page. It calls the gateway REST API with a persona token and holds no store
-# credentials. It never joins kbs-data. kbs-obs is only so traces can reach Alloy.
-# Streamlit has no /metrics endpoint and is not a Prometheus target.
+# credentials. It never joins kbs-data. kbs-obs carries traces to Alloy and lets
+# Alloy scrape the metrics port. Streamlit's own port has no /metrics endpoint.
 
 services:
   chat-ui:
@@ -13,10 +13,13 @@ services:
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       OPENROUTER_MODEL: ${OPENROUTER_MODEL:-openai/gpt-4o-mini}
       OTEL_EXPORTER_OTLP_ENDPOINT: http://alloy:4318
+      GRAFANA_URL: ${GRAFANA_URL:-http://127.0.0.1:3000}
       HOME: /tmp
     networks: [kbs-sources, kbs-obs]
     ports:
       - "127.0.0.1:8501:8501"
+    expose:
+      - "9105"
     healthcheck:
       test:
         [

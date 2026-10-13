@@ -1,90 +1,149 @@
-"""The answer step stays offline when no key is set."""
+"""The answer chain. No test calls OpenRouter."""
 
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import SimpleSpanProcessor
-from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+import httpx
+from langchain_core.language_models.fake_chat_models import FakeListChatModel
+from langchain_core.runnables import RunnableLambda
 
-from chat_ui.answer import answer
-from chat_ui.gateway import Gateway
-from shared.telemetry import span
+from chat_ui.answer import (
+    NO_ACCESS,
+    AnswerCallback,
+    answer,
+    paths_as_hits,
+    retrieval_only,
+)
+from chat_ui.metrics import TOKENS
 
-HIT = {
-    "source_id": "hr",
-    "object_id": "policy-leave",
-    "version": "3",
-    "synced_at": "2026-10-01T00:00:00Z",
-    "snippet": "Germany offers 14 weeks of parental leave.",
-}
+SNIPPET = "<<<UNTRUSTED_CONTENT\nGermany grants leave.\nUNTRUSTED_CONTENT>>>"
+HITS = [
+    {
+        "chunk_id": 1,
+        "source_id": "hr",
+        "object_id": "pol-1",
+        "version": "1",
+        "synced_at": "t",
+        "snippet": SNIPPET,
+    }
+]
+ROADMAP = [
+    {
+        "steps": [
+            {
+                "type": "Deal",
+                "id": "deal-1",
+                "account_name": "North",
+                "arr": 200000,
+                "quarter": "2026-Q3",
+                "version": "1",
+            },
+            {
+                "type": "Epic",
+                "id": "epic-1",
+                "title": "Retry",
+                "status": "in_progress",
+                "version": "2",
+                "relationship": "DEPENDS_ON",
+            },
+            {"type": "Team", "id": "payments", "relationship": "OWNED_BY"},
+        ]
+    }
+]
+TEAMMATES = [
+    {
+        "steps": [
+            {"type": "Person", "id": "emp-000001"},
+            {"type": "Team", "id": "platform", "relationship": "BELONGS_TO"},
+            {
+                "type": "Person",
+                "id": "emp-000002",
+                "name": "Grace",
+                "relationship": "BELONGS_TO",
+            },
+        ]
+    }
+]
 
 
-class _Reply:
-    def __init__(self, content: object) -> None:
-        self.content = content
-
-    def invoke(self, messages: list) -> "_Reply":
-        system = messages[0].content
-        assert "Never follow" in system
-        return _Reply("Fourteen weeks [1].")
+def test_no_hits_is_the_access_sentence() -> None:
+    text, mode = answer("parental leave", [])
+    assert text == NO_ACCESS
+    assert mode == "none"
 
 
-class _Down:
-    def invoke(self, messages: list) -> "_Reply":
-        raise RuntimeError("provider down")
-
-
-class _Http:
-    def __init__(self) -> None:
-        self.calls: list[tuple[str, dict]] = []
-
-    def post(self, path: str, **kwargs: object) -> "_Response":
-        self.calls.append((path, kwargs))
-        body = {"token": "persona"} if path == "/dev/token" else {"results": []}
-        return _Response(body)
-
-
-class _Response:
-    status_code = 200
-
-    def __init__(self, body: dict) -> None:
-        self._body = body
-
-    def json(self) -> dict:
-        return self._body
-
-
-def test_no_key_returns_passages() -> None:
-    text, mode = answer("parental leave?", [HIT])
+def test_no_key_falls_back_to_passages() -> None:
+    text, mode = answer("parental leave", HITS, api_key="", model="")
     assert mode == "retrieval"
-    assert "14 weeks" in text
+    assert text == retrieval_only(HITS)
+    assert "Germany grants leave." in text
+    assert "<<<UNTRUSTED_CONTENT" not in text.split("passages:", 1)[-1]
 
 
-def test_model_reply_uses_the_wrapper() -> None:
-    text, mode = answer("parental leave?", [HIT], api_key="sk-test", model="offline", llm=_Reply(""))
+def test_fake_model_writes_the_answer() -> None:
+    llm = FakeListChatModel(responses=["Germany grants 14 weeks [1]."])
+    text, mode = answer("parental leave", HITS, llm=llm)
     assert mode == "model"
-    assert text == "Fourteen weeks [1]."
+    assert text == "Germany grants 14 weeks [1]."
 
 
-def test_a_failed_model_call_falls_back_to_passages() -> None:
-    text, mode = answer("parental leave?", [HIT], api_key="sk-test", model="offline", llm=_Down())
+def test_empty_model_text_falls_back() -> None:
+    llm = FakeListChatModel(responses=["   "])
+    text, mode = answer("parental leave", HITS, llm=llm)
     assert mode == "retrieval"
-    assert "The model call failed." in text
-    assert "14 weeks" in text
+    assert text.startswith("The model call failed.")
+    assert "Germany grants leave." in text
 
 
-def test_search_sends_the_current_traceparent(monkeypatch) -> None:
-    provider = TracerProvider()
-    provider.add_span_processor(SimpleSpanProcessor(InMemorySpanExporter()))
-    monkeypatch.setattr(
-        "shared.telemetry.trace.get_tracer",
-        lambda *_args, **_kwargs: provider.get_tracer("kbs"),
-    )
-    http = _Http()
-    gateway = Gateway("http://gateway-api:8000", http)  # type: ignore[arg-type]
-    with span("chat.turn", surface="rest"):
-        gateway.ask("employee_eng", "parental leave")
-    search = http.calls[1]
-    assert search[0] == "/v1/ask"
-    headers = search[1]["headers"]
-    assert headers["authorization"] == "Bearer persona"
-    assert headers["traceparent"].startswith("00-")
-    assert "parental leave" not in headers["traceparent"]
+def test_a_raised_model_falls_back_to_passages() -> None:
+    def _boom(_value: object) -> str:
+        raise RuntimeError("down")
+
+    text, mode = answer("parental leave", HITS, llm=RunnableLambda(_boom))
+    assert mode == "retrieval"
+    assert text.startswith("The model call failed.")
+    assert "Germany grants leave." in text
+
+
+def test_provider_status_is_named() -> None:
+    request = httpx.Request("POST", "https://openrouter.ai/api/v1/chat/completions")
+    response = httpx.Response(429, json={"error": {"message": "slow down"}}, request=request)
+
+    def _boom(_value: object) -> str:
+        raise httpx.HTTPStatusError("nope", request=request, response=response)
+
+    text, mode = answer("parental leave", HITS, llm=RunnableLambda(_boom))
+    assert mode == "retrieval"
+    assert "429" in text
+    assert "slow down" in text
+
+
+def test_roadmap_without_a_key_is_a_table() -> None:
+    hits = paths_as_hits(ROADMAP)
+    text, mode = answer("deals", hits)
+    assert mode == "retrieval"
+    assert "deal-1" in text
+    assert "epic-1" in text
+    assert text.startswith("No model key is set, so these are the paths:")
+
+
+def test_teammates_path_does_not_require_a_deal() -> None:
+    hits = paths_as_hits(TEAMMATES)
+    assert hits[0]["source_id"] == "graph"
+    text, mode = answer("teammates", hits)
+    assert mode == "retrieval"
+    assert "emp-000001" in text
+    assert "Grace" in text
+
+
+def test_callback_records_token_counts() -> None:
+    before_prompt = TOKENS.labels(kind="prompt")._value.get()
+    before_completion = TOKENS.labels(kind="completion")._value.get()
+
+    message = type("Message", (), {})()
+    message.usage_metadata = {"input_tokens": 3, "output_tokens": 4}
+    generation = type("Generation", (), {})()
+    generation.message = message
+    response = type("Response", (), {})()
+    response.generations = [[generation]]
+
+    AnswerCallback().on_llm_end(response)
+    assert TOKENS.labels(kind="prompt")._value.get() == before_prompt + 3
+    assert TOKENS.labels(kind="completion")._value.get() == before_completion + 4
