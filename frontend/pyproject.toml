@@ -6,6 +6,7 @@ requires-python = ">=3.12"
 dependencies = [
   "httpx>=0.28.1",
   "langchain-openai>=1.7.0",
+  "prometheus-client>=0.26.0",
   "shared",
   "streamlit>=1.40",
 ]

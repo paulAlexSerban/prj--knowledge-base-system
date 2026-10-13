@@ -281,7 +281,7 @@ Faithfulness is a citation check: every claim must map to a returned chunk id. A
 
 ### In operation
 
-Each service exports metrics, structured logs with `request_id` and `trace_id`, and traces, so one object change or one search is one trace across the queue.
+Each service exports metrics, structured logs with `request_id` and `trace_id`, and traces, so one object change or one search is one trace across the queue. A chat question is a second trace, rooted at the page and continued through the gateway into the stores. The chat page is scraped at `chat-ui:9105`.
 
 | Signal                              | Why it matters                                                 |
 | ----------------------------------- | -------------------------------------------------------------- |
@@ -292,6 +292,7 @@ Each service exports metrics, structured logs with `request_id` and `trace_id`, 
 | Retrieval latency and ACL re-check latency | The 250 ms budget.                                      |
 | Empty-result rate per permission group | The earliest visible sign of an authorization defect.       |
 | Auth failures, deny log lines       | Misuse and mapping errors.                                     |
+| Chat turn, gateway time, model time, tokens, graph hops | The page is on the same trace as retrieval. A model call is outside the 250 ms budget. |
 
 POC alerts are dashboard thresholds: tier-0 lag over 30 seconds, any dead-letter message, any delete verification failure. There is no Alertmanager.
 

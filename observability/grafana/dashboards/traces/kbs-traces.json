@@ -80,7 +80,9 @@
                   "countRows": false,
                   "enablePagination": false,
                   "fields": "",
-                  "reducer": ["sum"],
+                  "reducer": [
+                    "sum"
+                  ],
                   "show": false
                 }
               },
@@ -143,7 +145,9 @@
                   "countRows": false,
                   "enablePagination": false,
                   "fields": "",
-                  "reducer": ["sum"],
+                  "reducer": [
+                    "sum"
+                  ],
                   "show": false
                 }
               },
@@ -206,7 +210,9 @@
                   "countRows": false,
                   "enablePagination": false,
                   "fields": "",
-                  "reducer": ["sum"],
+                  "reducer": [
+                    "sum"
+                  ],
                   "show": false
                 }
               },
@@ -215,6 +221,137 @@
                 "overrides": []
               }
             }
+          }
+        }
+      },
+      "panel-73": {
+        "kind": "Panel",
+        "spec": {
+          "id": 73,
+          "title": "Chat turns",
+          "description": "Traces whose root is chat.turn. Open a trace id to see the gateway, the router, retrieval, and the stores in the same trace. Ingestion of an object is a different trace: the connector starts it and the worker continues it from the SQS traceparent. Find that one in Explore with { span.source_id = \"hr\" }. No rows means the page has no OTEL_EXPORTER_OTLP_ENDPOINT or nobody asked.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "refId": "A",
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "tempo",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "tempo",
+                        "uid": "tempo"
+                      },
+                      "spec": {
+                        "filters": [],
+                        "limit": 20,
+                        "query": "{ resource.service.name = \"chat-ui\" && name = \"chat.turn\" }",
+                        "queryType": "traceql",
+                        "tableType": "traces"
+                      }
+                    }
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "table",
+            "version": "13.2.3",
+            "spec": {
+              "options": {
+                "cellHeight": "sm",
+                "showHeader": true,
+                "footer": {
+                  "countRows": false,
+                  "enablePagination": false,
+                  "fields": "",
+                  "reducer": [
+                    "sum"
+                  ],
+                  "show": false
+                }
+              },
+              "fieldConfig": {
+                "defaults": {},
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-74": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "loki",
+                        "uid": "loki"
+                      },
+                      "group": "loki",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "{service=\"chat-ui\"} | json | trace_id=~\"${trace_id}\"",
+                        "queryType": "range"
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Chat lines for the trace id variable. .+ shows every chat line that has a trace id. Paste a trace id from the chat caption to keep one turn. The trace_id field opens the Tempo trace. The line has the persona and the route, and it has no question and no token.",
+          "id": 74,
+          "links": [],
+          "title": "Chat logs for a trace",
+          "vizConfig": {
+            "group": "logs",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {},
+                "overrides": []
+              },
+              "options": {
+                "dedupStrategy": "none",
+                "enableInfiniteScrolling": false,
+                "enableLogDetails": true,
+                "prettifyLogMessage": false,
+                "showCommonLabels": false,
+                "showControls": false,
+                "showFieldSelector": false,
+                "showLabels": true,
+                "showLevel": true,
+                "showTime": true,
+                "sortOrder": "Descending",
+                "timestampResolution": "ms",
+                "unwrappedColumns": false,
+                "wrapLogMessage": true
+              }
+            },
+            "version": "13.2.3"
           }
         }
       }
@@ -276,6 +413,46 @@
                 }
               }
             }
+          },
+          {
+            "kind": "RowsLayoutRow",
+            "spec": {
+              "collapse": false,
+              "title": "Chat",
+              "layout": {
+                "kind": "GridLayout",
+                "spec": {
+                  "items": [
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-73"
+                        },
+                        "height": 10,
+                        "width": 12,
+                        "x": 0,
+                        "y": 0
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-74"
+                        },
+                        "height": 10,
+                        "width": 12,
+                        "x": 12,
+                        "y": 0
+                      }
+                    }
+                  ]
+                }
+              }
+            }
           }
         ]
       }
@@ -308,10 +485,24 @@
     ],
     "liveNow": false,
     "preload": false,
-    "tags": ["kbs", "traces"],
+    "tags": [
+      "kbs",
+      "traces"
+    ],
     "timeSettings": {
       "autoRefresh": "",
-      "autoRefreshIntervals": ["5s", "10s", "30s", "1m", "5m", "15m", "30m", "1h", "2h", "1d"],
+      "autoRefreshIntervals": [
+        "5s",
+        "10s",
+        "30s",
+        "1m",
+        "5m",
+        "15m",
+        "30m",
+        "1h",
+        "2h",
+        "1d"
+      ],
       "fiscalYearStartMonth": 0,
       "from": "now-15m",
       "hideTimepicker": false,
@@ -353,6 +544,21 @@
               "refId": "A"
             }
           }
+        }
+      },
+      {
+        "kind": "TextVariable",
+        "spec": {
+          "name": "trace_id",
+          "label": "Trace id",
+          "description": "Paste a trace id from the chat caption. .+ shows every chat line.",
+          "hide": "dontHide",
+          "skipUrlSync": false,
+          "current": {
+            "text": ".+",
+            "value": ".+"
+          },
+          "query": ".+"
         }
       }
     ]

@@ -5,9 +5,12 @@ persona token, then calls /v1/ask with that token. Production path: the browser
 user's OIDC token replaces the persona token.
 """
 
+import time
+
 import httpx
 
-from shared.telemetry import trace_headers
+from chat_ui.metrics import record_gateway
+from shared.telemetry import span, trace_headers
 
 
 class GatewayError(Exception):
@@ -25,12 +28,18 @@ class Gateway:
         return str(response.json()["token"])
 
     def ask(self, persona: str, query: str, limit: int = 5) -> dict:
-        bearer = self.token(persona)
-        response = self._client.post(
-            "/v1/ask",
-            json={"query": query, "limit": limit},
-            headers={"authorization": f"Bearer {bearer}", **trace_headers()},
-        )
-        if response.status_code != 200:
-            raise GatewayError(f"ask: HTTP {response.status_code}")
-        return response.json()
+        started = time.perf_counter()
+        try:
+            with span("chat.gateway.ask"):
+                with span("chat.token"):
+                    bearer = self.token(persona)
+                response = self._client.post(
+                    "/v1/ask",
+                    json={"query": query, "limit": limit},
+                    headers={"authorization": f"Bearer {bearer}", **trace_headers()},
+                )
+                if response.status_code != 200:
+                    raise GatewayError(f"ask: HTTP {response.status_code}")
+                return response.json()
+        finally:
+            record_gateway(time.perf_counter() - started)

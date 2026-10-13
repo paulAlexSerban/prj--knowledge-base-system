@@ -125,6 +125,13 @@ prometheus.relabel "kbs" {
     target_label  = "trust_area"
     replacement   = "ingestion"
   }
+
+  rule {
+    source_labels = ["job"]
+    regex         = "chat-ui"
+    target_label  = "trust_area"
+    replacement   = "frontend"
+  }
 }
 
 // Applications export OTLP to Alloy. Tempo is the only trace store.
@@ -140,9 +147,9 @@ otelcol.receiver.otlp "kbs" {
   }
 }
 
-// Drop probe spans and FastAPI's internal handler spans. A feature span such
-// as GET /v1/search or connector.sync stays, including when an old image
-// still emits it from the fastapi scope.
+// Drop probe spans and FastAPI's internal handler spans. A feature span stays:
+// chat.turn, router.classify, embed.query, retrieval, and connector.sync.
+// The name filter does not drop those.
 otelcol.processor.filter "features" {
   error_mode = "ignore"
 
@@ -252,11 +259,19 @@ prometheus.scrape "harness_product" {
   forward_to      = [prometheus.relabel.kbs.receiver]
 }
 
-// jupyter publishes no /metrics endpoint and is intentionally not scraped.
-
 prometheus.scrape "harness_engineering" {
   targets         = [{__address__ = "harness-engineering:8080"}]
   job_name        = "harness-engineering"
   scrape_interval = "15s"
   forward_to      = [prometheus.relabel.kbs.receiver]
 }
+
+// Streamlit has no /metrics on 8501. The page listens on 9105 for this scrape.
+prometheus.scrape "chat_ui" {
+  targets         = [{__address__ = "chat-ui:9105"}]
+  job_name        = "chat-ui"
+  scrape_interval = "15s"
+  forward_to      = [prometheus.relabel.kbs.receiver]
+}
+
+// jupyter publishes no /metrics endpoint and is intentionally not scraped.

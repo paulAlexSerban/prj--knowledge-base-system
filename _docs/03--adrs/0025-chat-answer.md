@@ -8,7 +8,7 @@ The gateway returns cited chunks or a graph path. Someone still has to turn that
 
 ## Decision
 
-`frontend/` is a Streamlit page, its own image, and it calls the REST API only. When `OPENROUTER_API_KEY` is set, it sends the question and the cited snippets to OpenRouter through LangChain (`ChatOpenAI`, base URL `https://openrouter.ai/api/v1`). The model name is `OPENROUTER_MODEL`. Snippets are wrapped as untrusted content. If the key is missing or the call fails, the page shows the cited snippets. It has no tools and no store credentials. Notebooks `50` and `51` are two read-only LangChain agents over the MCP server, one for the policy question and one for `roadmap_deals`. They are not a deployed service. LangGraph is not used.
+`frontend/` is a Streamlit page, its own image, and it calls the REST API only. When `OPENROUTER_API_KEY` is set, it sends the question and the cited snippets to OpenRouter through a LangChain chain (`ChatPromptTemplate`, `ChatOpenAI`, `StrOutputParser`, base URL `https://openrouter.ai/api/v1`). The model name is `OPENROUTER_MODEL`. A missing key or a failed call falls back to the cited snippets. Snippets are wrapped as untrusted content. The page has no tools and no store credentials. A graph or hybrid route is drawn with Graphviz. Notebooks `50` and `51` are two read-only LangChain agents over the MCP server, one for the policy question and one for `roadmap_deals`. They are not a deployed service. LangGraph is not used.
 
 ## Alternatives rejected
 
@@ -19,4 +19,4 @@ The gateway returns cited chunks or a graph path. Someone still has to turn that
 ## Consequences
 
 - Answer quality depends on a third-party model and on the caller picking the right tool. The gateway does not correct a wrong pick.
-- The page has no `/metrics` endpoint and is not scraped. It joins `kbs-obs` only to export traces. The chat span is the parent of `POST /v1/search`.
+- The page exports metrics on `chat-ui:9105`, and Alloy scrapes that port. Streamlit's own port has no `/metrics`. The page joins `kbs-obs` for traces and for that scrape. `chat.turn` is the parent of `POST /v1/ask`. A graph or hybrid answer is drawn as a path. The ingestion of an object is a separate trace, continued from the SQS `traceparent`.

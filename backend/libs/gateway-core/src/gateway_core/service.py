@@ -37,7 +37,11 @@ class GatewayService:
         self, principal: Principal, query: str, limit: int, request_id: str
     ) -> dict[str, object]:
         """Route one question, then run the same checked retrieval as the explicit tools."""
-        route = self.router.classify(query)
+        with span("router.classify") as current:
+            route = self.router.classify(query)
+            current.set_attribute("route", route.kind)
+            current.set_attribute("source", route.source)
+            current.set_attribute("graph", route.graph or "none")
         ROUTER.labels(route=route.kind, source=route.source).inc()
         if route.kind == "semantic" or route.graph is None:
             body = self.search(principal, query, limit, request_id)

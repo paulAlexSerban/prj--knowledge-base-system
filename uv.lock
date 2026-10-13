@@ -573,6 +573,7 @@ source = { editable = "frontend" }
 dependencies = [
     { name = "httpx" },
     { name = "langchain-openai" },
+    { name = "prometheus-client" },
     { name = "shared" },
     { name = "streamlit" },
 ]
@@ -581,6 +582,7 @@ dependencies = [
 requires-dist = [
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "langchain-openai", specifier = ">=1.7.0" },
+    { name = "prometheus-client", specifier = ">=0.26.0" },
     { name = "shared", editable = "shared" },
     { name = "streamlit", specifier = ">=1.40" },
 ]

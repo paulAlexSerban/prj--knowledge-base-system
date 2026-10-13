@@ -92,7 +92,7 @@ class KnowledgeStore:
         request_id: str = "",
         object_ids: list[str] | None = None,
     ) -> list[Hit]:
-        with span("embed"):
+        with span("embed.query", model=self.embedder.name):
             vector = self.embedder.embed_query(query)
         metrics.EMBED_CALLS.labels(model=self.embedder.name).inc()
         return self.chunks.search(

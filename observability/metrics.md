@@ -1,6 +1,6 @@
 # Metrics
 
-Alloy scrapes `gateway-api:8000`, `gateway-mcp:8001`, `connector-hr:9100`, `connector-engineering:9102`, `connector-sales:9103`, `connector-product:9104`, `ingestion-worker:9101`, and `webhook-receiver:8090`, and remote-writes to Prometheus. The four harnesses are scraped too. Jupyter, the chat page, pgAdmin, and the SQLite viewers are not. Prometheus scrapes itself, Alloy, Loki, and Tempo. `up` is the scrape result for every target: 1 is up, 0 is down. Labels are the ones named below. Object ids, principals, native ACL lists, and chunk text are not labels.
+Alloy scrapes `gateway-api:8000`, `gateway-mcp:8001`, `connector-hr:9100`, `connector-engineering:9102`, `connector-sales:9103`, `connector-product:9104`, `ingestion-worker:9101`, `webhook-receiver:8090`, and `chat-ui:9105`, and remote-writes to Prometheus. The four harnesses are scraped too. Jupyter, pgAdmin, and the SQLite viewers are not. Prometheus scrapes itself, Alloy, Loki, and Tempo. `up` is the scrape result for every target: 1 is up, 0 is down. Labels are the ones named below. Object ids, principals, native ACL lists, and chunk text are not labels.
 
 An earlier single overview board mixed counters with gauges and used one lag threshold for every source. Those panels were split and corrected. The metric names did not change.
 
@@ -93,6 +93,23 @@ A retrieval log line has `request_id`, `principal`, `decision` (`allow` or `deny
 
 `hash-v1` only returns a chunk that also matched full text. A vector-only neighbor is not an answer, so a query with no shared terms is an empty result.
 
+## Chat
+
+The chat page exposes these on `chat-ui:9105`. Streamlit's own port has no `/metrics`. Alloy scrapes 9105 on the internal network. That port is not published on the host. `trust_area` is `frontend`.
+
+`persona` is `employee_eng`, `hr_admin`, `outsider`, `product_lead`, or `other` when the value is not one of those. `route` is `semantic`, `relational`, `hybrid`, or `unknown`. `mode` is `none`, `model`, `retrieval`, `error`, or `unknown`. `outcome` is `ok`, `empty`, `error`, or `unknown`. The question, the bearer token, and retrieved text are not labels.
+
+| Metric | Labels | Meaning |
+| ------ | ------ | ------- |
+| `kbs_chat_turns_total` | `persona`, `route`, `mode`, `outcome` | Finished turns. `outcome="error"` is a gateway failure. A model failure that falls back to the snippets is `outcome="ok"` and `mode="retrieval"`. `outcome="empty"` is a turn with nothing the caller may read. |
+| `kbs_chat_turn_seconds` | | Whole turn, including the gateway and the model. |
+| `kbs_chat_gateway_seconds` | | Time in the dev-token call and `POST /v1/ask`. |
+| `kbs_chat_llm_seconds` | | One model call. No samples when no key is set, because the page does not call a model. |
+| `kbs_chat_llm_tokens_total` | `kind` (`prompt` or `completion`) | Tokens the model reported for that call. |
+| `kbs_chat_graph_hops` | | Edges drawn for a graph or hybrid turn. A semantic question is not in this series. Zero means the route returned no path. |
+
+A chat log line has `request_id`, `persona`, `route`, `mode`, `outcome`, `trace_id`, and `span_id`. It has no question and no token. `trace_id` is not a Loki label. The Loki datasource links that field to Tempo.
+
 ## Traces
 
-Traces are not Prometheus series. Each process exports OTLP to Alloy only when `OTEL_EXPORTER_OTLP_ENDPOINT` is set. Alloy forwards to Tempo. A change event carries `traceparent` as an SQS message attribute, and the worker continues that trace. Span attributes are `tool`, `surface`, `source_id`, `count`, `store`, `op`, `queue`, `event_type`, and `kind`. A principal, a query, an object id, and chunk text are not attributes. FastAPI's built-in telemetry is off, because it records the raw path. `/health`, `/metrics`, and the same readiness paths are counted and are not traced. The traces board leaves those roots out, and Loki does not keep the matching access lines. The traces board is `kbs-traces`. There is no service map.
+Traces are not Prometheus series. Each process exports OTLP to Alloy only when `OTEL_EXPORTER_OTLP_ENDPOINT` is set. Alloy forwards to Tempo. A change event carries `traceparent` as an SQS message attribute, and the worker continues that trace. That ingestion trace is separate from a later chat question. Find it by `source_id` on the connector and worker spans. A chat question is one trace: `chat.turn` is the root, then `chat.token`, `chat.gateway.ask`, `POST /v1/ask`, `router.classify`, `retrieval`, `embed.query`, `chunks.vector`, `chunks.full_text`, `graph.related`, `acl.recheck`, `audit.write`, `chat.answer`, `llm.invoke`, and `chat.render_graph`, whichever of those the route actually runs. Span attributes are `tool`, `surface`, `source_id`, `count`, `store`, `op`, `queue`, `event_type`, `kind`, `route`, `source`, `graph`, `model`, `mode`, and `hops`. A principal, a query, an object id, and chunk text are not attributes. FastAPI's built-in telemetry is off, because it records the raw path. `/health`, `/metrics`, and the same readiness paths are counted and are not traced. The traces board leaves those roots out, and Loki does not keep the matching access lines. The traces board is `kbs-traces`. The chat row filters `chat.turn` and the chat logs for one trace id. There is no service map.

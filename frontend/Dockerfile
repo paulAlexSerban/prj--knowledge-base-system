@@ -36,6 +36,7 @@ RUN uv sync --frozen --no-dev --no-default-groups --package chat-ui
 
 USER nobody
 EXPOSE 8501
+EXPOSE 9105
 CMD ["streamlit", "run", "frontend/src/chat_ui/app.py", \
      "--server.address=0.0.0.0", "--server.port=8501", \
      "--server.headless=true", "--browser.gatherUsageStats=false"]
