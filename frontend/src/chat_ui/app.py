@@ -18,23 +18,31 @@ DEMOS = (
         "label": "What is our parental leave policy in Germany?",
         "question": "What is our parental leave policy in Germany?",
         "persona": "employee_eng",
-        "tool": "search",
     },
     {
         "key": "roadmap",
         "label": ROADMAP_QUESTION,
         "question": ROADMAP_QUESTION,
         "persona": "product_lead",
-        "tool": "roadmap_deals",
     },
     {
         "key": "roadmap-outsider",
         "label": "Same roadmap question as an outsider",
         "question": ROADMAP_QUESTION,
         "persona": "outsider",
-        "tool": "roadmap_deals",
     },
 )
+
+
+def _hits(result: dict) -> list[dict]:
+    """Chunks when the router searched. A path is the answer when it did not."""
+    results = result.get("results") or []
+    paths = result.get("paths") or []
+    if results:
+        return list(results)
+    if paths:
+        return paths_as_hits(paths)
+    return []
 
 
 def personas() -> list[str]:
@@ -112,11 +120,9 @@ def main() -> None:
     pending_key = st.session_state.pop("pending", None)
     typed = st.chat_input("Ask about HR policy, for example parental leave in Germany")
     question = None
-    tool = "search"
     if pending_key:
         demo = next(item for item in DEMOS if item["key"] == pending_key)
         question = demo["question"]
-        tool = demo["tool"]
     elif typed:
         question = typed
     if not question:
@@ -130,19 +136,19 @@ def main() -> None:
         try:
             with span("chat.turn", surface="rest"):
                 with st.spinner("Searching"):
-                    if tool == "roadmap_deals":
-                        result = gateway().roadmap_deals(persona)
-                        hits = paths_as_hits(result["paths"])
-                    else:
-                        result = gateway().search(persona, question)
-                        hits = result["results"]
+                    result = gateway().ask(persona, question)
+                    hits = _hits(result)
                 text, mode = answer(
                     question,
                     hits,
                     os.environ.get("OPENROUTER_API_KEY", ""),
                     os.environ.get("OPENROUTER_MODEL", ""),
                 )
-                caption = f"mode: {mode}, request id: {result['request_id']}"
+                route = result.get("route") or {}
+                caption = (
+                    f"route: {route.get('class', 'unknown')} via {route.get('source', 'unknown')}, "
+                    f"mode: {mode}, request id: {result['request_id']}"
+                )
         except GatewayError as exc:
             hits, text, caption = [], f"The gateway could not answer ({exc}).", ""
         st.markdown(text)

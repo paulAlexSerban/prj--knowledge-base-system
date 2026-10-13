@@ -20,7 +20,7 @@ from gateway_core.auth import AuthError, issue_token, principal_from_token
 from gateway_core.metrics import AUTH_FAILURES
 from gateway_core.runtime import open_gateway
 from gateway_core.service import GatewayService
-from gateway_core.tools import FIND_RELATED, GET_DOCUMENT, LIST_SOURCES, SEARCH
+from gateway_core.tools import ASK, FIND_RELATED, GET_DOCUMENT, LIST_SOURCES, SEARCH
 from knowledge_store.acl import Principal
 from shared.http_metrics import HttpMetricsMiddleware
 from shared.logging import configure, log_event
@@ -35,6 +35,7 @@ HTTP_ROUTES = (
     "/metrics",
     "/v1/sources",
     "/v1/search",
+    "/v1/ask",
     "/v1/documents/{chunk_id}",
     "/v1/graph/related",
     "/dev/token",
@@ -42,6 +43,11 @@ HTTP_ROUTES = (
 
 
 class SearchBody(BaseModel):
+    query: str = Field(min_length=1, max_length=500)
+    limit: int = Field(default=5, ge=1, le=20)
+
+
+class AskBody(BaseModel):
     query: str = Field(min_length=1, max_length=500)
     limit: int = Field(default=5, ge=1, le=20)
 
@@ -100,6 +106,18 @@ def create_app(service: GatewayService | None = None) -> FastAPI:
         for item in payloads:
             item["last_success_at"] = None
         return payloads
+
+    @app.post("/v1/ask", description=ASK)
+    def ask(
+        body: AskBody, request: Request, principal: Principal = require_principal
+    ) -> dict[str, object]:
+        _require_service(request)
+        try:
+            return request.app.state.service.ask(
+                principal, body.query, body.limit, request.state.request_id
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     @app.post("/v1/search", description=SEARCH)
     def search(

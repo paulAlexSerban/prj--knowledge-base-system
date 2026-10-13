@@ -81,9 +81,9 @@ def test_search_sends_the_current_traceparent(monkeypatch) -> None:
     http = _Http()
     gateway = Gateway("http://gateway-api:8000", http)  # type: ignore[arg-type]
     with span("chat.turn", surface="rest"):
-        gateway.search("employee_eng", "parental leave")
+        gateway.ask("employee_eng", "parental leave")
     search = http.calls[1]
-    assert search[0] == "/v1/search"
+    assert search[0] == "/v1/ask"
     headers = search[1]["headers"]
     assert headers["authorization"] == "Bearer persona"
     assert headers["traceparent"].startswith("00-")

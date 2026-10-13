@@ -1,7 +1,7 @@
 """Client for the knowledge gateway REST API.
 
 The chat page holds no store credentials. It asks the dev token endpoint for a
-persona token, then calls search with that token. Production path: the browser
+persona token, then calls /v1/ask with that token. Production path: the browser
 user's OIDC token replaces the persona token.
 """
 
@@ -24,24 +24,13 @@ class Gateway:
             raise GatewayError(f"token for {persona}: HTTP {response.status_code}")
         return str(response.json()["token"])
 
-    def search(self, persona: str, query: str, limit: int = 5) -> dict:
+    def ask(self, persona: str, query: str, limit: int = 5) -> dict:
         bearer = self.token(persona)
         response = self._client.post(
-            "/v1/search",
+            "/v1/ask",
             json={"query": query, "limit": limit},
             headers={"authorization": f"Bearer {bearer}", **trace_headers()},
         )
         if response.status_code != 200:
-            raise GatewayError(f"search: HTTP {response.status_code}")
-        return response.json()
-
-    def roadmap_deals(self, persona: str) -> dict:
-        bearer = self.token(persona)
-        response = self._client.post(
-            "/v1/graph/related",
-            json={"kind": "roadmap_deals"},
-            headers={"authorization": f"Bearer {bearer}", **trace_headers()},
-        )
-        if response.status_code != 200:
-            raise GatewayError(f"roadmap_deals: HTTP {response.status_code}")
+            raise GatewayError(f"ask: HTTP {response.status_code}")
         return response.json()

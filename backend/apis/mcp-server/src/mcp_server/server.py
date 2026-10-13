@@ -25,7 +25,7 @@ from gateway_core.auth import AuthError, principal_from_token
 from gateway_core.metrics import AUTH_FAILURES
 from gateway_core.runtime import open_gateway
 from gateway_core.service import GatewayService
-from gateway_core.tools import FIND_RELATED, GET_DOCUMENT, LIST_SOURCES, SEARCH
+from gateway_core.tools import ASK, FIND_RELATED, GET_DOCUMENT, LIST_SOURCES, SEARCH
 from knowledge_store.acl import Principal
 from shared.http_metrics import HttpMetricsMiddleware
 from shared.logging import configure, log_event
@@ -59,6 +59,20 @@ class JwtVerifier(TokenVerifier):
 def build_server(service: GatewayService) -> FastMCP:
     service.surface = "mcp"
     server = FastMCP("knowledge-gateway", auth=JwtVerifier())
+
+    @server.tool(description=ASK)
+    async def ask_knowledge(query: str, limit: int = 5) -> dict[str, object]:
+        """Route one question, then search or walk a bounded graph template."""
+        principal = _caller()
+        request_id = _request_id()
+        bounded = max(1, min(limit, 20))
+        try:
+            with span("mcp.tool", tool="ask"):
+                return await anyio.to_thread.run_sync(
+                    _with_trace(partial(service.ask, principal, query, bounded, request_id))
+                )
+        except ValueError as exc:
+            return {"request_id": request_id, "error": str(exc)}
 
     @server.tool(description=SEARCH)
     async def search_knowledge(query: str, limit: int = 5) -> dict[str, object]:

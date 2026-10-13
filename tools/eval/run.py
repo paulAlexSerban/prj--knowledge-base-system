@@ -25,15 +25,28 @@ GOLDEN = Path(__file__).with_name("golden.yaml")
 def run_case(case: dict) -> dict:
     """Return {passed, rank, ms, detail}. rank is the 1-based position of the first expected id."""
     started = time.perf_counter()
-    if case["category"] == "graph":
-        paths = kbs.related(case["persona"], case["kind"])
-        ms = (time.perf_counter() - started) * 1000
-        seen = kbs.deal_ids(paths)
-        want = set(case["expect_deals"])
-        return {"passed": seen == want, "rank": None, "ms": ms, "detail": f"deals={sorted(seen)}"}
-
-    found = kbs.search(case["persona"], case["query"], limit=case.get("limit", 5))
+    body = kbs.ask(case["persona"], case["query"], limit=case.get("limit", 5))
     ms = (time.perf_counter() - started) * 1000
+    route = str((body.get("route") or {}).get("class"))
+    if case["category"] == "route":
+        return {
+            "passed": route == case["expect_route"],
+            "rank": None,
+            "ms": ms,
+            "detail": f"route={route}",
+        }
+    if case["category"] == "graph":
+        seen = kbs.deal_ids(list(body.get("paths") or []))
+        want = set(case["expect_deals"])
+        routed = route == case.get("expect_route", "relational")
+        return {
+            "passed": seen == want and routed,
+            "rank": None,
+            "ms": ms,
+            "detail": f"route={route} deals={sorted(seen)}",
+        }
+
+    found = list(body.get("results") or [])
     ids = [item["object_id"] for item in found]
     rank = None
     for expected in case.get("expect", []):
@@ -50,7 +63,14 @@ def run_case(case: dict) -> dict:
         passed = rank is not None
     else:
         passed = ids == []
-    return {"passed": passed, "rank": rank, "ms": ms, "detail": f"top={ids[:3]}"}
+    expected_route = case.get("expect_route", "semantic")
+    routed = route == expected_route
+    return {
+        "passed": passed and routed,
+        "rank": rank,
+        "ms": ms,
+        "detail": f"route={route} top={ids[:3]}",
+    }
 
 
 def summarize(cases: list[dict], results: list[dict]) -> dict[str, float]:
@@ -72,6 +92,7 @@ def summarize(cases: list[dict], results: list[dict]) -> dict[str, float]:
         "conflicting": rate("conflicting"),
         "access": rate("access"),
         "graph": rate("graph"),
+        "route": rate("route"),
         "latency_p95_ms": p95,
     }
 

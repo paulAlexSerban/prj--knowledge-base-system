@@ -2,9 +2,11 @@
 
 import logging
 
+from gateway_core.graph_read import LIMIT as GRAPH_LIMIT
 from gateway_core.graph_read import GraphReader
-from gateway_core.metrics import EMPTY, REQUESTS, RETRIEVAL_SECONDS, TOTAL, permission_group
+from gateway_core.metrics import EMPTY, REQUESTS, RETRIEVAL_SECONDS, ROUTER, TOTAL, permission_group
 from gateway_core.recheck import AclSource, apply_recheck
+from gateway_core.router import Router
 from gateway_core.tools import SNIPPET_END, SNIPPET_START
 from knowledge_store.acl import Principal
 from knowledge_store.postgres import Hit
@@ -23,11 +25,77 @@ class GatewayService:
         graph: GraphReader,
         recheck: AclSource | None = None,
         surface: str = "rest",
+        router: Router | None = None,
     ) -> None:
         self.store = store
         self.graph = graph
         self.recheck = recheck
         self.surface = surface
+        self.router = router if router is not None else Router.from_env()
+
+    def ask(
+        self, principal: Principal, query: str, limit: int, request_id: str
+    ) -> dict[str, object]:
+        """Route one question, then run the same checked retrieval as the explicit tools."""
+        route = self.router.classify(query)
+        ROUTER.labels(route=route.kind, source=route.source).inc()
+        if route.kind == "semantic" or route.graph is None:
+            body = self.search(principal, query, limit, request_id)
+        elif route.kind == "relational":
+            body = self.find_related(
+                principal,
+                route.graph,
+                route.entity_id,
+                GRAPH_LIMIT,
+                request_id,
+                quarter=route.quarter,
+                min_arr=route.min_arr,
+            )
+        else:
+            body = self.find_related(
+                principal,
+                route.graph,
+                route.entity_id,
+                GRAPH_LIMIT,
+                request_id,
+                quarter=route.quarter,
+                min_arr=route.min_arr,
+            )
+            object_ids = _object_ids(body["paths"])
+            if object_ids:
+                hits = self._restricted_search(principal, query, limit, request_id, object_ids)
+            else:
+                hits = []
+            body["results"] = [_public_hit(hit) for hit in hits]
+        body["route"] = route.public()
+        return body
+
+    def _restricted_search(
+        self,
+        principal: Principal,
+        query: str,
+        limit: int,
+        request_id: str,
+        object_ids: list[str],
+    ) -> list[Hit]:
+        with (
+            span("retrieval", tool="search", surface=self.surface),
+            RETRIEVAL_SECONDS.labels(tool="search", surface=self.surface).time(),
+        ):
+            hits = self.store.search(
+                query,
+                principal,
+                limit=max(limit * 4, limit),
+                request_id=request_id,
+                object_ids=object_ids,
+            )
+            with span("acl.recheck") as current:
+                hits = apply_recheck(hits, principal, self.store.contracts, self.recheck)
+                current.set_attribute("count", len(hits))
+            hits = _one_chunk_per_object(hits)[:limit]
+        source = hits[0].source_id if hits else "none"
+        self._record("search", principal, request_id, len(hits), source, empty_rate=True)
+        return hits
 
     def search(
         self, principal: Principal, query: str, limit: int, request_id: str
@@ -162,6 +230,32 @@ class GatewayService:
         for item in payloads:
             item["last_success_at"] = sync.get(str(item["source_id"]))
         return payloads
+
+
+def _object_ids(paths: object) -> list[str]:
+    """Deal, epic, policy, and person ids from an authorized path. Teams are not chunks."""
+    if not isinstance(paths, list):
+        return []
+    found: list[str] = []
+    seen: set[str] = set()
+    for path in paths:
+        steps = path.get("steps") if isinstance(path, dict) else None
+        if not isinstance(steps, list):
+            continue
+        for step in steps:
+            if not isinstance(step, dict) or step.get("type") not in {
+                "Deal",
+                "Epic",
+                "Policy",
+                "Person",
+            }:
+                continue
+            object_id = step.get("id")
+            if not isinstance(object_id, str) or not object_id or object_id in seen:
+                continue
+            seen.add(object_id)
+            found.append(object_id)
+    return found
 
 
 def _one_chunk_per_object(hits: list[Hit]) -> list[Hit]:
