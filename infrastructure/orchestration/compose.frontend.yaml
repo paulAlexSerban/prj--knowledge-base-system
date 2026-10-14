@@ -6,7 +6,17 @@ services:
   chat-ui:
     build:
       context: ../..
-      dockerfile: frontend/Dockerfile
+      dockerfile: docker/python-service.Dockerfile
+      args:
+        PACKAGE: chat-ui
+    command:
+      [
+        "streamlit", "run", "frontend/src/chat_ui/app.py",
+        "--server.address=0.0.0.0",
+        "--server.port=8501",
+        "--server.headless=true",
+        "--browser.gatherUsageStats=false",
+      ]
     environment:
       GATEWAY_API_URL: http://gateway-api:8000
       CHAT_PERSONAS: employee_eng,hr_admin,outsider,product_lead

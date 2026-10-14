@@ -2,7 +2,11 @@ services:
   gateway-api:
     build:
       context: ../..
-      dockerfile: backend/apis/knowledge-api/Dockerfile
+      dockerfile: docker/python-service.Dockerfile
+      args:
+        PACKAGE: knowledge-api
+        ENTRYPOINT_MODULE: knowledge_api
+        BAKE_FASTEMBED: "1"
     command: ["python", "-m", "knowledge_api"]
     environment:
       CONTRACTS_DIR: /contracts
@@ -43,7 +47,11 @@ services:
   gateway-mcp:
     build:
       context: ../..
-      dockerfile: backend/apis/mcp-server/Dockerfile
+      dockerfile: docker/python-service.Dockerfile
+      args:
+        PACKAGE: mcp-server
+        ENTRYPOINT_MODULE: mcp_server
+        BAKE_FASTEMBED: "1"
     command: ["python", "-m", "mcp_server"]
     environment:
       CONTRACTS_DIR: /contracts
