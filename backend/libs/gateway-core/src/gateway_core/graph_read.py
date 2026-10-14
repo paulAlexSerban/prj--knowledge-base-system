@@ -200,6 +200,7 @@ def _bounds(quarter: str | None, min_arr: int | None) -> tuple[str, int]:
 
 
 def _access(kind: str, row: dict, principal: Principal) -> GraphAccess:
+    # On a deny, object_id is the node whose rule failed, so the audit row names it.
     if kind == "teammates":
         from_ok, _from_rule = allows(view_from_rules(row.get("from_rules")), principal)
         to_ok, to_rule = allows(view_from_rules(row.get("to_rules")), principal)

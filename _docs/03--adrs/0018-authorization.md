@@ -11,7 +11,7 @@ An agent will not notice that a page was confidential. Pre-filtering keeps recal
 Attributes are stored on the chunk and on the graph node: `acl_groups`, `acl_departments`, `min_clearance`, and the exact `acl_rules`. Clearance order is `public`, `internal`, `confidential`, `restricted`. Enforcement order:
 
 1. A coarse pre-filter in the SQLAlchemy query and in the Cypher templates, on group, department, and clearance.
-2. Over-fetch. Search asks for three times the caller's limit (`OVERFETCH = 3`), then keeps one chunk per object.
+2. Over-fetch. The gateway asks for four times the caller's limit, then the store multiplies by three (`OVERFETCH = 3`), then search keeps one chunk per object.
 3. A fine check. One `acl_rules` element has to match group, department, and clearance together. A mix of two rules does not.
 4. Postgres row-level security (`chunks_read_by_acl` in migration 004) as defense in depth. A missing session setting sees no rows. `gateway_ro` inserts an audit row and cannot select one, so the insert does not use `RETURNING`. The audit table is append-only. The models are [ADR 0028](0028-orm-and-ogm.md).
 

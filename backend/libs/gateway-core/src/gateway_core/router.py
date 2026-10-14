@@ -124,6 +124,7 @@ class Router:
         return cls(lambda query: _openrouter(query, key, model))
 
     def classify(self, query: str) -> Route:
+        # High confidence returns the rule. The model runs only on a low-confidence tie.
         ruled = rules(query)
         if ruled.confidence == "high" or self.complete is None:
             return ruled

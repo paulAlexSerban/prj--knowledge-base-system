@@ -100,6 +100,7 @@ def enqueue(notice: HookNotice) -> None:
             "QueueUrl": url,
             "MessageBody": notice.to_json(),
             "MessageGroupId": fit_sqs_id(f"product:{notice.object_id}"),
+            # Random, because content-based dedup is off. Two edits of one spec both enqueue.
             "MessageDeduplicationId": uuid.uuid4().hex,
         }
         attributes = sqs_message_attributes()

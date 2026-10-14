@@ -200,6 +200,8 @@ class KnowledgeStore:
         if content_hash and self.chunks.same_hash(
             event.source_id, event.object_id, content_hash, self.embedder.name
         ):
+            # Bytes already indexed. Skip the embed and the chunk rewrite, and
+            # still write Neo4j. A retry after a graph failure lands here.
             self.chunks.touch(event.source_id, event.object_id, version)
             metrics.EMBED_SKIPPED.labels(source_id=event.source_id).inc()
             self._graph_write(event, parsed, acl, version)
@@ -270,6 +272,7 @@ class KnowledgeStore:
         metrics.DEPENDENCY.labels(dependency="s3").set(1)
         meta = {name.lower(): value for name, value in head.get("Metadata", {}).items()}
         stored = meta.get("kbs-content-hash", "")
+        # Refuse a stale pointer. The S3 object hash must match the event.
         if event.content_hash and stored and stored != event.content_hash:
             raise StoreError("snapshot hash does not match the event")
         native = [part for part in meta.get("kbs-native-acl", "").split(",") if part]

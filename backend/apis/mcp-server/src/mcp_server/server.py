@@ -150,7 +150,11 @@ def build_server(service: GatewayService) -> FastMCP:
 
 
 def _with_trace[T](fn: Callable[[], T]) -> Callable[[], T]:
-    """Run fn on a worker thread without dropping the current trace."""
+    """Run fn on a worker thread without dropping the current trace.
+
+    anyio.to_thread does not inherit the OTel context. Attach it on the
+    worker and detach when the call returns.
+    """
     parent = otel_context.get_current()
 
     def run():

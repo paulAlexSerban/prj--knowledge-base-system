@@ -22,6 +22,8 @@ def open_gateway() -> GatewayService:
         os.environ.get("NEO4J_URI", "bolt://neo4j:7687"),
         auth=("neo4j", os.environ["NEO4J_PASSWORD"]),
     )
+    # The chunk writer is None, so this process cannot insert chunks.
+    # GraphWriter is required by KnowledgeStore and is never called.
     store = KnowledgeStore(
         ChunkTable(None, reader),
         GraphWriter(driver),

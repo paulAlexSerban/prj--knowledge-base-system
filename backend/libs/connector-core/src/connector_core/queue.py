@@ -32,6 +32,7 @@ class SqsPublisher:
                 "MessageGroupId": event.message_group_id(),
                 "MessageDeduplicationId": event.dedup_id(),
             }
+            # traceparent is a message attribute. The body does not continue the span.
             attributes = sqs_message_attributes()
             if attributes:
                 kwargs["MessageAttributes"] = attributes

@@ -101,6 +101,7 @@ class ChunkTable:
             row = session.scalar(statement)
         if row is None:
             return False
+        # Block only when version and content hash both match. A newer create is allowed.
         return row.version == (version or "") and row.content_hash == (content_hash or "")
 
     def replace_chunks(
@@ -122,6 +123,7 @@ class ChunkTable:
                     Tombstone.source_id == source_id, Tombstone.object_id == object_id
                 )
             )
+            # This model only. Another model's rows survive reindex.
             session.execute(
                 delete(Chunk).where(
                     Chunk.source_id == source_id,

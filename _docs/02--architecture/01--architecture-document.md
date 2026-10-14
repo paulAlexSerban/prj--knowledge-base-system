@@ -135,7 +135,7 @@ MCP gives every client the same tools. It does not authenticate the user or enfo
 There is no write tool and no open SQL or Cypher. The token's claims become the principal. Authorization runs in this order:
 
 1. A coarse pre-filter in the SQLAlchemy query on group, clearance, and department. An empty department list means any department, including a rule written `department: "*"`. Cypher templates filter on group, department, and clearance.
-2. Over-fetch, then a fine-grained post-check, then one chunk per object. The store limit counts chunks, so search asks for three times the caller's limit. One stored rule has to match group, department, and clearance together, on a chunk and on a graph node.
+2. Over-fetch, then a fine-grained post-check, then one chunk per object. The store limit counts chunks, so the gateway asks for four times the caller's limit and the store multiplies by three. One stored rule has to match group, department, and clearance together, on a chunk and on a graph node.
 3. Postgres row-level security reads the principal from session settings and requires one `acl_rules` element to match. A query that forgets the predicate still cannot read another principal's rows.
 4. An audit row names the attributes that justified each allow. Denies are audited too. `gateway_ro` can insert those rows and cannot read them.
 

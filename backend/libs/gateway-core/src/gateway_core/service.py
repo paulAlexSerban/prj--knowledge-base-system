@@ -69,6 +69,8 @@ class GatewayService:
             if object_ids:
                 hits = self._restricted_search(principal, query, limit, request_id, object_ids)
             else:
+                # The graph authorized nothing. Stay empty. A corpus search here
+                # would return chunks the path did not name.
                 hits = []
             body["results"] = [_public_hit(hit) for hit in hits]
         body["route"] = route.public()
@@ -86,6 +88,8 @@ class GatewayService:
             span("retrieval", tool="search", surface=self.surface),
             RETRIEVAL_SECONDS.labels(tool="search", surface=self.surface).time(),
         ):
+            # Four times the caller's limit, then one chunk per object. The
+            # store multiplies by OVERFETCH again before it queries.
             hits = self.store.search(
                 query,
                 principal,
@@ -108,8 +112,8 @@ class GatewayService:
             span("retrieval", tool="search", surface=self.surface),
             RETRIEVAL_SECONDS.labels(tool="search", surface=self.surface).time(),
         ):
-            # The store limit counts chunks. A policy is several chunks, so ask
-            # for more and keep the best chunk of each object.
+            # Four times the caller's limit, then one chunk per object. The
+            # store multiplies by OVERFETCH again before it queries.
             hits = self.store.search(
                 query, principal, limit=max(limit * 4, limit), request_id=request_id
             )

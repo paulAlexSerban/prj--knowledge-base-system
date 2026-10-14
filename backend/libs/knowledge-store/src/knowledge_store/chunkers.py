@@ -126,6 +126,8 @@ def chunk_record(
 
 
 def _public_record(record: dict, contract: SourceContract) -> dict:
+    # Drop forbidden fields. Keep epic_id, team, and manager_id even when they
+    # are outside in_scope_fields: the graph edges come from them.
     allowed = {name.lower() for name in contract.in_scope_fields} | {"epic_id", "team", "manager_id"}
     return {
         key: value
