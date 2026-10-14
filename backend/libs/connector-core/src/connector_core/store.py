@@ -48,7 +48,7 @@ class SnapshotStore:
             if stored == metadata[METADATA_HASH]:
                 return PutResult(skipped=True, version_id=current.get("VersionId"))
         source_id = key.split("/")[1] if key.startswith("raw/") else ""
-        with span("s3.put", source_id=source_id):
+        with span("s3.put", source_id=source_id, bytes=len(body)):
             response = self.client.put_object(
                 Bucket=self.bucket,
                 Key=key,

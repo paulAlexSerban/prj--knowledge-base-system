@@ -127,11 +127,14 @@ class Consumer:
 
     def _apply(self, queue_name: str, message: dict, current) -> bool:
         count = int(message.get("Attributes", {}).get("ApproximateReceiveCount", "1"))
+        current.set_attribute("receive_count", count)
         if count > MAX_RECEIVE:
+            current.set_attribute("result", "dlq")
             return self._move_to_dlq(queue_name, message)
         try:
             event = ChangeEvent.from_json(message["Body"])
         except (ValidationError, ValueError):
+            current.set_attribute("result", "invalid")
             metrics.EVENTS.labels(source_id="unknown", event_type="invalid", result="invalid").inc()
             log_event(
                 LOG,
@@ -143,6 +146,9 @@ class Consumer:
             return False
         current.set_attribute("source_id", event.source_id)
         current.set_attribute("event_type", event.event_type.value)
+        object_type = _type_from_pointer(event.s3_pointer)
+        if object_type:
+            current.set_attribute("object_type", object_type)
         try:
             if self.fail_object_id and event.object_id == self.fail_object_id:
                 raise HandlerError(f"FAIL_OBJECT_ID matched {event.object_id}")
@@ -153,6 +159,7 @@ class Consumer:
                 event_type=event.event_type.value,
                 result="retry",
             ).inc()
+            current.set_attribute("result", "retry")
             log_event(
                 LOG,
                 "event retry",
@@ -165,6 +172,7 @@ class Consumer:
             )
             return False
         self._delete(queue_name, message)
+        current.set_attribute("result", "ok")
         metrics.EVENTS.labels(
             source_id=event.source_id,
             event_type=event.event_type.value,
@@ -221,6 +229,13 @@ class Consumer:
             QueueUrl=self.queue_url(queue_name),
             ReceiptHandle=message["ReceiptHandle"],
         )
+
+
+def _type_from_pointer(key: str | None) -> str:
+    parts = (key or "").split("/")
+    if len(parts) < 4 or parts[0] != "raw":
+        return ""
+    return parts[2]
 
 
 def _lag(occurred_at: datetime) -> float:

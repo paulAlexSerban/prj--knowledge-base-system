@@ -42,6 +42,7 @@ class GatewayService:
             current.set_attribute("route", route.kind)
             current.set_attribute("source", route.source)
             current.set_attribute("graph", route.graph or "none")
+            current.set_attribute("confidence", route.confidence)
         ROUTER.labels(route=route.kind, source=route.source).inc()
         if route.kind == "semantic" or route.graph is None:
             body = self.search(principal, query, limit, request_id)
@@ -85,7 +86,7 @@ class GatewayService:
         object_ids: list[str],
     ) -> list[Hit]:
         with (
-            span("retrieval", tool="search", surface=self.surface),
+            span("retrieval", tool="search", surface=self.surface) as current,
             RETRIEVAL_SECONDS.labels(tool="search", surface=self.surface).time(),
         ):
             # Four times the caller's limit, then one chunk per object. The
@@ -97,11 +98,9 @@ class GatewayService:
                 request_id=request_id,
                 object_ids=object_ids,
             )
-            with span("acl.recheck") as current:
-                hits = apply_recheck(hits, principal, self.store.contracts, self.recheck)
-                current.set_attribute("count", len(hits))
+            hits = self._recheck(hits, principal)
             hits = _one_chunk_per_object(hits)[:limit]
-        source = hits[0].source_id if hits else "none"
+            source = _finish_retrieval(current, hits, limit, request_id, restricted=True)
         self._record("search", principal, request_id, len(hits), source, empty_rate=True)
         return hits
 
@@ -109,7 +108,7 @@ class GatewayService:
         self, principal: Principal, query: str, limit: int, request_id: str
     ) -> dict[str, object]:
         with (
-            span("retrieval", tool="search", surface=self.surface),
+            span("retrieval", tool="search", surface=self.surface) as current,
             RETRIEVAL_SECONDS.labels(tool="search", surface=self.surface).time(),
         ):
             # Four times the caller's limit, then one chunk per object. The
@@ -117,11 +116,9 @@ class GatewayService:
             hits = self.store.search(
                 query, principal, limit=max(limit * 4, limit), request_id=request_id
             )
-            with span("acl.recheck") as current:
-                hits = apply_recheck(hits, principal, self.store.contracts, self.recheck)
-                current.set_attribute("count", len(hits))
+            hits = self._recheck(hits, principal)
             hits = _one_chunk_per_object(hits)[:limit]
-        source = hits[0].source_id if hits else "none"
+            source = _finish_retrieval(current, hits, limit, request_id)
         self._record("search", principal, request_id, len(hits), source, empty_rate=True)
         return {"request_id": request_id, "results": [_public_hit(hit) for hit in hits]}
 
@@ -129,16 +126,16 @@ class GatewayService:
         self, principal: Principal, chunk_id: int, request_id: str
     ) -> dict[str, object] | None:
         with (
-            span("retrieval", tool="get_document", surface=self.surface),
+            span("retrieval", tool="get_document", surface=self.surface) as current,
             RETRIEVAL_SECONDS.labels(tool="get_document", surface=self.surface).time(),
         ):
             hit = self.store.chunks.get_chunk(chunk_id, principal, request_id)
             if hit is not None:
-                with span("acl.recheck") as current:
-                    kept = apply_recheck([hit], principal, self.store.contracts, self.recheck)
-                    current.set_attribute("count", len(kept))
+                kept = self._recheck([hit], principal)
                 hit = kept[0] if kept else None
-        source = "none" if hit is None else hit.source_id
+            source = _finish_retrieval(
+                current, [] if hit is None else [hit], 1, request_id
+            )
         self._record(
             "get_document",
             principal,
@@ -164,17 +161,22 @@ class GatewayService:
         min_arr: int | None = None,
     ) -> dict[str, object]:
         with (
-            span("retrieval", tool="find_related", surface=self.surface),
+            span("retrieval", tool="find_related", surface=self.surface) as retrieval,
             RETRIEVAL_SECONDS.labels(tool="find_related", surface=self.surface).time(),
         ):
             kind_label = (
                 kind if kind in {"teammates", "team", "policies", "roadmap_deals"} else "other"
             )
-            with span("graph.related", kind=kind_label):
+            with span("graph.related", kind=kind_label) as current:
                 accesses = self.graph.related(
                     kind, principal, entity_id, limit, quarter=quarter, min_arr=min_arr
                 )
-            with span("audit.write", count=len(accesses)):
+                current.set_attribute("count", sum(1 for item in accesses if item.allowed))
+            allows = sum(1 for item in accesses if item.allowed)
+            denies = len(accesses) - allows
+            with span("audit.write", count=len(accesses)) as current:
+                current.set_attribute("allows", allows)
+                current.set_attribute("denies", denies)
                 self.store.chunks.record_decisions(
                     principal,
                     request_id,
@@ -188,11 +190,16 @@ class GatewayService:
                         for item in accesses
                     ],
                 )
-        paths = [item.path for item in accesses if item.allowed]
-        source = next(
-            (item.source_id for item in accesses if item.allowed and item.source_id),
-            "none",
-        )
+            paths = [item.path for item in accesses if item.allowed]
+            source = next(
+                (item.source_id for item in accesses if item.allowed and item.source_id),
+                "none",
+            )
+            retrieval.set_attribute("count", len(paths))
+            retrieval.set_attribute("source_id", source)
+            retrieval.set_attribute("empty", not paths)
+            retrieval.set_attribute("limit", limit)
+            retrieval.set_attribute("request_id", request_id)
         # A roadmap path is a sales deal. Counting it keeps the empty rate by source meaningful.
         self._record(
             "find_related",
@@ -203,6 +210,13 @@ class GatewayService:
             empty_rate=kind == "roadmap_deals",
         )
         return {"request_id": request_id, "kind": kind, "paths": paths}
+
+    def _recheck(self, hits: list[Hit], principal: Principal) -> list[Hit]:
+        with span("acl.recheck") as current:
+            kept, failed = apply_recheck(hits, principal, self.store.contracts, self.recheck)
+            current.set_attribute("count", len(kept))
+            current.set_attribute("failed", failed)
+            return kept
 
     def _record(
         self,
@@ -238,6 +252,20 @@ class GatewayService:
         for item in payloads:
             item["last_success_at"] = sync.get(str(item["source_id"]))
         return payloads
+
+
+def _finish_retrieval(
+    current, hits: list[Hit], limit: int, request_id: str, *, restricted: bool = False
+) -> str:
+    source = hits[0].source_id if hits else "none"
+    current.set_attribute("count", len(hits))
+    current.set_attribute("source_id", source)
+    current.set_attribute("empty", not hits)
+    current.set_attribute("limit", limit)
+    current.set_attribute("request_id", request_id)
+    if restricted:
+        current.set_attribute("restricted", True)
+    return source
 
 
 def _object_ids(paths: object) -> list[str]:

@@ -54,32 +54,41 @@ class KnowledgeStore:
     def delete_object(self, event: ChangeEvent) -> None:
         source_id = event.source_id
         object_id = event.object_id
+        object_type = _type_from_pointer(event.s3_pointer)
         try:
             with (
-                span("postgres.commit", store="postgres", op="delete", source_id=source_id),
+                span(
+                    "postgres.commit", store="postgres", op="delete", source_id=source_id
+                ) as current,
                 metrics.STORE_WRITE.labels(store="postgres", op="delete").time(),
             ):
+                _annotate_write(current, event, object_type)
                 self.chunks.tombstone(
                     source_id, object_id, event.version or "", event.content_hash or ""
                 )
         except Exception:
             metrics.STORE_ERRORS.labels(store="postgres", op="delete").inc()
             raise
-        with span("delete.verify", store="postgres", source_id=source_id):
-            if self.chunks.count_chunks(source_id, object_id):
+        with span("delete.verify", store="postgres", source_id=source_id) as current:
+            remaining = self.chunks.count_chunks(source_id, object_id)
+            current.set_attribute("remaining", remaining)
+            if remaining:
                 metrics.DELETE_FAILURES.labels(source_id, "postgres").inc()
                 raise VerifyError("postgres")
         try:
             with (
-                span("neo4j.write", store="neo4j", op="delete", source_id=source_id),
+                span("neo4j.write", store="neo4j", op="delete", source_id=source_id) as current,
                 metrics.STORE_WRITE.labels(store="neo4j", op="delete").time(),
             ):
+                _annotate_write(current, event, object_type)
                 self.graph.delete(source_id, object_id)
         except Exception:
             metrics.STORE_ERRORS.labels(store="neo4j", op="delete").inc()
             raise
-        with span("delete.verify", store="neo4j", source_id=source_id):
-            if self.graph.count_node(source_id, object_id):
+        with span("delete.verify", store="neo4j", source_id=source_id) as current:
+            remaining = self.graph.count_node(source_id, object_id)
+            current.set_attribute("remaining", remaining)
+            if remaining:
                 metrics.DELETE_FAILURES.labels(source_id, "neo4j").inc()
                 raise VerifyError("neo4j")
         log_event(LOG, "object deleted", source_id=source_id, object_id=object_id)
@@ -92,7 +101,7 @@ class KnowledgeStore:
         request_id: str = "",
         object_ids: list[str] | None = None,
     ) -> list[Hit]:
-        with span("embed.query", model=self.embedder.name):
+        with span("embed.query", model=self.embedder.name, semantic=self.embedder.semantic):
             vector = self.embedder.embed_query(query)
         metrics.EMBED_CALLS.labels(model=self.embedder.name).inc()
         return self.chunks.search(
@@ -187,7 +196,7 @@ class KnowledgeStore:
         version = event.version or ""
         content_hash = event.content_hash or ""
         if acl_only and self.chunks.update_acl(event.source_id, event.object_id, acl):
-            self._graph_acl(event, acl)
+            self._graph_acl(event, acl, object_type)
             log_event(
                 LOG,
                 "acl updated",
@@ -211,9 +220,12 @@ class KnowledgeStore:
         metrics.EMBED_CALLS.labels(model=self.embedder.name).inc(len(parsed.chunks))
         try:
             with (
-                span("postgres.commit", store="postgres", op="upsert", source_id=event.source_id),
+                span(
+                    "postgres.commit", store="postgres", op="upsert", source_id=event.source_id
+                ) as current,
                 metrics.STORE_WRITE.labels(store="postgres", op="upsert").time(),
             ):
+                _annotate_write(current, event, object_type, len(parsed.chunks))
                 self.chunks.replace_chunks(
                     event.source_id,
                     event.object_id,
@@ -234,9 +246,12 @@ class KnowledgeStore:
     def _graph_write(self, event: ChangeEvent, parsed: Parsed, acl, version: str) -> None:
         try:
             with (
-                span("neo4j.write", store="neo4j", op="upsert", source_id=event.source_id),
+                span(
+                    "neo4j.write", store="neo4j", op="upsert", source_id=event.source_id
+                ) as current,
                 metrics.STORE_WRITE.labels(store="neo4j", op="upsert").time(),
             ):
+                _annotate_write(current, event, parsed.object_type, len(parsed.chunks))
                 self.graph.write(
                     event.source_id,
                     parsed.object_type,
@@ -250,12 +265,13 @@ class KnowledgeStore:
             metrics.STORE_ERRORS.labels(store="neo4j", op="upsert").inc()
             raise
 
-    def _graph_acl(self, event: ChangeEvent, acl) -> None:
+    def _graph_acl(self, event: ChangeEvent, acl, object_type: str) -> None:
         try:
             with (
-                span("neo4j.write", store="neo4j", op="acl", source_id=event.source_id),
+                span("neo4j.write", store="neo4j", op="acl", source_id=event.source_id) as current,
                 metrics.STORE_WRITE.labels(store="neo4j", op="acl").time(),
             ):
+                _annotate_write(current, event, object_type)
                 self.graph.set_acl(event.source_id, event.object_id, acl)
         except Exception:
             metrics.STORE_ERRORS.labels(store="neo4j", op="acl").inc()
@@ -297,7 +313,24 @@ def _log_written(event: ChangeEvent, parsed: Parsed) -> None:
 
 
 def _object_type(key: str) -> str:
-    parts = key.split("/")
-    if len(parts) < 4 or parts[0] != "raw":
+    found = _type_from_pointer(key)
+    if not found:
         raise StoreError(f"unexpected snapshot key {key}")
+    return found
+
+
+def _type_from_pointer(key: str | None) -> str:
+    parts = (key or "").split("/")
+    if len(parts) < 4 or parts[0] != "raw":
+        return ""
     return parts[2]
+
+
+def _annotate_write(
+    current, event: ChangeEvent, object_type: str, chunks: int | None = None
+) -> None:
+    current.set_attribute("event_type", event.event_type.value)
+    if object_type:
+        current.set_attribute("object_type", object_type)
+    if chunks is not None:
+        current.set_attribute("chunks", chunks)

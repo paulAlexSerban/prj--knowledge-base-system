@@ -38,12 +38,14 @@ class HttpAclRecheck(AclSource):
         url = f"{self.base_url}/policies/{object_id}/acl"
         peer = peer_host(self.base_url) or "harness-hr"
         try:
-            with client_span(peer, "acl.recheck.http"):
+            with client_span(peer, "acl.recheck.http") as current:
                 request = urllib.request.Request(url, headers=trace_headers())
                 try:
                     with urllib.request.urlopen(request, timeout=self.timeout) as response:
+                        current.set_attribute("http.status_code", response.status)
                         body = json.loads(response.read().decode())
                 except urllib.error.HTTPError as exc:
+                    current.set_attribute("http.status_code", exc.code)
                     if exc.code == 404:
                         return None
                     raise
@@ -71,10 +73,13 @@ def apply_recheck(
     principal: Principal,
     contracts: dict[str, SourceContract],
     source: AclSource | None,
-) -> list[Hit]:
-    """Drop hits the source no longer allows. One failed check drops the page."""
+) -> tuple[list[Hit], bool]:
+    """Drop hits the source no longer allows. One failed check drops the page.
+
+    The bool is true when the harness did not answer and the page was emptied.
+    """
     if source is None:
-        return hits
+        return hits, False
     verdict: dict[tuple[str, str], bool] = {}
     kept: list[Hit] = []
     for hit in hits:
@@ -88,10 +93,10 @@ def apply_recheck(
                 verdict[key] = _still_allowed(source, contract, principal, hit)
             except RecheckFailed:
                 RECHECK_FAILURES.labels(source_id=hit.source_id).inc()
-                return []
+                return [], True
         if verdict[key]:
             kept.append(hit)
-    return kept
+    return kept, False
 
 
 def _still_allowed(

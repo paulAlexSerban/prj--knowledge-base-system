@@ -19,12 +19,17 @@ class SqsPublisher:
         self.queue_url = client.get_queue_url(QueueName=queue_name)["QueueUrl"]
 
     def publish(self, event: ChangeEvent) -> None:
+        extra: dict[str, str] = {}
+        object_type = _type_from_pointer(event.s3_pointer)
+        if object_type:
+            extra["object_type"] = object_type
         with span(
             "sqs.publish",
             span_kind=SpanKind.PRODUCER,
             queue=self.queue_name,
             source_id=event.source_id,
             event_type=event.event_type.value,
+            **extra,
         ):
             kwargs: dict[str, object] = {
                 "QueueUrl": self.queue_url,
@@ -37,3 +42,10 @@ class SqsPublisher:
             if attributes:
                 kwargs["MessageAttributes"] = attributes
             self.client.send_message(**kwargs)
+
+
+def _type_from_pointer(key: str | None) -> str:
+    parts = (key or "").split("/")
+    if len(parts) < 4 or parts[0] != "raw":
+        return ""
+    return parts[2]

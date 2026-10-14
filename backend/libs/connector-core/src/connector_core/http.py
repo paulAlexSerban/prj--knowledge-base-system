@@ -31,8 +31,10 @@ class HarnessClient:
 
     def get(self, path: str, params: dict | None = None) -> httpx.Response:
         peer = peer_host(str(self.client.base_url)) or "harness"
-        with client_span(peer, "harness.get"):
-            return self._get(path, params)
+        with client_span(peer, "harness.get") as current:
+            response = self._get(path, params)
+            current.set_attribute("http.status_code", response.status_code)
+            return response
 
     def _get(self, path: str, params: dict | None) -> httpx.Response:
         delay = self.backoff

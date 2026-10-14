@@ -66,13 +66,16 @@ def build_server(service: GatewayService) -> FastMCP:
         principal = _caller()
         request_id = _request_id()
         bounded = max(1, min(limit, 20))
-        try:
-            with span("mcp.tool", tool="ask"):
-                return await anyio.to_thread.run_sync(
+        with span("mcp.tool", tool="ask", request_id=request_id) as current:
+            try:
+                body = await anyio.to_thread.run_sync(
                     _with_trace(partial(service.ask, principal, query, bounded, request_id))
                 )
-        except ValueError as exc:
-            return {"request_id": request_id, "error": str(exc)}
+            except ValueError as exc:
+                current.set_attribute("error", True)
+                return {"request_id": request_id, "error": str(exc)}
+            _mark_tool(current, body)
+            return body
 
     @server.tool(description=SEARCH)
     async def search_knowledge(query: str, limit: int = 5) -> dict[str, object]:
@@ -81,23 +84,27 @@ def build_server(service: GatewayService) -> FastMCP:
         request_id = _request_id()
         bounded = max(1, min(limit, 20))
         # Read the principal on the event loop, then run the blocking search on a worker thread.
-        with span("mcp.tool", tool="search"):
-            return await anyio.to_thread.run_sync(
+        with span("mcp.tool", tool="search", request_id=request_id) as current:
+            body = await anyio.to_thread.run_sync(
                 _with_trace(partial(service.search, principal, query, bounded, request_id))
             )
+            _mark_tool(current, body)
+            return body
 
     @server.tool(description=GET_DOCUMENT)
     async def get_document(chunk_id: int) -> dict[str, object]:
         """One authorized chunk, or a not-found error when the caller cannot read it."""
         principal = _caller()
         request_id = _request_id()
-        with span("mcp.tool", tool="get_document"):
+        with span("mcp.tool", tool="get_document", request_id=request_id) as current:
             found = await anyio.to_thread.run_sync(
                 _with_trace(partial(service.get_document, principal, chunk_id, request_id))
             )
-        if found is None:
-            return {"request_id": request_id, "error": "not found"}
-        return found
+            if found is None:
+                body = {"request_id": request_id, "error": "not found"}
+                _mark_tool(current, body)
+                return body
+            return found
 
     @server.tool(description=FIND_RELATED)
     async def find_related(
@@ -111,9 +118,9 @@ def build_server(service: GatewayService) -> FastMCP:
         principal = _caller()
         request_id = _request_id()
         bounded = max(1, min(limit, 25))
-        try:
-            with span("mcp.tool", tool="find_related"):
-                return await anyio.to_thread.run_sync(
+        with span("mcp.tool", tool="find_related", request_id=request_id) as current:
+            try:
+                body = await anyio.to_thread.run_sync(
                     _with_trace(
                         partial(
                             service.find_related,
@@ -127,16 +134,21 @@ def build_server(service: GatewayService) -> FastMCP:
                         )
                     )
                 )
-        except ValueError as exc:
-            return {"request_id": request_id, "error": str(exc)}
+            except ValueError as exc:
+                current.set_attribute("error", True)
+                return {"request_id": request_id, "error": str(exc)}
+            _mark_tool(current, body)
+            return body
 
     @server.tool(description=LIST_SOURCES)
     async def list_sources() -> list[dict[str, object]]:
         """Registered sources and last sync. No document text."""
         _caller()
-        _request_id()
-        with span("mcp.tool", tool="list_sources"):
-            return await anyio.to_thread.run_sync(_with_trace(service.list_sources))
+        request_id = _request_id()
+        with span("mcp.tool", tool="list_sources", request_id=request_id) as current:
+            body = await anyio.to_thread.run_sync(_with_trace(service.list_sources))
+            _mark_tool(current, body)
+            return body
 
     @server.custom_route("/health", methods=["GET"])
     async def health(_: Request) -> Response:
@@ -147,6 +159,14 @@ def build_server(service: GatewayService) -> FastMCP:
         return Response(generate_latest(), media_type="text/plain; version=0.0.4")
 
     return server
+
+
+def _mark_tool(current, body: object) -> None:
+    if isinstance(body, dict) and "error" in body:
+        current.set_attribute("error", True)
+    route = body.get("route") if isinstance(body, dict) else None
+    if isinstance(route, dict) and route.get("class"):
+        current.set_attribute("route", str(route["class"]))
 
 
 def _with_trace[T](fn: Callable[[], T]) -> Callable[[], T]:

@@ -81,7 +81,8 @@ def main() -> None:
                     span_kind=SpanKind.CONSUMER,
                     source_id="product",
                     event_type=notice.event_type,
-                ):
+                    object_type="spec",
+                ) as current:
                     report = apply_notice(
                         ready.connector,
                         ready.contract,
@@ -90,6 +91,7 @@ def main() -> None:
                         ready.publisher,
                         notice,
                     )
+                    current.set_attribute("result", "ok" if report.ok else "error")
             except Exception as exc:  # noqa: BLE001 - one bad notice must not kill the process
                 log_event(
                     LOG,

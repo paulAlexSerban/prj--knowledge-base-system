@@ -235,10 +235,12 @@ class ChunkTable:
         with Session(self.reader) as session, session.begin():
             _set_principal(session, principal)
             # The ACL predicate is in each statement. It is not a separate query.
-            with span("chunks.vector", acl_prefilter=True):
+            with span("chunks.vector", acl_prefilter=True, model=model) as current:
                 vector_rows = list(session.execute(vector_sql).mappings())
-            with span("chunks.full_text", acl_prefilter=True):
+                current.set_attribute("count", len(vector_rows))
+            with span("chunks.full_text", acl_prefilter=True, model=model) as current:
                 lexical_rows = list(session.execute(lexical_sql).mappings())
+                current.set_attribute("count", len(lexical_rows))
             ranked = _fuse(vector_rows, lexical_rows)
             # A vector-only neighbor is an answer only when the model is semantic and the
             # chunk is close enough. hash-v1 never qualifies. Nearest-neighbour search
@@ -248,7 +250,7 @@ class ChunkTable:
                 int(row["id"]) for row in vector_rows if float(row["distance"]) <= max_distance
             }
             hits: list[Hit] = []
-            denied = False
+            denied = 0
             with span("audit.write") as current:
                 for row, score in ranked:
                     row_id = int(row["id"])
@@ -257,7 +259,7 @@ class ChunkTable:
                     view = view_from_rules(row["acl_rules"])
                     allowed, rule = allows(view, principal)
                     if not allowed:
-                        denied = True
+                        denied += 1
                         _audit(session, principal, row, "deny", None, request_id)
                         continue
                     _audit(session, principal, row, "allow", rule, request_id)
@@ -265,8 +267,10 @@ class ChunkTable:
                     if len(hits) >= limit:
                         break
                 if not hits and not denied:
+                    denied += 1
                     _audit(session, principal, None, "deny", None, request_id)
                 current.set_attribute("count", len(hits))
+                current.set_attribute("denied", denied)
             return hits
 
     def get_chunk(self, chunk_id: int, principal: Principal, request_id: str) -> Hit | None:

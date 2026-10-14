@@ -69,8 +69,10 @@ class HrConnector(SourceConnector):
 
     def _get(self, path: str, params: dict | None = None) -> httpx.Response:
         peer = peer_host(str(self.client.base_url)) or "harness-hr"
-        with client_span(peer, "harness.get"):
-            return self._attempt(path, params)
+        with client_span(peer, "harness.get") as current:
+            response = self._attempt(path, params)
+            current.set_attribute("http.status_code", response.status_code)
+            return response
 
     def _attempt(self, path: str, params: dict | None) -> httpx.Response:
         delay = self.backoff

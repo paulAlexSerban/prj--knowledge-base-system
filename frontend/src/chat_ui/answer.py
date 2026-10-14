@@ -54,7 +54,8 @@ class NoModelKey(Exception):
 class AnswerCallback(BaseCallbackHandler):
     """One model call: a span, the latency, and the token counts."""
 
-    def __init__(self) -> None:
+    def __init__(self, model: str = "") -> None:
+        self._model = model
         self._span_cm = None
         self._current = None
         self._started = 0.0
@@ -70,6 +71,9 @@ class AnswerCallback(BaseCallbackHandler):
         prompt_tokens, completion_tokens = _usage(response)
         record_tokens("prompt", prompt_tokens)
         record_tokens("completion", completion_tokens)
+        if self._current is not None:
+            self._current.set_attribute("prompt_tokens", prompt_tokens)
+            self._current.set_attribute("completion_tokens", completion_tokens)
         self._close(None)
 
     def on_llm_error(self, error, **kwargs) -> None:
@@ -82,6 +86,8 @@ class AnswerCallback(BaseCallbackHandler):
         self._started = time.perf_counter()
         self._span_cm = span("llm.invoke")
         self._current = self._span_cm.__enter__()
+        if self._model:
+            self._current.set_attribute("model", self._model)
 
     def _observe(self) -> None:
         if self._started == 0:
@@ -364,6 +370,6 @@ def answer(
     chain = primary.with_fallbacks([RunnableLambda(fallback)], exception_key="error")
     text = chain.invoke(
         {"question": question, "sources": numbered(hits), "hits": hits},
-        config={"callbacks": [AnswerCallback()]},
+        config={"callbacks": [AnswerCallback(model)]},
     )
     return str(text), chosen

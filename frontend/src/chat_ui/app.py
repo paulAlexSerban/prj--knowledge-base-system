@@ -11,7 +11,7 @@ from chat_ui.answer import answer, citation, paths_as_hits, strip_markers
 from chat_ui.demos import DEFAULT_PERSONAS, DEMOS, categories, in_category
 from chat_ui.gateway import Gateway, GatewayError
 from chat_ui.graph_view import hop_rows, show_graph
-from chat_ui.metrics import record_hops, record_turn, serve_metrics
+from chat_ui.metrics import PERSONAS, record_hops, record_turn, serve_metrics
 from shared.logging import configure, log_event
 from shared.telemetry import current_ids, init_telemetry, span
 
@@ -182,31 +182,34 @@ def main() -> None:
         caption = ""
         mode = "error"
         outcome = "error"
+        request_id = ""
         try:
             with span("chat.turn", surface="rest") as current:
                 try:
                     with st.spinner("Searching"):
                         result = gateway().ask(persona, question)
                         hits = _hits(result)
-                    with span("chat.answer"):
+                    with span("chat.answer") as answer_span:
                         text, mode = answer(
                             question,
                             hits,
                             os.environ.get("OPENROUTER_API_KEY", ""),
                             os.environ.get("OPENROUTER_MODEL", ""),
                         )
+                        answer_span.set_attribute("mode", mode)
                     route = result.get("route") or {}
                     paths = list(result.get("paths") or [])
                     kind = result.get("kind") if isinstance(result.get("kind"), str) else None
                     outcome = "empty" if mode == "none" else "ok"
+                    request_id = str(result.get("request_id") or "")
                     trace_id, _span_id = current_ids()
-                    caption = _caption(route, mode, str(result.get("request_id") or ""), trace_id)
+                    caption = _caption(route, mode, request_id, trace_id)
                     current.set_attribute("route", str(route.get("class") or "unknown"))
                     current.set_attribute("mode", mode)
                     log_event(
                         LOG,
                         "chat turn",
-                        request_id=str(result.get("request_id") or ""),
+                        request_id=request_id,
                         persona=persona,
                         route=route.get("class"),
                         mode=mode,
@@ -221,11 +224,15 @@ def main() -> None:
                     caption = ""
                     current.set_attribute("outcome", "error")
                     log_event(LOG, "chat turn failed", persona=persona, outcome="error")
+                hops = len(hop_rows(paths))
+                current.set_attribute("persona", persona if persona in PERSONAS else "other")
+                current.set_attribute("outcome", outcome)
+                current.set_attribute("hops", hops)
+                current.set_attribute("request_id", request_id)
                 st.markdown(text)
                 if hits:
                     render_sources(hits)
                 if route.get("class") in {"relational", "hybrid"}:
-                    hops = len(hop_rows(paths))
                     with span("chat.render_graph", hops=hops):
                         record_hops(hops)
                         show_graph(route, paths, kind)

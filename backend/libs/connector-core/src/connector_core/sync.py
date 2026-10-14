@@ -82,8 +82,13 @@ class Syncer:
         self._lock = Lock()
 
     def run(self) -> SyncReport:
-        with span("connector.sync", source_id=self.contract.source_id):
-            return self._run_cycle()
+        with span("connector.sync", source_id=self.contract.source_id) as current:
+            report = self._run_cycle()
+            current.set_attribute("written", report.written)
+            current.set_attribute("skipped", report.skipped)
+            current.set_attribute("errors", report.errors)
+            current.set_attribute("ok", report.ok)
+            return report
 
     def _run_cycle(self) -> SyncReport:
         source_id = self.contract.source_id
@@ -137,10 +142,10 @@ class Syncer:
 
     def reconcile(self) -> None:
         """Delete snapshots the source no longer lists, and backfill ids the feed missed."""
-        with span("connector.reconcile", source_id=self.contract.source_id):
-            self._reconcile_cycle()
+        with span("connector.reconcile", source_id=self.contract.source_id) as current:
+            self._reconcile_cycle(current)
 
-    def _reconcile_cycle(self) -> None:
+    def _reconcile_cycle(self, current) -> None:
         source_id = self.contract.source_id
         try:
             payload = self.connector.list_ids()
@@ -197,6 +202,9 @@ class Syncer:
         metrics.SOURCE_OBJECTS.labels(source_id).set(len(live))
         metrics.SNAPSHOT_OBJECTS.labels(source_id).set(len(snapped))
         metrics.DRIFT.labels(source_id).set(len(snapped) - len(live))
+        current.set_attribute("live", len(live))
+        current.set_attribute("snapshots", len(snapped))
+        current.set_attribute("drift", len(snapped) - len(live))
 
     def _collect(self) -> tuple[list[dict], str]:
         since = self.state.get_watermark(self.contract.source_id)

@@ -21,6 +21,8 @@ def test_recheck_sends_traceparent(monkeypatch) -> None:
     seen: dict[str, str] = {}
 
     class _Body:
+        status = 200
+
         def read(self) -> bytes:
             return json.dumps({"native_acl": ["hr_employee"]}).encode()
 
@@ -45,6 +47,7 @@ def test_recheck_sends_traceparent(monkeypatch) -> None:
     assert current.name == "acl.recheck.http"
     assert current.kind == SpanKind.CLIENT
     assert current.attributes["peer.service"] == "harness-hr"
+    assert current.attributes["http.status_code"] == 200
     assert "pol-1" not in current.name
     parts = seen["traceparent"].split("-")
     assert parts[1] == format(current.context.trace_id, "032x")

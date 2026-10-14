@@ -33,13 +33,20 @@ class Gateway:
         try:
             with span("chat.gateway.ask", span_kind=SpanKind.CLIENT) as current:
                 current.set_attribute("peer.service", "gateway-api")
-                with span("chat.token"):
-                    bearer = self.token(persona)
+                with span("chat.token") as token_span:
+                    token_response = self._client.post("/dev/token", json={"persona": persona})
+                    token_span.set_attribute("http.status_code", token_response.status_code)
+                    if token_response.status_code != 200:
+                        raise GatewayError(
+                            f"token for {persona}: HTTP {token_response.status_code}"
+                        )
+                    bearer = str(token_response.json()["token"])
                 response = self._client.post(
                     "/v1/ask",
                     json={"query": query, "limit": limit},
                     headers={"authorization": f"Bearer {bearer}", **trace_headers()},
                 )
+                current.set_attribute("http.status_code", response.status_code)
                 if response.status_code != 200:
                     raise GatewayError(f"ask: HTTP {response.status_code}")
                 return response.json()
