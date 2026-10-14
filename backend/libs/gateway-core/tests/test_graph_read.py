@@ -4,7 +4,13 @@ import json
 
 import pytest
 
-from gateway_core.graph_read import DEFAULT_MIN_ARR, DEFAULT_QUARTER, GraphReader, _access
+from gateway_core.graph_read import (
+    DEFAULT_MIN_ARR,
+    DEFAULT_QUARTER,
+    TEMPLATES,
+    GraphReader,
+    _access,
+)
 from knowledge_store.acl import Principal
 
 PRINCIPAL = Principal("ada", ("employees",), "internal", "engineering")
@@ -83,6 +89,15 @@ def test_bad_quarter_and_negative_arr_are_rejected() -> None:
         reader.related("roadmap_deals", LEAD, None, 25, quarter="Q3")
     with pytest.raises(ValueError, match="min_arr"):
         reader.related("roadmap_deals", LEAD, None, 25, min_arr=-1)
+    with pytest.raises(ValueError, match="min_arr"):
+        reader.related("roadmap_deals", LEAD, None, 25, min_arr=True)
+
+
+def test_templates_drop_nodes_without_acl_rules() -> None:
+    assert set(TEMPLATES) == {"teammates", "team", "policies", "roadmap_deals"}
+    for query in TEMPLATES.values():
+        assert "acl_rules IS NOT NULL" in query
+        assert "acl_groups" in query
 
 
 def test_roadmap_deals_keeps_only_the_authorized_q3_paths(neo4j_driver) -> None:

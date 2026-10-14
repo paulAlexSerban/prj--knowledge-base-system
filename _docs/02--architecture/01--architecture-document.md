@@ -107,14 +107,14 @@ Detail: [spike 02](../01--spikes/02--transforming-data-into-knowledge-that-ai-ag
 
 Similarity search answers semantic questions and fails relational ones. A graph answers relational questions and fails on prose. The source document stays the unit of truth, and each question goes to the representation that is authoritative for it.
 
-- Hybrid retrieval in Postgres: structure-aware chunks with a contextual header (title plus section path), pgvector dense search, full-text search for exact identifiers, merged with reciprocal rank fusion. Each chunk records `chunker_version` and `embedding_model`.
+- Hybrid retrieval in Postgres: structure-aware chunks with a contextual header (title plus section path), pgvector dense search, full-text search for exact identifiers, merged with reciprocal rank fusion. Each chunk records `chunker_version` and `embedding_model`. Those queries are SQLAlchemy models ([ADR 0028](../03--adrs/0028-orm-and-ogm.md)).
 - Graph in Neo4j, kept small:
 
 | Nodes                            | Edges                                  |
 | -------------------------------- | -------------------------------------- |
 | Person, Team, Policy, Deal, Epic | `BELONGS_TO`, `DEPENDS_ON`, `OWNED_BY` |
 
-- Edges from structured sources are extracted in code and are deterministic. The roadmap answer trusts only those. The writer builds `Person -BELONGS_TO-> Team` and a `Policy` node from HR. A deal depends on an epic, and an epic is owned by an HR team. Specs are not graph nodes. Edges extracted from specs would carry a confidence and a source span and would be supporting evidence only. That extractor is not built.
+- Edges from structured sources are extracted in code and are deterministic. The roadmap answer trusts only those. The writer builds `Person -BELONGS_TO-> Team` and a `Policy` node from HR through neomodel. The four reads stay Cypher templates, because the array ACL predicate does not fit the OGM. A deal depends on an epic, and an epic is owned by an HR team. Specs are not graph nodes. Edges extracted from specs would carry a confidence and a source span and would be supporting evidence only. That extractor is not built.
 - Entities join on a shared source key or email. The demo data uses one product key across three sources on purpose. Fuzzy entity resolution is not built.
 
 The router is built ([ADR 0026](../03--adrs/0026-query-router.md)). `POST /v1/ask` and MCP `ask_knowledge` choose semantic search, one of the four graph templates, or both for `roadmap_deals`. Rules decide. A model may break a low-confidence tie only when a key and `OPENROUTER_ROUTER_MODEL` are set, and only with an allow-listed label. `/v1/search` and `/v1/graph/related` stay explicit. Search ranks two lists from Postgres, cosine distance on 1024-dimension multilingual-e5-large vectors and full-text `ts_rank`, and merges them with reciprocal rank fusion. `ts_rank` is lexical scoring and not BM25. Full-text is English. A vector-only candidate is kept only inside a cosine-distance floor, so a question with no answer returns nothing. The router cannot answer a relational question that has no template.
@@ -134,7 +134,7 @@ MCP gives every client the same tools. It does not authenticate the user or enfo
 
 There is no write tool and no open SQL or Cypher. The token's claims become the principal. Authorization runs in this order:
 
-1. A coarse pre-filter in SQL on group, clearance, and department. An empty department list means any department, including a rule written `department: "*"`. Cypher filters on group, department, and clearance.
+1. A coarse pre-filter in the SQLAlchemy query on group, clearance, and department. An empty department list means any department, including a rule written `department: "*"`. Cypher templates filter on group, department, and clearance.
 2. Over-fetch, then a fine-grained post-check, then one chunk per object. The store limit counts chunks, so search asks for three times the caller's limit. One stored rule has to match group, department, and clearance together, on a chunk and on a graph node.
 3. Postgres row-level security reads the principal from session settings and requires one `acl_rules` element to match. A query that forgets the predicate still cannot read another principal's rows.
 4. An audit row names the attributes that justified each allow. Denies are audited too. `gateway_ro` can insert those rows and cannot read them.

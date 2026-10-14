@@ -10,10 +10,10 @@ An agent will not notice that a page was confidential. Pre-filtering keeps recal
 
 Attributes are stored on the chunk and on the graph node: `acl_groups`, `acl_departments`, `min_clearance`, and the exact `acl_rules`. Clearance order is `public`, `internal`, `confidential`, `restricted`. Enforcement order:
 
-1. A coarse pre-filter in SQL and in Cypher, on group, department, and clearance.
+1. A coarse pre-filter in the SQLAlchemy query and in the Cypher templates, on group, department, and clearance.
 2. Over-fetch. Search asks for three times the caller's limit (`OVERFETCH = 3`), then keeps one chunk per object.
 3. A fine check. One `acl_rules` element has to match group, department, and clearance together. A mix of two rules does not.
-4. Postgres row-level security (`chunks_read_by_acl` in migration 004) as defense in depth. A missing session setting sees no rows. `gateway_ro` inserts an audit row and cannot select one. The audit table is append-only.
+4. Postgres row-level security (`chunks_read_by_acl` in migration 004) as defense in depth. A missing session setting sees no rows. `gateway_ro` inserts an audit row and cannot select one, so the insert does not use `RETURNING`. The audit table is append-only. The models are [ADR 0028](0028-orm-and-ogm.md).
 
 An unmapped native ACL is stored and granted to nobody. `region` is not a predicate. HR policy search calls the harness ACL endpoint before returning a chunk, and a timeout or a bad body fails closed: no chunks, and `kbs_acl_recheck_failures_total` increments. People records are not re-checked. `find_related` uses the indexed graph ACL and does not call the harness. Sales, Engineering, and Product trust the indexed ACL inside the freshness window.
 

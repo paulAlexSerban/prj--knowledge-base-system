@@ -7,13 +7,15 @@ from typing import ClassVar
 import boto3
 import pytest
 from moto import mock_aws
-from sqlalchemy import text
+from sqlalchemy import func, select, text
+from sqlalchemy.orm import Session
 
 from ingest_contract.events import RAW_BUCKET, ChangeEvent
 from knowledge_store.acl import AclView, Principal
 from knowledge_store.chunkers import ChunkDraft
 from knowledge_store.embedder import DIMENSIONS, HashEmbedder
 from knowledge_store.graph import GraphWriter
+from knowledge_store.models import Chunk
 from knowledge_store.postgres import ChunkTable
 from knowledge_store.store import KnowledgeStore
 from shared.contracts.validate import load_contracts
@@ -398,6 +400,20 @@ def test_deal_edge_survives_either_order_and_dies_with_the_epic(neo4j_driver) ->
     graph.write("sales", "deal", "deal-1", {"account_id": "acme", "epic_id": "epic-9"}, "Acme", acl, "1")
     graph.write("engineering", "epic", "epic-9", {"title": "Billing", "status": "unreleased"}, "Billing", acl, "1")
     assert graph.depends_on("deal-1", "epic-9")
+
+
+def test_reader_without_a_principal_sees_no_rows(world) -> None:
+    store, _spy, client, admin, _driver = world
+    key = "raw/hr/policy/pol-1.md"
+    _put(client, key, POLICY, "hr_employee", "1", "hash-1")
+    store.upsert_object(_event("pol-1", key, "1", "hash-1"))
+    with admin.connect() as connection:
+        stored = connection.execute(text("SELECT count(*) AS n FROM chunks")).one().n
+    assert stored > 0
+    with Session(store.chunks.reader) as session:
+        visible = session.scalar(select(func.count()).select_from(Chunk))
+    assert visible == 0
+    assert store.chunks.count_visible(None) == 0
 
 
 def test_hash_embedder_abstains_without_a_lexical_hit(world) -> None:

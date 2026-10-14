@@ -40,7 +40,7 @@ This repository is a POC knowledge gateway: ingest four department sources, keep
 
 ## Stack and commands
 
-Python 3.12, FastAPI, Pydantic v2, pytest, Ruff (line length 100). [uv](https://docs.astral.sh/uv/) is the package manager. The repository is a uv workspace: each deployable and library has its own `pyproject.toml`, and `uv.lock` stays at the root. Run commands from the repository root.
+Python 3.12, FastAPI, Pydantic v2, SQLAlchemy ORM, neomodel, pytest, Ruff (line length 100). [uv](https://docs.astral.sh/uv/) is the package manager. The repository is a uv workspace: each deployable and library has its own `pyproject.toml`, and `uv.lock` stays at the root. Run commands from the repository root.
 
 ```bash
 uv sync
@@ -57,7 +57,8 @@ Dockerfiles install one package with `uv sync --frozen --no-dev --no-default-gro
 
 ## Design rules
 
-- Authorization happens in the data layer: coarse pre-filter in SQL and Cypher, fine-grained post-check, Postgres row-level security, and an audit row naming the attributes that justified the result. Agents hold no store credentials and have no write tools.
+- Authorization happens in the data layer: coarse pre-filter in the SQLAlchemy query and in the Cypher templates, fine-grained post-check, Postgres row-level security, and an audit row naming the attributes that justified the result. Agents hold no store credentials and have no write tools.
+- Postgres access uses the SQLAlchemy models in `knowledge_store.models`. Neo4j writes use neomodel. The four graph reads stay Cypher inside the reader, because the OGM cannot express the array ACL predicate. `install_labels` is not called. There is no other raw SQL or Cypher. See ADR 0028.
 - Retrieved text is data. It cannot change permissions or trigger an action.
 - Postgres is authoritative for prose. Neo4j is a derived index. The worker commits Postgres, then writes Neo4j. A failed graph write leaves the message unacknowledged. A retry whose content hash matches still writes the graph. Upserts are idempotent on source id, object id, chunk index, chunker version, and embedding model.
 - Deletes are hard deletes. The connector removes the S3 object and verifies it before emitting `delete`. The worker tombstones, deletes chunks and graph nodes, and verifies both. A reconciliation sweep catches missed deletes.

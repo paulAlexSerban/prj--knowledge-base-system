@@ -75,7 +75,7 @@ Source drawio: [02-end-to-end-data-flow.drawio](../99--dagrams/02-end-to-end-dat
 | 2   | Connector        | Detect the change. Fetch the body. Map native permissions to `group`, `clearance`, `department`. Normalize to a platform document with a content hash. Raw payload to S3. |
 | 3   | Queue            | Event with source id, object id, type, version or hash, `occurred_at`, S3 pointer. Ordered per object.                                      |
 | 4   | Ingestion worker | Chunk with a format-aware splitter. Add a contextual header (title plus section path). Embed only if the content hash changed.             |
-| 5   | Ingestion worker | Upsert chunks, vectors, full-text, and ACL columns in Postgres. Then merge graph nodes and edges. A failed graph write leaves the message unacknowledged. |
+| 5   | Ingestion worker | Upsert chunks, vectors, full-text, and ACL columns in Postgres through SQLAlchemy. Then merge graph nodes and edges through neomodel. A failed graph write leaves the message unacknowledged. |
 | 6   | Service layer    | Pre-filter in SQL or Cypher, over-fetch, fine-grained check, row-level security, audit. HR policy search also re-checks the source ACL.     |
 | 7   | Agent            | Receives cited snippets or a graph path. Retrieved text is untrusted data.                                                                  |
 
@@ -158,7 +158,7 @@ MCP gives every client the same tools. It does not authenticate users or enforce
 
 There is no write tool and no open SQL or Cypher. The token's claims become the principal. Authorization is layered:
 
-1. A coarse pre-filter in SQL and Cypher on group, clearance, and department.
+1. A coarse pre-filter in the SQLAlchemy query and in the Cypher templates on group, clearance, and department.
 2. Over-fetch, then a fine-grained post-check where one stored rule must match group, department, and clearance together.
 3. Postgres row-level security reads the principal from session settings. A query that forgets the predicate still cannot read another principal's rows.
 4. An audit row names the attributes that justified each allow. Denies are logged.

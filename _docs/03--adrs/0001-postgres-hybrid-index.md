@@ -8,7 +8,7 @@ Retrieval has to filter by permission, return chunk text, and search both by mea
 
 ## Decision
 
-Postgres 18 with pgvector (`pgvector/pgvector:pg18`) is the system of record for chunks. A row holds the text, the ACL attributes, the content hash, and a `vector(1024)` embedding. Full-text search is a generated English `tsvector` with a GIN index. The vector index is HNSW using cosine distance. `gateway_ro` reads under row-level security. `ingestion_rw` writes every row. The table owner bypasses row-level security, so the API must not connect as that user. Reciprocal rank fusion of the two result lists is application code ([ADR 0008](0008-hybrid-retrieval.md)).
+Postgres 18 with pgvector (`pgvector/pgvector:pg18`) is the system of record for chunks. A row holds the text, the ACL attributes, the content hash, and a `vector(1024)` embedding. Full-text search is a generated English `tsvector` with a GIN index. The vector index is HNSW using cosine distance. `gateway_ro` reads under row-level security. `ingestion_rw` writes every row. The table owner bypasses row-level security, so the API must not connect as that user. Application code uses SQLAlchemy models for these tables ([ADR 0028](0028-orm-and-ogm.md)). Reciprocal rank fusion of the two result lists is application code ([ADR 0008](0008-hybrid-retrieval.md)).
 
 ## Alternatives rejected
 
