@@ -2,7 +2,28 @@
   "apiVersion": "dashboard.grafana.app/v2",
   "kind": "Dashboard",
   "metadata": {
-    "name": "kbs-service-graph"
+    "name": "kbs-service-graph",
+    "namespace": "default",
+    "uid": "bd2a31fb-fc45-4d60-8487-e59aff5f2a83",
+    "resourceVersion": "1791971513796991",
+    "generation": 3,
+    "creationTimestamp": "2026-10-13T12:33:35Z",
+    "labels": {
+      "grafana.app/deprecatedInternalID": "2301278613131264"
+    },
+    "annotations": {
+      "grafana.app/createdBy": "access-policy:service",
+      "grafana.app/folder": "kbs",
+      "grafana.app/managedBy": "classic-file-provisioning",
+      "grafana.app/managerId": "kbs",
+      "grafana.app/sourceChecksum": "f633f4c56ba74f2f389a8b9329376711",
+      "grafana.app/sourcePath": "/var/lib/grafana/dashboards/service-graph/kbs-service-graph.json",
+      "grafana.app/sourceTimestamp": "1791971508000",
+      "grafana.app/updatedBy": "access-policy:service",
+      "grafana.app/updatedTimestamp": "2026-10-14T09:51:53Z",
+      "grafana.app/folderTitle": "KBS",
+      "grafana.app/folderUrl": "/dashboards/f/kbs/kbs"
+    }
   },
   "spec": {
     "annotations": [
@@ -32,10 +53,6 @@
       "panel-1": {
         "kind": "Panel",
         "spec": {
-          "id": 1,
-          "title": "Service graph",
-          "description": "Edges Tempo built from client and server spans, and from producer and consumer spans. A missing edge means that hop did not run, or the metrics generator has not flushed yet.",
-          "links": [],
           "data": {
             "kind": "QueryGroup",
             "spec": {
@@ -44,22 +61,21 @@
                   "kind": "PanelQuery",
                   "spec": {
                     "hidden": false,
-                    "refId": "A",
                     "query": {
-                      "kind": "DataQuery",
-                      "group": "tempo",
-                      "version": "v0",
                       "datasource": {
-                        "name": "tempo",
-                        "uid": "tempo"
+                        "name": "tempo"
                       },
+                      "group": "tempo",
+                      "kind": "DataQuery",
                       "spec": {
                         "filters": [],
                         "limit": 20,
                         "query": "",
                         "queryType": "serviceMap"
-                      }
-                    }
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
                   }
                 }
               ],
@@ -67,27 +83,32 @@
               "transformations": []
             }
           },
+          "description": "Edges Tempo built from client and server spans, and from producer and consumer spans. A missing edge means that hop did not run, or the metrics generator has not flushed yet.",
+          "id": 1,
+          "links": [],
+          "title": "Service graph",
           "vizConfig": {
-            "kind": "VizConfig",
             "group": "nodeGraph",
-            "version": "13.2.3",
+            "kind": "VizConfig",
             "spec": {
-              "options": {},
               "fieldConfig": {
                 "defaults": {},
                 "overrides": []
+              },
+              "options": {
+                "edges": {},
+                "layoutAlgorithm": "layered",
+                "nodes": {},
+                "zoomMode": "cooperative"
               }
-            }
+            },
+            "version": "13.2.3"
           }
         }
       },
       "panel-2": {
         "kind": "Panel",
         "spec": {
-          "id": 2,
-          "title": "Edge rate",
-          "description": "Requests per second between two processes. client called server. connection_type is left off the legend.",
-          "links": [],
           "data": {
             "kind": "QueryGroup",
             "spec": {
@@ -96,20 +117,19 @@
                   "kind": "PanelQuery",
                   "spec": {
                     "hidden": false,
-                    "refId": "A",
                     "query": {
-                      "kind": "DataQuery",
-                      "group": "prometheus",
-                      "version": "v0",
                       "datasource": {
-                        "name": "prometheus",
-                        "uid": "prometheus"
+                        "name": "prometheus"
                       },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
                       "spec": {
                         "expr": "sum by (client, server) (rate(traces_service_graph_request_total[5m]))",
                         "legendFormat": "{{client}} -> {{server}}"
-                      }
-                    }
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
                   }
                 }
               ],
@@ -117,6 +137,10 @@
               "transformations": []
             }
           },
+          "description": "Requests per second between two processes. client called server. connection_type is left off the legend.",
+          "id": 2,
+          "links": [],
+          "title": "Edge rate",
           "vizConfig": {
             "group": "timeseries",
             "kind": "VizConfig",
@@ -159,6 +183,19 @@
                     "thresholdsStyle": {
                       "mode": "off"
                     }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      },
+                      {
+                        "color": "red",
+                        "value": 80
+                      }
+                    ]
                   },
                   "unit": "short"
                 },
@@ -185,10 +222,6 @@
       "panel-3": {
         "kind": "Panel",
         "spec": {
-          "id": 3,
-          "title": "Failed edges",
-          "description": "Edges per second whose span finished in error. A gap means no failed calls.",
-          "links": [],
           "data": {
             "kind": "QueryGroup",
             "spec": {
@@ -197,20 +230,19 @@
                   "kind": "PanelQuery",
                   "spec": {
                     "hidden": false,
-                    "refId": "A",
                     "query": {
-                      "kind": "DataQuery",
-                      "group": "prometheus",
-                      "version": "v0",
                       "datasource": {
-                        "name": "prometheus",
-                        "uid": "prometheus"
+                        "name": "prometheus"
                       },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
                       "spec": {
                         "expr": "sum by (client, server) (rate(traces_service_graph_request_failed_total[5m]))",
                         "legendFormat": "{{client}} -> {{server}}"
-                      }
-                    }
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
                   }
                 }
               ],
@@ -218,6 +250,10 @@
               "transformations": []
             }
           },
+          "description": "Edges per second whose span finished in error. A gap means no failed calls.",
+          "id": 3,
+          "links": [],
+          "title": "Failed edges",
           "vizConfig": {
             "group": "timeseries",
             "kind": "VizConfig",
@@ -260,6 +296,19 @@
                     "thresholdsStyle": {
                       "mode": "off"
                     }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      },
+                      {
+                        "color": "red",
+                        "value": 80
+                      }
+                    ]
                   },
                   "unit": "short"
                 },
@@ -286,10 +335,6 @@
       "panel-4": {
         "kind": "Panel",
         "spec": {
-          "id": 4,
-          "title": "Server duration p95",
-          "description": "95th percentile of the server span on each edge, in seconds.",
-          "links": [],
           "data": {
             "kind": "QueryGroup",
             "spec": {
@@ -298,20 +343,19 @@
                   "kind": "PanelQuery",
                   "spec": {
                     "hidden": false,
-                    "refId": "A",
                     "query": {
-                      "kind": "DataQuery",
-                      "group": "prometheus",
-                      "version": "v0",
                       "datasource": {
-                        "name": "prometheus",
-                        "uid": "prometheus"
+                        "name": "prometheus"
                       },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
                       "spec": {
                         "expr": "histogram_quantile(0.95, sum by (le, client, server) (rate(traces_service_graph_request_server_seconds_bucket[5m])))",
                         "legendFormat": "{{client}} -> {{server}}"
-                      }
-                    }
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
                   }
                 }
               ],
@@ -319,6 +363,10 @@
               "transformations": []
             }
           },
+          "description": "95th percentile of the server span on each edge, in seconds.",
+          "id": 4,
+          "links": [],
+          "title": "Server duration p95",
           "vizConfig": {
             "group": "timeseries",
             "kind": "VizConfig",
@@ -361,6 +409,19 @@
                     "thresholdsStyle": {
                       "mode": "off"
                     }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      },
+                      {
+                        "color": "red",
+                        "value": 80
+                      }
+                    ]
                   },
                   "unit": "short"
                 },
@@ -387,10 +448,6 @@
       "panel-5": {
         "kind": "Panel",
         "spec": {
-          "id": 5,
-          "title": "Span rate by service",
-          "description": "All finished spans per second, by process. This counts internal spans as well as the edges above.",
-          "links": [],
           "data": {
             "kind": "QueryGroup",
             "spec": {
@@ -399,20 +456,19 @@
                   "kind": "PanelQuery",
                   "spec": {
                     "hidden": false,
-                    "refId": "A",
                     "query": {
-                      "kind": "DataQuery",
-                      "group": "prometheus",
-                      "version": "v0",
                       "datasource": {
-                        "name": "prometheus",
-                        "uid": "prometheus"
+                        "name": "prometheus"
                       },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
                       "spec": {
                         "expr": "sum by (service) (rate(traces_spanmetrics_calls_total[5m]))",
                         "legendFormat": "{{service}}"
-                      }
-                    }
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
                   }
                 }
               ],
@@ -420,6 +476,10 @@
               "transformations": []
             }
           },
+          "description": "All finished spans per second, by process. This counts internal spans as well as the edges above.",
+          "id": 5,
+          "links": [],
+          "title": "Span rate by service",
           "vizConfig": {
             "group": "timeseries",
             "kind": "VizConfig",
@@ -463,6 +523,19 @@
                       "mode": "off"
                     }
                   },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      },
+                      {
+                        "color": "red",
+                        "value": 80
+                      }
+                    ]
+                  },
                   "unit": "short"
                 },
                 "overrides": []
@@ -488,10 +561,6 @@
       "panel-6": {
         "kind": "Panel",
         "spec": {
-          "id": 6,
-          "title": "Recent traces",
-          "description": "Feature traces across every process. Health checks and metrics scrapes are left out. The trace id cell opens the trace. Paste that id into the trace id variable to filter the logs and the trace view.",
-          "links": [],
           "data": {
             "kind": "QueryGroup",
             "spec": {
@@ -500,23 +569,22 @@
                   "kind": "PanelQuery",
                   "spec": {
                     "hidden": false,
-                    "refId": "A",
                     "query": {
-                      "kind": "DataQuery",
-                      "group": "tempo",
-                      "version": "v0",
                       "datasource": {
-                        "name": "tempo",
-                        "uid": "tempo"
+                        "name": "tempo"
                       },
+                      "group": "tempo",
+                      "kind": "DataQuery",
                       "spec": {
                         "filters": [],
                         "limit": 20,
                         "query": "{ rootName !~ \"^(GET|HEAD|POST) /(health|metrics).*\" && rootName !~ \"^(GET|HEAD) /(ready|live|-/healthy|-/ready|_stcore/health).*\" }",
                         "queryType": "traceql",
                         "tableType": "traces"
-                      }
-                    }
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
                   }
                 }
               ],
@@ -524,14 +592,44 @@
               "transformations": []
             }
           },
+          "description": "Feature traces across every process. Health checks and metrics scrapes are left out. The trace id cell opens the trace. Paste that id into the trace id variable to filter the logs and the trace view.",
+          "id": 6,
+          "links": [],
+          "title": "Recent traces",
           "vizConfig": {
-            "kind": "VizConfig",
             "group": "table",
-            "version": "13.2.3",
+            "kind": "VizConfig",
             "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "custom": {
+                    "align": "auto",
+                    "cellOptions": {
+                      "type": "auto"
+                    },
+                    "footer": {
+                      "reducers": []
+                    },
+                    "inspect": false
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      },
+                      {
+                        "color": "red",
+                        "value": 80
+                      }
+                    ]
+                  }
+                },
+                "overrides": []
+              },
               "options": {
                 "cellHeight": "sm",
-                "showHeader": true,
                 "footer": {
                   "countRows": false,
                   "enablePagination": false,
@@ -540,75 +638,17 @@
                     "sum"
                   ],
                   "show": false
-                }
-              },
-              "fieldConfig": {
-                "defaults": {},
-                "overrides": []
+                },
+                "showHeader": true
               }
-            }
-          }
-        }
-      },
-      "panel-7": {
-        "kind": "Panel",
-        "spec": {
-          "id": 7,
-          "title": "Trace",
-          "description": "One trace. Paste a 32-character hex id into the trace id variable. The default matches nothing useful until you replace it. The logs panel beside it uses the same id.",
-          "links": [],
-          "data": {
-            "kind": "QueryGroup",
-            "spec": {
-              "queries": [
-                {
-                  "kind": "PanelQuery",
-                  "spec": {
-                    "hidden": false,
-                    "refId": "A",
-                    "query": {
-                      "kind": "DataQuery",
-                      "group": "tempo",
-                      "version": "v0",
-                      "datasource": {
-                        "name": "tempo",
-                        "uid": "tempo"
-                      },
-                      "spec": {
-                        "filters": [],
-                        "limit": 20,
-                        "query": "$trace_id",
-                        "queryType": "traceId"
-                      }
-                    }
-                  }
-                }
-              ],
-              "queryOptions": {},
-              "transformations": []
-            }
-          },
-          "vizConfig": {
-            "kind": "VizConfig",
-            "group": "traces",
-            "version": "13.2.3",
-            "spec": {
-              "options": {},
-              "fieldConfig": {
-                "defaults": {},
-                "overrides": []
-              }
-            }
+            },
+            "version": "13.2.3"
           }
         }
       },
       "panel-8": {
         "kind": "Panel",
         "spec": {
-          "id": 8,
-          "title": "Logs for a trace",
-          "description": "Lines whose trace_id matches the variable. .+ shows every JSON line that has a trace id. Paste an id from the table to keep one trace. The trace_id field opens Tempo.",
-          "links": [],
           "data": {
             "kind": "QueryGroup",
             "spec": {
@@ -617,21 +657,21 @@
                   "kind": "PanelQuery",
                   "spec": {
                     "hidden": false,
-                    "refId": "A",
                     "query": {
-                      "kind": "DataQuery",
-                      "group": "loki",
-                      "version": "v0",
                       "datasource": {
-                        "name": "loki",
-                        "uid": "loki"
+                        "name": "loki"
                       },
+                      "group": "loki",
+                      "kind": "DataQuery",
                       "spec": {
+                        "direction": "backward",
                         "editorMode": "code",
                         "expr": "{service=~\".+\"} | json | trace_id=~\"${trace_id}\"",
                         "queryType": "range"
-                      }
-                    }
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
                   }
                 }
               ],
@@ -639,6 +679,10 @@
               "transformations": []
             }
           },
+          "description": "Lines whose trace_id matches the variable. .+ shows every JSON line that has a trace id. Paste an id from the table to keep one trace. The trace_id field opens Tempo.",
+          "id": 8,
+          "links": [],
+          "title": "Logs for a trace",
           "vizConfig": {
             "group": "logs",
             "kind": "VizConfig",
@@ -648,20 +692,21 @@
                 "overrides": []
               },
               "options": {
-                "dedupStrategy": "none",
+                "dedupStrategy": "signature",
                 "enableInfiniteScrolling": false,
                 "enableLogDetails": true,
+                "fontSize": "small",
                 "prettifyLogMessage": false,
                 "showCommonLabels": false,
                 "showControls": false,
                 "showFieldSelector": false,
-                "showLabels": true,
+                "showLabels": false,
                 "showLevel": true,
                 "showTime": true,
                 "sortOrder": "Descending",
                 "timestampResolution": "ms",
                 "unwrappedColumns": false,
-                "wrapLogMessage": true
+                "wrapLogMessage": false
               }
             },
             "version": "13.2.3"
@@ -677,7 +722,6 @@
             "kind": "RowsLayoutRow",
             "spec": {
               "collapse": false,
-              "title": "Graph",
               "layout": {
                 "kind": "GridLayout",
                 "spec": {
@@ -685,26 +729,26 @@
                     {
                       "kind": "GridLayoutItem",
                       "spec": {
-                        "x": 0,
-                        "y": 0,
-                        "width": 24,
-                        "height": 12,
                         "element": {
                           "kind": "ElementReference",
                           "name": "panel-1"
-                        }
+                        },
+                        "height": 12,
+                        "width": 24,
+                        "x": 0,
+                        "y": 0
                       }
                     }
                   ]
                 }
-              }
+              },
+              "title": "Graph"
             }
           },
           {
             "kind": "RowsLayoutRow",
             "spec": {
               "collapse": false,
-              "title": "Edges",
               "layout": {
                 "kind": "GridLayout",
                 "spec": {
@@ -712,52 +756,52 @@
                     {
                       "kind": "GridLayoutItem",
                       "spec": {
-                        "x": 0,
-                        "y": 0,
-                        "width": 8,
-                        "height": 8,
                         "element": {
                           "kind": "ElementReference",
                           "name": "panel-2"
-                        }
+                        },
+                        "height": 8,
+                        "width": 8,
+                        "x": 0,
+                        "y": 0
                       }
                     },
                     {
                       "kind": "GridLayoutItem",
                       "spec": {
-                        "x": 8,
-                        "y": 0,
-                        "width": 8,
-                        "height": 8,
                         "element": {
                           "kind": "ElementReference",
                           "name": "panel-3"
-                        }
+                        },
+                        "height": 8,
+                        "width": 8,
+                        "x": 8,
+                        "y": 0
                       }
                     },
                     {
                       "kind": "GridLayoutItem",
                       "spec": {
-                        "x": 16,
-                        "y": 0,
-                        "width": 8,
-                        "height": 8,
                         "element": {
                           "kind": "ElementReference",
                           "name": "panel-4"
-                        }
+                        },
+                        "height": 8,
+                        "width": 8,
+                        "x": 16,
+                        "y": 0
                       }
                     }
                   ]
                 }
-              }
+              },
+              "title": "Edges"
             }
           },
           {
             "kind": "RowsLayoutRow",
             "spec": {
               "collapse": false,
-              "title": "Spans",
               "layout": {
                 "kind": "GridLayout",
                 "spec": {
@@ -765,26 +809,26 @@
                     {
                       "kind": "GridLayoutItem",
                       "spec": {
-                        "x": 0,
-                        "y": 0,
-                        "width": 24,
-                        "height": 8,
                         "element": {
                           "kind": "ElementReference",
                           "name": "panel-5"
-                        }
+                        },
+                        "height": 8,
+                        "width": 24,
+                        "x": 0,
+                        "y": 0
                       }
                     }
                   ]
                 }
-              }
+              },
+              "title": "Spans"
             }
           },
           {
             "kind": "RowsLayoutRow",
             "spec": {
               "collapse": false,
-              "title": "Drilldown",
               "layout": {
                 "kind": "GridLayout",
                 "spec": {
@@ -792,45 +836,33 @@
                     {
                       "kind": "GridLayoutItem",
                       "spec": {
-                        "x": 0,
-                        "y": 0,
-                        "width": 24,
-                        "height": 10,
                         "element": {
                           "kind": "ElementReference",
                           "name": "panel-6"
-                        }
-                      }
-                    },
-                    {
-                      "kind": "GridLayoutItem",
-                      "spec": {
+                        },
+                        "height": 10,
+                        "width": 24,
                         "x": 0,
-                        "y": 10,
-                        "width": 12,
-                        "height": 10,
-                        "element": {
-                          "kind": "ElementReference",
-                          "name": "panel-7"
-                        }
+                        "y": 0
                       }
                     },
                     {
                       "kind": "GridLayoutItem",
                       "spec": {
-                        "x": 12,
-                        "y": 10,
-                        "width": 12,
-                        "height": 10,
                         "element": {
                           "kind": "ElementReference",
                           "name": "panel-8"
-                        }
+                        },
+                        "height": 10,
+                        "width": 24,
+                        "x": 0,
+                        "y": 10
                       }
                     }
                   ]
                 }
-              }
+              },
+              "title": "Drilldown"
             }
           }
         ]
@@ -838,40 +870,40 @@
     },
     "links": [
       {
+        "asDropdown": false,
+        "icon": "external link",
+        "includeVars": true,
+        "keepTime": true,
+        "tags": [],
+        "targetBlank": false,
         "title": "Overview",
-        "type": "link",
-        "icon": "external link",
         "tooltip": "SLO, target health, and the latest errors and denies",
-        "url": "/d/kbs-overview/kbs-overview",
-        "tags": [],
-        "asDropdown": false,
-        "targetBlank": false,
-        "includeVars": true,
-        "keepTime": true
+        "type": "link",
+        "url": "/d/kbs-overview/kbs-overview"
       },
       {
+        "asDropdown": false,
+        "icon": "external link",
+        "includeVars": true,
+        "keepTime": true,
+        "tags": [],
+        "targetBlank": false,
         "title": "Service graph",
-        "type": "link",
-        "icon": "external link",
         "tooltip": "Edges between processes, and one trace with its logs",
-        "url": "/d/kbs-service-graph/kbs-service-graph",
-        "tags": [],
-        "asDropdown": false,
-        "targetBlank": false,
-        "includeVars": true,
-        "keepTime": true
+        "type": "link",
+        "url": "/d/kbs-service-graph/kbs-service-graph"
       },
       {
-        "title": "Traces",
-        "type": "link",
-        "icon": "external link",
-        "tooltip": "Feature traces and a pasted trace id",
-        "url": "/d/kbs-traces/kbs-traces",
-        "tags": [],
         "asDropdown": false,
-        "targetBlank": false,
+        "icon": "external link",
         "includeVars": true,
-        "keepTime": true
+        "keepTime": true,
+        "tags": [],
+        "targetBlank": false,
+        "title": "Traces",
+        "tooltip": "Feature traces and a pasted trace id",
+        "type": "link",
+        "url": "/d/kbs-traces/kbs-traces"
       }
     ],
     "liveNow": false,
@@ -905,16 +937,16 @@
       {
         "kind": "TextVariable",
         "spec": {
-          "name": "trace_id",
-          "label": "Trace id",
-          "description": "Paste a trace id from the chat caption. .+ shows every chat line.",
-          "hide": "dontHide",
-          "skipUrlSync": false,
           "current": {
             "text": ".+",
             "value": ".+"
           },
-          "query": ".+"
+          "description": "Paste a trace id from the chat caption. .+ shows every chat line.",
+          "hide": "dontHide",
+          "label": "Trace id",
+          "name": "trace_id",
+          "query": ".+",
+          "skipUrlSync": false
         }
       }
     ]
