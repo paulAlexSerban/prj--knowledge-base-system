@@ -3,6 +3,8 @@
 The fastembed class is not loaded here. Tests must pass without a download.
 """
 
+import os
+
 from knowledge_store.embedder import (
     DIMENSIONS,
     FASTEMBED_ID,
@@ -31,6 +33,10 @@ def test_hash_embedder_is_not_semantic_and_query_matches_passage() -> None:
     embedder = HashEmbedder()
     assert embedder.semantic is False
     assert embedder.embed_query("parental leave") == embedder.embed(["parental leave"])[0]
+
+
+def test_onnx_telemetry_stays_off() -> None:
+    assert os.environ.get("ORT_DISABLE_TELEMETRY") == "1"
 
 
 def test_unknown_embedder_is_refused() -> None:

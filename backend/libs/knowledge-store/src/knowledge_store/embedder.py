@@ -11,7 +11,11 @@ query filters to it.
 """
 
 import hashlib
+import os
 from typing import Protocol
+
+# Read before fastembed loads the ONNX library. The container also sets this.
+os.environ.setdefault("ORT_DISABLE_TELEMETRY", "1")
 
 DIMENSIONS = 1024
 HASH_MODEL = "hash-v1"

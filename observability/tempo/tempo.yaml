@@ -1,6 +1,7 @@
 # Single binary, local disk. No host port. Grafana reads traces.
 # Alloy sends OTLP. Applications do not talk to Tempo directly.
 # The metrics generator writes service-graph and span-metrics series to Prometheus.
+# local-blocks answers TraceQL metrics queries, which Traces Drilldown runs.
 
 stream_over_http_enabled: true
 
@@ -45,6 +46,11 @@ metrics_generator:
       dimensions: []
     span_metrics:
       dimensions: []
+    # TraceQL `| rate()` reads this processor. filter_server_spans stays off so
+    # a root span that is not a server span, such as chat.turn, is included.
+    local_blocks:
+      filter_server_spans: false
+      flush_to_storage: true
 
 storage:
   trace:
@@ -57,5 +63,5 @@ storage:
 overrides:
   defaults:
     metrics_generator:
-      processors: [service-graphs, span-metrics]
+      processors: [service-graphs, span-metrics, local-blocks]
       generate_native_histograms: classic

@@ -12,7 +12,7 @@ Each process already exported OTLP when `OTEL_EXPORTER_OTLP_ENDPOINT` was set, a
 
 An outbound HTTP call opens a client span, sets `peer.service` to the other process, and sends `trace_headers()`. The receiving HTTP middleware continues that parent as a server span. A queue publish is a producer span. A consume is a consumer span. The service graph uses those four kinds. Other spans stay internal.
 
-Tempo's metrics generator runs the `service-graphs` and `span-metrics` processors and remote-writes to Prometheus. Grafana's Tempo datasource reads that Prometheus for the node graph, and it keeps the existing link from a trace to Loki. The boards are the overview, the platform board, the traces board, one board per component, and `kbs-service-graph`.
+Tempo's metrics generator runs the `service-graphs`, `span-metrics`, and `local-blocks` processors. The first two remote-write to Prometheus. `local-blocks` answers TraceQL metrics queries such as `| rate()`, which Traces Drilldown runs. Grafana's Tempo datasource reads that Prometheus for the node graph, and it keeps the existing link from a trace to Loki. The boards are the overview, the platform board, the traces board, one board per component, and `kbs-service-graph`.
 
 ```mermaid
 flowchart LR

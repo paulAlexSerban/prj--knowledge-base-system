@@ -126,6 +126,10 @@ RUN if [ "$BAKE_FASTEMBED" = "1" ]; then \
       && chmod -R a+rX /opt/fastembed; \
     fi
 ENV HF_HUB_OFFLINE=${BAKE_FASTEMBED}
+# ONNX Runtime writes a non-JSON warning to stderr when it cannot save a
+# telemetry id. The image runs as nobody, so that write fails, and Loki shows
+# the line as JSONParserErr. Telemetry stays off.
+ENV ORT_DISABLE_TELEMETRY=1
 
 ENV ENTRYPOINT_MODULE=${ENTRYPOINT_MODULE}
 WORKDIR ${APP_WORKDIR}

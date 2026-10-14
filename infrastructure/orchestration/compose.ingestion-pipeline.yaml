@@ -207,6 +207,7 @@ services:
       CONTRACTS_DIR: /contracts
       RAW_BUCKET: kbs-raw-snapshots
       EMBEDDER: ${EMBEDDER:-fastembed}
+      ORT_DISABLE_TELEMETRY: "1"
       # Only used if EMBEDDER is fastembed.
       # set higher for more diverse results and lower for more similar results
       VECTOR_MAX_DISTANCE: ${VECTOR_MAX_DISTANCE:-0.20}

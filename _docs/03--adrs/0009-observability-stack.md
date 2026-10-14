@@ -21,6 +21,7 @@ Grafana Alloy (`grafana/alloy:v1.20.1`) is the collector. It scrapes `/metrics` 
 ## Consequences
 
 - A new service needs a scrape entry, a healthcheck, and JSON logs. The chat page is scraped at `chat-ui:9105`. Jupyter, pgAdmin, and the SQLite viewers are the exception: a healthcheck, and no scrape.
+- ONNX Runtime telemetry is off (`ORT_DISABLE_TELEMETRY`). Its device-id warning is not JSON, and Loki would show it as a parse error.
 - The read-only Docker socket is a separate decision ([ADR 0011](0011-alloy-docker-socket.md)). Dashboards and alerts are too ([ADR 0010](0010-dashboards-as-code.md)).
 
 ## Production path
