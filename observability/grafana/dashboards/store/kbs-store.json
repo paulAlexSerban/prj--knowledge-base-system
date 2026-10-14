@@ -2,7 +2,28 @@
   "apiVersion": "dashboard.grafana.app/v2",
   "kind": "Dashboard",
   "metadata": {
-    "name": "kbs-store"
+    "name": "kbs-store",
+    "namespace": "default",
+    "uid": "e203b101-59cb-4b50-85e6-b0480c780d4c",
+    "resourceVersion": "1791899550271010",
+    "generation": 2,
+    "creationTimestamp": "2026-10-13T12:33:35Z",
+    "labels": {
+      "grafana.app/deprecatedInternalID": "2301278772514816"
+    },
+    "annotations": {
+      "grafana.app/createdBy": "access-policy:service",
+      "grafana.app/folder": "kbs",
+      "grafana.app/managedBy": "classic-file-provisioning",
+      "grafana.app/managerId": "kbs",
+      "grafana.app/sourceChecksum": "930a7f8a2cc18a088e2ba6269dd8b3bd",
+      "grafana.app/sourcePath": "/var/lib/grafana/dashboards/store/kbs-store.json",
+      "grafana.app/sourceTimestamp": "1791894810000",
+      "grafana.app/updatedBy": "access-policy:service",
+      "grafana.app/updatedTimestamp": "2026-10-13T13:52:30Z",
+      "grafana.app/folderTitle": "KBS",
+      "grafana.app/folderUrl": "/dashboards/f/kbs/kbs"
+    }
   },
   "spec": {
     "annotations": [
@@ -32,10 +53,6 @@
       "panel-1": {
         "kind": "Panel",
         "spec": {
-          "id": 1,
-          "title": "Span rate",
-          "description": "Finished spans per second for Postgres, Neo4j, and embed spans. A gap means no traffic, or Tempo has not remote-written span metrics yet.",
-          "links": [],
           "data": {
             "kind": "QueryGroup",
             "spec": {
@@ -44,121 +61,19 @@
                   "kind": "PanelQuery",
                   "spec": {
                     "hidden": false,
-                    "refId": "A",
                     "query": {
-                      "kind": "DataQuery",
-                      "group": "prometheus",
-                      "version": "v0",
                       "datasource": {
-                        "name": "prometheus",
-                        "uid": "prometheus"
+                        "name": "prometheus"
                       },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
                       "spec": {
                         "expr": "sum by (span_name) (rate(traces_spanmetrics_calls_total{service=~\"ingestion-worker|gateway-api|gateway-mcp\",span_name=~\"postgres.commit|neo4j.write|embed.query|chunks.vector|chunks.full_text|delete.verify|audit.write\"}[5m]))",
                         "legendFormat": "{{span_name}}"
-                      }
-                    }
-                  }
-                }
-              ],
-              "queryOptions": {},
-              "transformations": []
-            }
-          },
-          "vizConfig": {
-            "group": "timeseries",
-            "kind": "VizConfig",
-            "spec": {
-              "fieldConfig": {
-                "defaults": {
-                  "color": {
-                    "mode": "palette-classic"
-                  },
-                  "custom": {
-                    "axisBorderShow": false,
-                    "axisCenteredZero": false,
-                    "axisColorMode": "text",
-                    "axisLabel": "",
-                    "axisPlacement": "auto",
-                    "barAlignment": 0,
-                    "barWidthFactor": 0.6,
-                    "drawStyle": "line",
-                    "fillOpacity": 0,
-                    "gradientMode": "none",
-                    "hideFrom": {
-                      "legend": false,
-                      "tooltip": false,
-                      "viz": false
-                    },
-                    "insertNulls": false,
-                    "lineInterpolation": "linear",
-                    "lineWidth": 1,
-                    "pointSize": 5,
-                    "scaleDistribution": {
-                      "type": "linear"
-                    },
-                    "showPoints": "auto",
-                    "showValues": false,
-                    "spanNulls": false,
-                    "stacking": {
-                      "group": "A",
-                      "mode": "none"
-                    },
-                    "thresholdsStyle": {
-                      "mode": "off"
-                    }
-                  },
-                  "unit": "short"
-                },
-                "overrides": []
-              },
-              "options": {
-                "legend": {
-                  "calcs": [],
-                  "displayMode": "list",
-                  "placement": "bottom",
-                  "showLegend": true
-                },
-                "tooltip": {
-                  "hideZeros": false,
-                  "mode": "single",
-                  "sort": "none"
-                }
-              }
-            },
-            "version": "13.2.3"
-          }
-        }
-      },
-      "panel-2": {
-        "kind": "Panel",
-        "spec": {
-          "id": 2,
-          "title": "Span errors",
-          "description": "Spans per second that finished in error for Postgres, Neo4j, and embed spans. A gap means no errors.",
-          "links": [],
-          "data": {
-            "kind": "QueryGroup",
-            "spec": {
-              "queries": [
-                {
-                  "kind": "PanelQuery",
-                  "spec": {
-                    "hidden": false,
-                    "refId": "A",
-                    "query": {
-                      "kind": "DataQuery",
-                      "group": "prometheus",
-                      "version": "v0",
-                      "datasource": {
-                        "name": "prometheus",
-                        "uid": "prometheus"
                       },
-                      "spec": {
-                        "expr": "sum by (span_name) (rate(traces_spanmetrics_calls_total{service=~\"ingestion-worker|gateway-api|gateway-mcp\",status_code=\"STATUS_CODE_ERROR\",span_name=~\"postgres.commit|neo4j.write|embed.query|chunks.vector|chunks.full_text|delete.verify|audit.write\"}[5m]))",
-                        "legendFormat": "{{span_name}}"
-                      }
-                    }
+                      "version": "v0"
+                    },
+                    "refId": "A"
                   }
                 }
               ],
@@ -166,107 +81,10 @@
               "transformations": []
             }
           },
-          "vizConfig": {
-            "group": "timeseries",
-            "kind": "VizConfig",
-            "spec": {
-              "fieldConfig": {
-                "defaults": {
-                  "color": {
-                    "mode": "palette-classic"
-                  },
-                  "custom": {
-                    "axisBorderShow": false,
-                    "axisCenteredZero": false,
-                    "axisColorMode": "text",
-                    "axisLabel": "",
-                    "axisPlacement": "auto",
-                    "barAlignment": 0,
-                    "barWidthFactor": 0.6,
-                    "drawStyle": "line",
-                    "fillOpacity": 0,
-                    "gradientMode": "none",
-                    "hideFrom": {
-                      "legend": false,
-                      "tooltip": false,
-                      "viz": false
-                    },
-                    "insertNulls": false,
-                    "lineInterpolation": "linear",
-                    "lineWidth": 1,
-                    "pointSize": 5,
-                    "scaleDistribution": {
-                      "type": "linear"
-                    },
-                    "showPoints": "auto",
-                    "showValues": false,
-                    "spanNulls": false,
-                    "stacking": {
-                      "group": "A",
-                      "mode": "none"
-                    },
-                    "thresholdsStyle": {
-                      "mode": "off"
-                    }
-                  },
-                  "unit": "short"
-                },
-                "overrides": []
-              },
-              "options": {
-                "legend": {
-                  "calcs": [],
-                  "displayMode": "list",
-                  "placement": "bottom",
-                  "showLegend": true
-                },
-                "tooltip": {
-                  "hideZeros": false,
-                  "mode": "single",
-                  "sort": "none"
-                }
-              }
-            },
-            "version": "13.2.3"
-          }
-        }
-      },
-      "panel-3": {
-        "kind": "Panel",
-        "spec": {
-          "id": 3,
-          "title": "Span duration p95",
-          "description": "95th percentile span duration for Postgres, Neo4j, and embed spans, in seconds.",
+          "description": "Finished spans per second for Postgres, Neo4j, and embed spans. A gap means no traffic, or Tempo has not remote-written span metrics yet.",
+          "id": 1,
           "links": [],
-          "data": {
-            "kind": "QueryGroup",
-            "spec": {
-              "queries": [
-                {
-                  "kind": "PanelQuery",
-                  "spec": {
-                    "hidden": false,
-                    "refId": "A",
-                    "query": {
-                      "kind": "DataQuery",
-                      "group": "prometheus",
-                      "version": "v0",
-                      "datasource": {
-                        "name": "prometheus",
-                        "uid": "prometheus"
-                      },
-                      "spec": {
-                        "expr": "histogram_quantile(0.95, sum by (le, span_name) (rate(traces_spanmetrics_latency_bucket{service=~\"ingestion-worker|gateway-api|gateway-mcp\",span_name=~\"postgres.commit|neo4j.write|embed.query|chunks.vector|chunks.full_text|delete.verify|audit.write\"}[5m])))",
-                        "legendFormat": "{{span_name}}"
-                      }
-                    }
-                  }
-                }
-              ],
-              "queryOptions": {},
-              "transformations": []
-            }
-          },
+          "title": "Span rate",
           "vizConfig": {
             "group": "timeseries",
             "kind": "VizConfig",
@@ -310,510 +128,18 @@
                       "mode": "off"
                     }
                   },
-                  "unit": "short"
-                },
-                "overrides": []
-              },
-              "options": {
-                "legend": {
-                  "calcs": [],
-                  "displayMode": "list",
-                  "placement": "bottom",
-                  "showLegend": true
-                },
-                "tooltip": {
-                  "hideZeros": false,
-                  "mode": "single",
-                  "sort": "none"
-                }
-              }
-            },
-            "version": "13.2.3"
-          }
-        }
-      },
-      "panel-4": {
-        "kind": "Panel",
-        "spec": {
-          "id": 4,
-          "title": "Store write p95",
-          "description": "95th percentile of one Postgres or Neo4j write, by store and operation, in seconds.",
-          "links": [],
-          "data": {
-            "kind": "QueryGroup",
-            "spec": {
-              "queries": [
-                {
-                  "kind": "PanelQuery",
-                  "spec": {
-                    "hidden": false,
-                    "refId": "A",
-                    "query": {
-                      "kind": "DataQuery",
-                      "group": "prometheus",
-                      "version": "v0",
-                      "datasource": {
-                        "name": "prometheus",
-                        "uid": "prometheus"
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
                       },
-                      "spec": {
-                        "expr": "histogram_quantile(0.95, sum by (le, store, op) (rate(kbs_store_write_seconds_bucket[5m])))",
-                        "legendFormat": "{{store}} {{op}}"
+                      {
+                        "color": "red",
+                        "value": 80
                       }
-                    }
-                  }
-                }
-              ],
-              "queryOptions": {},
-              "transformations": []
-            }
-          },
-          "vizConfig": {
-            "group": "timeseries",
-            "kind": "VizConfig",
-            "spec": {
-              "fieldConfig": {
-                "defaults": {
-                  "color": {
-                    "mode": "palette-classic"
-                  },
-                  "custom": {
-                    "axisBorderShow": false,
-                    "axisCenteredZero": false,
-                    "axisColorMode": "text",
-                    "axisLabel": "",
-                    "axisPlacement": "auto",
-                    "barAlignment": 0,
-                    "barWidthFactor": 0.6,
-                    "drawStyle": "line",
-                    "fillOpacity": 0,
-                    "gradientMode": "none",
-                    "hideFrom": {
-                      "legend": false,
-                      "tooltip": false,
-                      "viz": false
-                    },
-                    "insertNulls": false,
-                    "lineInterpolation": "linear",
-                    "lineWidth": 1,
-                    "pointSize": 5,
-                    "scaleDistribution": {
-                      "type": "linear"
-                    },
-                    "showPoints": "auto",
-                    "showValues": false,
-                    "spanNulls": false,
-                    "stacking": {
-                      "group": "A",
-                      "mode": "none"
-                    },
-                    "thresholdsStyle": {
-                      "mode": "off"
-                    }
-                  },
-                  "unit": "short"
-                },
-                "overrides": []
-              },
-              "options": {
-                "legend": {
-                  "calcs": [],
-                  "displayMode": "list",
-                  "placement": "bottom",
-                  "showLegend": true
-                },
-                "tooltip": {
-                  "hideZeros": false,
-                  "mode": "single",
-                  "sort": "none"
-                }
-              }
-            },
-            "version": "13.2.3"
-          }
-        }
-      },
-      "panel-5": {
-        "kind": "Panel",
-        "spec": {
-          "id": 5,
-          "title": "Store errors",
-          "description": "Store write failures in the selected range, by store and operation. The panel uses increase because the raw series is a counter.",
-          "links": [],
-          "data": {
-            "kind": "QueryGroup",
-            "spec": {
-              "queries": [
-                {
-                  "kind": "PanelQuery",
-                  "spec": {
-                    "hidden": false,
-                    "refId": "A",
-                    "query": {
-                      "kind": "DataQuery",
-                      "group": "prometheus",
-                      "version": "v0",
-                      "datasource": {
-                        "name": "prometheus",
-                        "uid": "prometheus"
-                      },
-                      "spec": {
-                        "expr": "sum by (store, op) (increase(kbs_store_errors_total[15m]))",
-                        "legendFormat": "{{store}} {{op}}"
-                      }
-                    }
-                  }
-                }
-              ],
-              "queryOptions": {},
-              "transformations": []
-            }
-          },
-          "vizConfig": {
-            "group": "timeseries",
-            "kind": "VizConfig",
-            "spec": {
-              "fieldConfig": {
-                "defaults": {
-                  "color": {
-                    "mode": "palette-classic"
-                  },
-                  "custom": {
-                    "axisBorderShow": false,
-                    "axisCenteredZero": false,
-                    "axisColorMode": "text",
-                    "axisLabel": "",
-                    "axisPlacement": "auto",
-                    "barAlignment": 0,
-                    "barWidthFactor": 0.6,
-                    "drawStyle": "line",
-                    "fillOpacity": 0,
-                    "gradientMode": "none",
-                    "hideFrom": {
-                      "legend": false,
-                      "tooltip": false,
-                      "viz": false
-                    },
-                    "insertNulls": false,
-                    "lineInterpolation": "linear",
-                    "lineWidth": 1,
-                    "pointSize": 5,
-                    "scaleDistribution": {
-                      "type": "linear"
-                    },
-                    "showPoints": "auto",
-                    "showValues": false,
-                    "spanNulls": false,
-                    "stacking": {
-                      "group": "A",
-                      "mode": "none"
-                    },
-                    "thresholdsStyle": {
-                      "mode": "off"
-                    }
-                  },
-                  "unit": "short"
-                },
-                "overrides": []
-              },
-              "options": {
-                "legend": {
-                  "calcs": [],
-                  "displayMode": "list",
-                  "placement": "bottom",
-                  "showLegend": true
-                },
-                "tooltip": {
-                  "hideZeros": false,
-                  "mode": "single",
-                  "sort": "none"
-                }
-              }
-            },
-            "version": "13.2.3"
-          }
-        }
-      },
-      "panel-6": {
-        "kind": "Panel",
-        "spec": {
-          "id": 6,
-          "title": "Indexed objects",
-          "description": "Distinct objects that have at least one chunk, by source. This is a gauge.",
-          "links": [],
-          "data": {
-            "kind": "QueryGroup",
-            "spec": {
-              "queries": [
-                {
-                  "kind": "PanelQuery",
-                  "spec": {
-                    "hidden": false,
-                    "refId": "A",
-                    "query": {
-                      "kind": "DataQuery",
-                      "group": "prometheus",
-                      "version": "v0",
-                      "datasource": {
-                        "name": "prometheus",
-                        "uid": "prometheus"
-                      },
-                      "spec": {
-                        "expr": "kbs_index_objects",
-                        "legendFormat": "{{source_id}}"
-                      }
-                    }
-                  }
-                }
-              ],
-              "queryOptions": {},
-              "transformations": []
-            }
-          },
-          "vizConfig": {
-            "group": "timeseries",
-            "kind": "VizConfig",
-            "spec": {
-              "fieldConfig": {
-                "defaults": {
-                  "color": {
-                    "mode": "palette-classic"
-                  },
-                  "custom": {
-                    "axisBorderShow": false,
-                    "axisCenteredZero": false,
-                    "axisColorMode": "text",
-                    "axisLabel": "",
-                    "axisPlacement": "auto",
-                    "barAlignment": 0,
-                    "barWidthFactor": 0.6,
-                    "drawStyle": "line",
-                    "fillOpacity": 0,
-                    "gradientMode": "none",
-                    "hideFrom": {
-                      "legend": false,
-                      "tooltip": false,
-                      "viz": false
-                    },
-                    "insertNulls": false,
-                    "lineInterpolation": "linear",
-                    "lineWidth": 1,
-                    "pointSize": 5,
-                    "scaleDistribution": {
-                      "type": "linear"
-                    },
-                    "showPoints": "auto",
-                    "showValues": false,
-                    "spanNulls": false,
-                    "stacking": {
-                      "group": "A",
-                      "mode": "none"
-                    },
-                    "thresholdsStyle": {
-                      "mode": "off"
-                    }
-                  },
-                  "unit": "short"
-                },
-                "overrides": []
-              },
-              "options": {
-                "legend": {
-                  "calcs": [],
-                  "displayMode": "list",
-                  "placement": "bottom",
-                  "showLegend": true
-                },
-                "tooltip": {
-                  "hideZeros": false,
-                  "mode": "single",
-                  "sort": "none"
-                }
-              }
-            },
-            "version": "13.2.3"
-          }
-        }
-      },
-      "panel-7": {
-        "kind": "Panel",
-        "spec": {
-          "id": 7,
-          "title": "Embed calls",
-          "description": "Embedding calls per second by model. One increment per text, not per object.",
-          "links": [],
-          "data": {
-            "kind": "QueryGroup",
-            "spec": {
-              "queries": [
-                {
-                  "kind": "PanelQuery",
-                  "spec": {
-                    "hidden": false,
-                    "refId": "A",
-                    "query": {
-                      "kind": "DataQuery",
-                      "group": "prometheus",
-                      "version": "v0",
-                      "datasource": {
-                        "name": "prometheus",
-                        "uid": "prometheus"
-                      },
-                      "spec": {
-                        "expr": "sum by (model) (rate(kbs_embed_calls_total[5m]))",
-                        "legendFormat": "{{model}}"
-                      }
-                    }
-                  }
-                }
-              ],
-              "queryOptions": {},
-              "transformations": []
-            }
-          },
-          "vizConfig": {
-            "group": "timeseries",
-            "kind": "VizConfig",
-            "spec": {
-              "fieldConfig": {
-                "defaults": {
-                  "color": {
-                    "mode": "palette-classic"
-                  },
-                  "custom": {
-                    "axisBorderShow": false,
-                    "axisCenteredZero": false,
-                    "axisColorMode": "text",
-                    "axisLabel": "",
-                    "axisPlacement": "auto",
-                    "barAlignment": 0,
-                    "barWidthFactor": 0.6,
-                    "drawStyle": "line",
-                    "fillOpacity": 0,
-                    "gradientMode": "none",
-                    "hideFrom": {
-                      "legend": false,
-                      "tooltip": false,
-                      "viz": false
-                    },
-                    "insertNulls": false,
-                    "lineInterpolation": "linear",
-                    "lineWidth": 1,
-                    "pointSize": 5,
-                    "scaleDistribution": {
-                      "type": "linear"
-                    },
-                    "showPoints": "auto",
-                    "showValues": false,
-                    "spanNulls": false,
-                    "stacking": {
-                      "group": "A",
-                      "mode": "none"
-                    },
-                    "thresholdsStyle": {
-                      "mode": "off"
-                    }
-                  },
-                  "unit": "short"
-                },
-                "overrides": []
-              },
-              "options": {
-                "legend": {
-                  "calcs": [],
-                  "displayMode": "list",
-                  "placement": "bottom",
-                  "showLegend": true
-                },
-                "tooltip": {
-                  "hideZeros": false,
-                  "mode": "single",
-                  "sort": "none"
-                }
-              }
-            },
-            "version": "13.2.3"
-          }
-        }
-      },
-      "panel-8": {
-        "kind": "Panel",
-        "spec": {
-          "id": 8,
-          "title": "Delete verification failures",
-          "description": "Deletes that still found the object afterwards, in the selected range, by source and store. Any sample is a failure.",
-          "links": [],
-          "data": {
-            "kind": "QueryGroup",
-            "spec": {
-              "queries": [
-                {
-                  "kind": "PanelQuery",
-                  "spec": {
-                    "hidden": false,
-                    "refId": "A",
-                    "query": {
-                      "kind": "DataQuery",
-                      "group": "prometheus",
-                      "version": "v0",
-                      "datasource": {
-                        "name": "prometheus",
-                        "uid": "prometheus"
-                      },
-                      "spec": {
-                        "expr": "sum by (source_id, store) (increase(kbs_delete_verification_failures_total[15m]))",
-                        "legendFormat": "{{source_id}} {{store}}"
-                      }
-                    }
-                  }
-                }
-              ],
-              "queryOptions": {},
-              "transformations": []
-            }
-          },
-          "vizConfig": {
-            "group": "timeseries",
-            "kind": "VizConfig",
-            "spec": {
-              "fieldConfig": {
-                "defaults": {
-                  "color": {
-                    "mode": "palette-classic"
-                  },
-                  "custom": {
-                    "axisBorderShow": false,
-                    "axisCenteredZero": false,
-                    "axisColorMode": "text",
-                    "axisLabel": "",
-                    "axisPlacement": "auto",
-                    "barAlignment": 0,
-                    "barWidthFactor": 0.6,
-                    "drawStyle": "line",
-                    "fillOpacity": 0,
-                    "gradientMode": "none",
-                    "hideFrom": {
-                      "legend": false,
-                      "tooltip": false,
-                      "viz": false
-                    },
-                    "insertNulls": false,
-                    "lineInterpolation": "linear",
-                    "lineWidth": 1,
-                    "pointSize": 5,
-                    "scaleDistribution": {
-                      "type": "linear"
-                    },
-                    "showPoints": "auto",
-                    "showValues": false,
-                    "spanNulls": false,
-                    "stacking": {
-                      "group": "A",
-                      "mode": "none"
-                    },
-                    "thresholdsStyle": {
-                      "mode": "off"
-                    }
+                    ]
                   },
                   "unit": "short"
                 },
@@ -840,10 +166,6 @@
       "panel-10": {
         "kind": "Panel",
         "spec": {
-          "id": 10,
-          "title": "Logs",
-          "description": "JSON lines from the worker and the gateway, the two processes that write and read the stores. trace_id opens the Tempo trace.",
-          "links": [],
           "data": {
             "kind": "QueryGroup",
             "spec": {
@@ -852,21 +174,21 @@
                   "kind": "PanelQuery",
                   "spec": {
                     "hidden": false,
-                    "refId": "A",
                     "query": {
-                      "kind": "DataQuery",
-                      "group": "loki",
-                      "version": "v0",
                       "datasource": {
-                        "name": "loki",
-                        "uid": "loki"
+                        "name": "loki"
                       },
+                      "group": "loki",
+                      "kind": "DataQuery",
                       "spec": {
+                        "direction": "backward",
                         "editorMode": "code",
                         "expr": "{service=~\"ingestion-worker|gateway-api|gateway-mcp\"}",
                         "queryType": "range"
-                      }
-                    }
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
                   }
                 }
               ],
@@ -874,6 +196,10 @@
               "transformations": []
             }
           },
+          "description": "JSON lines from the worker and the gateway, the two processes that write and read the stores. trace_id opens the Tempo trace.",
+          "id": 10,
+          "links": [],
+          "title": "Logs",
           "vizConfig": {
             "group": "logs",
             "kind": "VizConfig",
@@ -883,17 +209,19 @@
                 "overrides": []
               },
               "options": {
-                "dedupStrategy": "none",
+                "dedupStrategy": "signature",
                 "enableInfiniteScrolling": false,
-                "enableLogDetails": true,
+                "enableLogDetails": false,
+                "fontSize": "small",
                 "prettifyLogMessage": false,
                 "showCommonLabels": false,
                 "showControls": false,
                 "showFieldSelector": false,
-                "showLabels": true,
+                "showLabels": false,
                 "showLevel": true,
                 "showTime": true,
                 "sortOrder": "Descending",
+                "syntaxHighlighting": true,
                 "timestampResolution": "ms",
                 "unwrappedColumns": false,
                 "wrapLogMessage": true
@@ -906,10 +234,6 @@
       "panel-11": {
         "kind": "Panel",
         "spec": {
-          "id": 11,
-          "title": "Recent traces",
-          "description": "Store spans inside the worker and the gateway. Postgres is authoritative. Neo4j is the derived graph.",
-          "links": [],
           "data": {
             "kind": "QueryGroup",
             "spec": {
@@ -918,23 +242,22 @@
                   "kind": "PanelQuery",
                   "spec": {
                     "hidden": false,
-                    "refId": "A",
                     "query": {
-                      "kind": "DataQuery",
-                      "group": "tempo",
-                      "version": "v0",
                       "datasource": {
-                        "name": "tempo",
-                        "uid": "tempo"
+                        "name": "tempo"
                       },
+                      "group": "tempo",
+                      "kind": "DataQuery",
                       "spec": {
                         "filters": [],
                         "limit": 20,
                         "query": "{ resource.service.name =~ \"ingestion-worker|gateway-api|gateway-mcp\" && name =~ \"postgres.commit|neo4j.write|embed.query|chunks.vector|chunks.full_text|delete.verify\" }",
                         "queryType": "traceql",
                         "tableType": "traces"
-                      }
-                    }
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
                   }
                 }
               ],
@@ -942,14 +265,44 @@
               "transformations": []
             }
           },
+          "description": "Store spans inside the worker and the gateway. Postgres is authoritative. Neo4j is the derived graph.",
+          "id": 11,
+          "links": [],
+          "title": "Recent traces",
           "vizConfig": {
-            "kind": "VizConfig",
             "group": "table",
-            "version": "13.2.3",
+            "kind": "VizConfig",
             "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "custom": {
+                    "align": "auto",
+                    "cellOptions": {
+                      "type": "auto"
+                    },
+                    "footer": {
+                      "reducers": []
+                    },
+                    "inspect": false
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      },
+                      {
+                        "color": "red",
+                        "value": 80
+                      }
+                    ]
+                  }
+                },
+                "overrides": []
+              },
               "options": {
                 "cellHeight": "sm",
-                "showHeader": true,
                 "footer": {
                   "countRows": false,
                   "enablePagination": false,
@@ -958,13 +311,802 @@
                     "sum"
                   ],
                   "show": false
-                }
-              },
-              "fieldConfig": {
-                "defaults": {},
-                "overrides": []
+                },
+                "showHeader": true
               }
+            },
+            "version": "13.2.3"
+          }
+        }
+      },
+      "panel-2": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "prometheus"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "sum by (span_name) (rate(traces_spanmetrics_calls_total{service=~\"ingestion-worker|gateway-api|gateway-mcp\",status_code=\"STATUS_CODE_ERROR\",span_name=~\"postgres.commit|neo4j.write|embed.query|chunks.vector|chunks.full_text|delete.verify|audit.write\"}[5m]))",
+                        "legendFormat": "{{span_name}}"
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
             }
+          },
+          "description": "Spans per second that finished in error for Postgres, Neo4j, and embed spans. A gap means no errors.",
+          "id": 2,
+          "links": [],
+          "title": "Span errors",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "axisBorderShow": false,
+                    "axisCenteredZero": false,
+                    "axisColorMode": "text",
+                    "axisLabel": "",
+                    "axisPlacement": "auto",
+                    "barAlignment": 0,
+                    "barWidthFactor": 0.6,
+                    "drawStyle": "line",
+                    "fillOpacity": 0,
+                    "gradientMode": "none",
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    },
+                    "insertNulls": false,
+                    "lineInterpolation": "linear",
+                    "lineWidth": 1,
+                    "pointSize": 5,
+                    "scaleDistribution": {
+                      "type": "linear"
+                    },
+                    "showPoints": "auto",
+                    "showValues": false,
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      },
+                      {
+                        "color": "red",
+                        "value": 80
+                      }
+                    ]
+                  },
+                  "unit": "short"
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "hideZeros": false,
+                  "mode": "single",
+                  "sort": "none"
+                }
+              }
+            },
+            "version": "13.2.3"
+          }
+        }
+      },
+      "panel-3": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "prometheus"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "histogram_quantile(0.95, sum by (le, span_name) (rate(traces_spanmetrics_latency_bucket{service=~\"ingestion-worker|gateway-api|gateway-mcp\",span_name=~\"postgres.commit|neo4j.write|embed.query|chunks.vector|chunks.full_text|delete.verify|audit.write\"}[5m])))",
+                        "legendFormat": "{{span_name}}"
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "95th percentile span duration for Postgres, Neo4j, and embed spans, in seconds.",
+          "id": 3,
+          "links": [],
+          "title": "Span duration p95",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "axisBorderShow": false,
+                    "axisCenteredZero": false,
+                    "axisColorMode": "text",
+                    "axisLabel": "",
+                    "axisPlacement": "auto",
+                    "barAlignment": 0,
+                    "barWidthFactor": 0.6,
+                    "drawStyle": "line",
+                    "fillOpacity": 0,
+                    "gradientMode": "none",
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    },
+                    "insertNulls": false,
+                    "lineInterpolation": "linear",
+                    "lineWidth": 1,
+                    "pointSize": 5,
+                    "scaleDistribution": {
+                      "type": "linear"
+                    },
+                    "showPoints": "auto",
+                    "showValues": false,
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      },
+                      {
+                        "color": "red",
+                        "value": 80
+                      }
+                    ]
+                  },
+                  "unit": "short"
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "hideZeros": false,
+                  "mode": "single",
+                  "sort": "none"
+                }
+              }
+            },
+            "version": "13.2.3"
+          }
+        }
+      },
+      "panel-4": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "prometheus"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "histogram_quantile(0.95, sum by (le, store, op) (rate(kbs_store_write_seconds_bucket[5m])))",
+                        "legendFormat": "{{store}} {{op}}"
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "95th percentile of one Postgres or Neo4j write, by store and operation, in seconds.",
+          "id": 4,
+          "links": [],
+          "title": "Store write p95",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "axisBorderShow": false,
+                    "axisCenteredZero": false,
+                    "axisColorMode": "text",
+                    "axisLabel": "",
+                    "axisPlacement": "auto",
+                    "barAlignment": 0,
+                    "barWidthFactor": 0.6,
+                    "drawStyle": "line",
+                    "fillOpacity": 0,
+                    "gradientMode": "none",
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    },
+                    "insertNulls": false,
+                    "lineInterpolation": "linear",
+                    "lineWidth": 1,
+                    "pointSize": 5,
+                    "scaleDistribution": {
+                      "type": "linear"
+                    },
+                    "showPoints": "auto",
+                    "showValues": false,
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      },
+                      {
+                        "color": "red",
+                        "value": 80
+                      }
+                    ]
+                  },
+                  "unit": "short"
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "hideZeros": false,
+                  "mode": "single",
+                  "sort": "none"
+                }
+              }
+            },
+            "version": "13.2.3"
+          }
+        }
+      },
+      "panel-5": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "prometheus"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "sum by (store, op) (increase(kbs_store_errors_total[15m]))",
+                        "legendFormat": "{{store}} {{op}}"
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Store write failures in the selected range, by store and operation. The panel uses increase because the raw series is a counter.",
+          "id": 5,
+          "links": [],
+          "title": "Store errors",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "axisBorderShow": false,
+                    "axisCenteredZero": false,
+                    "axisColorMode": "text",
+                    "axisLabel": "",
+                    "axisPlacement": "auto",
+                    "barAlignment": 0,
+                    "barWidthFactor": 0.6,
+                    "drawStyle": "line",
+                    "fillOpacity": 0,
+                    "gradientMode": "none",
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    },
+                    "insertNulls": false,
+                    "lineInterpolation": "linear",
+                    "lineWidth": 1,
+                    "pointSize": 5,
+                    "scaleDistribution": {
+                      "type": "linear"
+                    },
+                    "showPoints": "auto",
+                    "showValues": false,
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      },
+                      {
+                        "color": "red",
+                        "value": 80
+                      }
+                    ]
+                  },
+                  "unit": "short"
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "hideZeros": false,
+                  "mode": "single",
+                  "sort": "none"
+                }
+              }
+            },
+            "version": "13.2.3"
+          }
+        }
+      },
+      "panel-6": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "prometheus"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "kbs_index_objects",
+                        "legendFormat": "{{source_id}}"
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Distinct objects that have at least one chunk, by source. This is a gauge.",
+          "id": 6,
+          "links": [],
+          "title": "Indexed objects",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "axisBorderShow": false,
+                    "axisCenteredZero": false,
+                    "axisColorMode": "text",
+                    "axisLabel": "",
+                    "axisPlacement": "auto",
+                    "barAlignment": 0,
+                    "barWidthFactor": 0.6,
+                    "drawStyle": "line",
+                    "fillOpacity": 0,
+                    "gradientMode": "none",
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    },
+                    "insertNulls": false,
+                    "lineInterpolation": "linear",
+                    "lineWidth": 1,
+                    "pointSize": 5,
+                    "scaleDistribution": {
+                      "type": "linear"
+                    },
+                    "showPoints": "auto",
+                    "showValues": false,
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      },
+                      {
+                        "color": "red",
+                        "value": 80
+                      }
+                    ]
+                  },
+                  "unit": "short"
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "hideZeros": false,
+                  "mode": "single",
+                  "sort": "none"
+                }
+              }
+            },
+            "version": "13.2.3"
+          }
+        }
+      },
+      "panel-7": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "prometheus"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "sum by (model) (rate(kbs_embed_calls_total[5m]))",
+                        "legendFormat": "{{model}}"
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Embedding calls per second by model. One increment per text, not per object.",
+          "id": 7,
+          "links": [],
+          "title": "Embed calls",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "axisBorderShow": false,
+                    "axisCenteredZero": false,
+                    "axisColorMode": "text",
+                    "axisLabel": "",
+                    "axisPlacement": "auto",
+                    "barAlignment": 0,
+                    "barWidthFactor": 0.6,
+                    "drawStyle": "line",
+                    "fillOpacity": 0,
+                    "gradientMode": "none",
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    },
+                    "insertNulls": false,
+                    "lineInterpolation": "linear",
+                    "lineWidth": 1,
+                    "pointSize": 5,
+                    "scaleDistribution": {
+                      "type": "linear"
+                    },
+                    "showPoints": "auto",
+                    "showValues": false,
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      },
+                      {
+                        "color": "red",
+                        "value": 80
+                      }
+                    ]
+                  },
+                  "unit": "short"
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "hideZeros": false,
+                  "mode": "single",
+                  "sort": "none"
+                }
+              }
+            },
+            "version": "13.2.3"
+          }
+        }
+      },
+      "panel-8": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "prometheus"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "sum by (source_id, store) (increase(kbs_delete_verification_failures_total[15m]))",
+                        "legendFormat": "{{source_id}} {{store}}"
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Deletes that still found the object afterwards, in the selected range, by source and store. Any sample is a failure.",
+          "id": 8,
+          "links": [],
+          "title": "Delete verification failures",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "axisBorderShow": false,
+                    "axisCenteredZero": false,
+                    "axisColorMode": "text",
+                    "axisLabel": "",
+                    "axisPlacement": "auto",
+                    "barAlignment": 0,
+                    "barWidthFactor": 0.6,
+                    "drawStyle": "line",
+                    "fillOpacity": 0,
+                    "gradientMode": "none",
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    },
+                    "insertNulls": false,
+                    "lineInterpolation": "linear",
+                    "lineWidth": 1,
+                    "pointSize": 5,
+                    "scaleDistribution": {
+                      "type": "linear"
+                    },
+                    "showPoints": "auto",
+                    "showValues": false,
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      },
+                      {
+                        "color": "red",
+                        "value": 80
+                      }
+                    ]
+                  },
+                  "unit": "short"
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "hideZeros": false,
+                  "mode": "single",
+                  "sort": "none"
+                }
+              }
+            },
+            "version": "13.2.3"
           }
         }
       }
@@ -977,7 +1119,6 @@
             "kind": "RowsLayoutRow",
             "spec": {
               "collapse": false,
-              "title": "Spans",
               "layout": {
                 "kind": "GridLayout",
                 "spec": {
@@ -985,52 +1126,52 @@
                     {
                       "kind": "GridLayoutItem",
                       "spec": {
-                        "x": 0,
-                        "y": 0,
-                        "width": 8,
-                        "height": 8,
                         "element": {
                           "kind": "ElementReference",
                           "name": "panel-1"
-                        }
+                        },
+                        "height": 8,
+                        "width": 8,
+                        "x": 0,
+                        "y": 0
                       }
                     },
                     {
                       "kind": "GridLayoutItem",
                       "spec": {
-                        "x": 8,
-                        "y": 0,
-                        "width": 8,
-                        "height": 8,
                         "element": {
                           "kind": "ElementReference",
                           "name": "panel-2"
-                        }
+                        },
+                        "height": 8,
+                        "width": 8,
+                        "x": 8,
+                        "y": 0
                       }
                     },
                     {
                       "kind": "GridLayoutItem",
                       "spec": {
-                        "x": 16,
-                        "y": 0,
-                        "width": 8,
-                        "height": 8,
                         "element": {
                           "kind": "ElementReference",
                           "name": "panel-3"
-                        }
+                        },
+                        "height": 8,
+                        "width": 8,
+                        "x": 16,
+                        "y": 0
                       }
                     }
                   ]
                 }
-              }
+              },
+              "title": "Spans"
             }
           },
           {
             "kind": "RowsLayoutRow",
             "spec": {
               "collapse": false,
-              "title": "Writes",
               "layout": {
                 "kind": "GridLayout",
                 "spec": {
@@ -1038,52 +1179,52 @@
                     {
                       "kind": "GridLayoutItem",
                       "spec": {
-                        "x": 0,
-                        "y": 0,
-                        "width": 8,
-                        "height": 8,
                         "element": {
                           "kind": "ElementReference",
                           "name": "panel-4"
-                        }
+                        },
+                        "height": 8,
+                        "width": 8,
+                        "x": 0,
+                        "y": 0
                       }
                     },
                     {
                       "kind": "GridLayoutItem",
                       "spec": {
-                        "x": 8,
-                        "y": 0,
-                        "width": 8,
-                        "height": 8,
                         "element": {
                           "kind": "ElementReference",
                           "name": "panel-5"
-                        }
+                        },
+                        "height": 8,
+                        "width": 8,
+                        "x": 8,
+                        "y": 0
                       }
                     },
                     {
                       "kind": "GridLayoutItem",
                       "spec": {
-                        "x": 16,
-                        "y": 0,
-                        "width": 8,
-                        "height": 8,
                         "element": {
                           "kind": "ElementReference",
                           "name": "panel-6"
-                        }
+                        },
+                        "height": 8,
+                        "width": 8,
+                        "x": 16,
+                        "y": 0
                       }
                     }
                   ]
                 }
-              }
+              },
+              "title": "Writes"
             }
           },
           {
             "kind": "RowsLayoutRow",
             "spec": {
               "collapse": false,
-              "title": "Embed and delete",
               "layout": {
                 "kind": "GridLayout",
                 "spec": {
@@ -1091,39 +1232,39 @@
                     {
                       "kind": "GridLayoutItem",
                       "spec": {
-                        "x": 0,
-                        "y": 0,
-                        "width": 12,
-                        "height": 8,
                         "element": {
                           "kind": "ElementReference",
                           "name": "panel-7"
-                        }
+                        },
+                        "height": 8,
+                        "width": 12,
+                        "x": 0,
+                        "y": 0
                       }
                     },
                     {
                       "kind": "GridLayoutItem",
                       "spec": {
-                        "x": 12,
-                        "y": 0,
-                        "width": 12,
-                        "height": 8,
                         "element": {
                           "kind": "ElementReference",
                           "name": "panel-8"
-                        }
+                        },
+                        "height": 8,
+                        "width": 12,
+                        "x": 12,
+                        "y": 0
                       }
                     }
                   ]
                 }
-              }
+              },
+              "title": "Embed and delete"
             }
           },
           {
             "kind": "RowsLayoutRow",
             "spec": {
               "collapse": false,
-              "title": "Logs and traces",
               "layout": {
                 "kind": "GridLayout",
                 "spec": {
@@ -1131,32 +1272,33 @@
                     {
                       "kind": "GridLayoutItem",
                       "spec": {
-                        "x": 0,
-                        "y": 0,
-                        "width": 12,
-                        "height": 10,
                         "element": {
                           "kind": "ElementReference",
-                          "name": "panel-10"
-                        }
+                          "name": "panel-11"
+                        },
+                        "height": 10,
+                        "width": 24,
+                        "x": 0,
+                        "y": 0
                       }
                     },
                     {
                       "kind": "GridLayoutItem",
                       "spec": {
-                        "x": 12,
-                        "y": 0,
-                        "width": 12,
-                        "height": 10,
                         "element": {
                           "kind": "ElementReference",
-                          "name": "panel-11"
-                        }
+                          "name": "panel-10"
+                        },
+                        "height": 12,
+                        "width": 24,
+                        "x": 0,
+                        "y": 10
                       }
                     }
                   ]
                 }
-              }
+              },
+              "title": "Logs and traces"
             }
           }
         ]
@@ -1164,40 +1306,40 @@
     },
     "links": [
       {
+        "asDropdown": false,
+        "icon": "external link",
+        "includeVars": true,
+        "keepTime": true,
+        "tags": [],
+        "targetBlank": false,
         "title": "Overview",
-        "type": "link",
-        "icon": "external link",
         "tooltip": "SLO, target health, and the latest errors and denies",
-        "url": "/d/kbs-overview/kbs-overview",
-        "tags": [],
-        "asDropdown": false,
-        "targetBlank": false,
-        "includeVars": true,
-        "keepTime": true
+        "type": "link",
+        "url": "/d/kbs-overview/kbs-overview"
       },
       {
+        "asDropdown": false,
+        "icon": "external link",
+        "includeVars": true,
+        "keepTime": true,
+        "tags": [],
+        "targetBlank": false,
         "title": "Service graph",
-        "type": "link",
-        "icon": "external link",
         "tooltip": "Edges between processes, and one trace with its logs",
-        "url": "/d/kbs-service-graph/kbs-service-graph",
-        "tags": [],
-        "asDropdown": false,
-        "targetBlank": false,
-        "includeVars": true,
-        "keepTime": true
+        "type": "link",
+        "url": "/d/kbs-service-graph/kbs-service-graph"
       },
       {
-        "title": "Traces",
-        "type": "link",
-        "icon": "external link",
-        "tooltip": "Feature traces and a pasted trace id",
-        "url": "/d/kbs-traces/kbs-traces",
-        "tags": [],
         "asDropdown": false,
-        "targetBlank": false,
+        "icon": "external link",
         "includeVars": true,
-        "keepTime": true
+        "keepTime": true,
+        "tags": [],
+        "targetBlank": false,
+        "title": "Traces",
+        "tooltip": "Feature traces and a pasted trace id",
+        "type": "link",
+        "url": "/d/kbs-traces/kbs-traces"
       }
     ],
     "liveNow": false,

@@ -578,7 +578,7 @@
                         "filters": [],
                         "limit": 20,
                         "query": "$trace_id",
-                        "queryType": ""
+                        "queryType": "traceId"
                       }
                     }
                   }
