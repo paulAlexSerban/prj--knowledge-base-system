@@ -1410,10 +1410,10 @@
         "keepTime": true
       },
       {
-        "title": "Frontend",
+        "title": "Demo model",
         "type": "link",
         "icon": "external link",
-        "tooltip": "Chat rate, latency, logs, and traces",
+        "tooltip": "RED and USE for the chat model, plus its logs",
         "url": "/d/kbs-frontend/kbs-frontend",
         "tags": [],
         "asDropdown": false,

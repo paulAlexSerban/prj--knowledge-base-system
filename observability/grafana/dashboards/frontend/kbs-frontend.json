@@ -577,10 +577,10 @@
               "transformations": []
             }
           },
-          "description": "Chat turns per second by route class. Persona, mode, and outcome stay off this chart so one series is one route. A gap means nobody asked, or Alloy cannot scrape chat-ui:9105.",
+          "description": "RED rate. Finished chat turns per second, split by route class. A gap means nobody asked, or Alloy cannot scrape chat-ui:9105.",
           "id": 80,
           "links": [],
-          "title": "Chat turns by route",
+          "title": "Rate",
           "vizConfig": {
             "group": "timeseries",
             "kind": "VizConfig",
@@ -709,10 +709,10 @@
               "transformations": []
             }
           },
-          "description": "50th and 95th percentile of a whole turn, including the gateway call and the model. The 250 ms retrieval target is not drawn here. A turn above a second is usually the model. No samples means nobody asked.",
+          "description": "RED duration. 50th and 95th percentile of a whole turn, including the gateway and the model. A turn above a second is usually the model. No samples means nobody asked.",
           "id": 81,
           "links": [],
-          "title": "Chat turn latency",
+          "title": "Duration",
           "vizConfig": {
             "group": "timeseries",
             "kind": "VizConfig",
@@ -841,10 +841,10 @@
               "transformations": []
             }
           },
-          "description": "95th percentile of the gateway call and of the model call. The gateway series includes routing and retrieval. The model series is absent when no key is set, because the page then prints the snippets and does not call a model.",
+          "description": "USE saturation. 95th percentile of the model call, and of the gateway call in front of it. The model series is absent when no key is set, because the page then prints the snippets.",
           "id": 82,
           "links": [],
-          "title": "Gateway and model time",
+          "title": "Saturation",
           "vizConfig": {
             "group": "timeseries",
             "kind": "VizConfig",
@@ -954,10 +954,10 @@
               "transformations": []
             }
           },
-          "description": "Tokens per second reported by the model, split into prompt and completion. Empty when the page did not call a model, or the model reported no usage. The question is not a label.",
+          "description": "USE utilization. Tokens per second the model reported, split into prompt and completion. Empty when the page did not call a model. The question is not a label.",
           "id": 83,
           "links": [],
-          "title": "Model tokens",
+          "title": "Utilization",
           "vizConfig": {
             "group": "timeseries",
             "kind": "VizConfig",
@@ -1067,10 +1067,10 @@
               "transformations": []
             }
           },
-          "description": "Turns per second that failed before an answer. A gateway HTTP error counts. A model failure that falls back to the snippets does not. That turn is outcome ok and mode retrieval on the turns panel.",
+          "description": "RED errors. Turns per second that failed before an answer. A gateway HTTP error counts. A model failure that falls back to the snippets does not. That turn is on the USE errors panel.",
           "id": 84,
           "links": [],
-          "title": "Chat errors",
+          "title": "Errors",
           "vizConfig": {
             "group": "timeseries",
             "kind": "VizConfig",
@@ -1261,6 +1261,119 @@
             "version": "13.2.3"
           }
         }
+      },
+      "panel-86": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "prometheus"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "sum(rate(kbs_chat_turns_total{mode=\"retrieval\"}[5m]))",
+                        "legendFormat": "fallback"
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "USE errors. Turns per second the model did not write the answer. That is a failed model call that fell back to the snippets, or no key. A gateway failure stays on the RED errors panel.",
+          "id": 86,
+          "links": [],
+          "title": "Errors",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "axisBorderShow": false,
+                    "axisCenteredZero": false,
+                    "axisColorMode": "text",
+                    "axisLabel": "",
+                    "axisPlacement": "auto",
+                    "barAlignment": 0,
+                    "barWidthFactor": 0.6,
+                    "drawStyle": "line",
+                    "fillOpacity": 0,
+                    "gradientMode": "none",
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    },
+                    "insertNulls": false,
+                    "lineInterpolation": "linear",
+                    "lineWidth": 1,
+                    "pointSize": 5,
+                    "scaleDistribution": {
+                      "type": "linear"
+                    },
+                    "showPoints": "auto",
+                    "showValues": false,
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      },
+                      {
+                        "color": "red",
+                        "value": 80
+                      }
+                    ]
+                  },
+                  "unit": "short"
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "hideZeros": false,
+                  "mode": "single",
+                  "sort": "none"
+                }
+              }
+            },
+            "version": "13.2.3"
+          }
+        }
       }
     },
     "layout": {
@@ -1324,6 +1437,7 @@
             "kind": "RowsLayoutRow",
             "spec": {
               "collapse": false,
+              "title": "RED",
               "layout": {
                 "kind": "GridLayout",
                 "spec": {
@@ -1335,49 +1449,10 @@
                           "kind": "ElementReference",
                           "name": "panel-80"
                         },
-                        "height": 8,
-                        "width": 8,
                         "x": 0,
-                        "y": 0
-                      }
-                    },
-                    {
-                      "kind": "GridLayoutItem",
-                      "spec": {
-                        "element": {
-                          "kind": "ElementReference",
-                          "name": "panel-81"
-                        },
-                        "height": 8,
+                        "y": 0,
                         "width": 8,
-                        "x": 8,
-                        "y": 0
-                      }
-                    },
-                    {
-                      "kind": "GridLayoutItem",
-                      "spec": {
-                        "element": {
-                          "kind": "ElementReference",
-                          "name": "panel-82"
-                        },
-                        "height": 8,
-                        "width": 8,
-                        "x": 16,
-                        "y": 0
-                      }
-                    },
-                    {
-                      "kind": "GridLayoutItem",
-                      "spec": {
-                        "element": {
-                          "kind": "ElementReference",
-                          "name": "panel-83"
-                        },
-                        "height": 8,
-                        "width": 8,
-                        "x": 0,
-                        "y": 8
+                        "height": 8
                       }
                     },
                     {
@@ -1387,10 +1462,23 @@
                           "kind": "ElementReference",
                           "name": "panel-84"
                         },
-                        "height": 8,
-                        "width": 8,
                         "x": 8,
-                        "y": 8
+                        "y": 0,
+                        "width": 8,
+                        "height": 8
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-81"
+                        },
+                        "x": 16,
+                        "y": 0,
+                        "width": 8,
+                        "height": 8
                       }
                     },
                     {
@@ -1400,22 +1488,22 @@
                           "kind": "ElementReference",
                           "name": "panel-85"
                         },
-                        "height": 8,
+                        "x": 0,
+                        "y": 8,
                         "width": 8,
-                        "x": 16,
-                        "y": 8
+                        "height": 8
                       }
                     }
                   ]
                 }
-              },
-              "title": "Chat"
+              }
             }
           },
           {
             "kind": "RowsLayoutRow",
             "spec": {
               "collapse": false,
+              "title": "USE",
               "layout": {
                 "kind": "GridLayout",
                 "spec": {
@@ -1425,12 +1513,12 @@
                       "spec": {
                         "element": {
                           "kind": "ElementReference",
-                          "name": "panel-11"
+                          "name": "panel-83"
                         },
-                        "height": 9,
-                        "width": 24,
                         "x": 0,
-                        "y": 0
+                        "y": 0,
+                        "width": 8,
+                        "height": 8
                       }
                     },
                     {
@@ -1438,18 +1526,70 @@
                       "spec": {
                         "element": {
                           "kind": "ElementReference",
-                          "name": "panel-10"
+                          "name": "panel-82"
                         },
-                        "height": 11,
-                        "width": 24,
-                        "x": 0,
-                        "y": 9
+                        "x": 8,
+                        "y": 0,
+                        "width": 8,
+                        "height": 8
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-86"
+                        },
+                        "x": 16,
+                        "y": 0,
+                        "width": 8,
+                        "height": 8
                       }
                     }
                   ]
                 }
-              },
-              "title": "Logs and traces"
+              }
+            }
+          },
+          {
+            "kind": "RowsLayoutRow",
+            "spec": {
+              "collapse": false,
+              "title": "Logs",
+              "layout": {
+                "kind": "GridLayout",
+                "spec": {
+                  "items": [
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-10"
+                        },
+                        "x": 0,
+                        "y": 0,
+                        "width": 24,
+                        "height": 12
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-11"
+                        },
+                        "x": 0,
+                        "y": 12,
+                        "width": 24,
+                        "height": 9
+                      }
+                    }
+                  ]
+                }
+              }
             }
           }
         ]
@@ -1519,7 +1659,7 @@
       "timezone": "browser",
       "to": "now"
     },
-    "title": "KBS / Frontend",
+    "title": "KBS / Demo model",
     "variables": []
   }
 }
