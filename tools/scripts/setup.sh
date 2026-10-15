@@ -21,7 +21,12 @@ preflight() {
   command -v docker >/dev/null || die "docker is not installed"
   docker info >/dev/null 2>&1 || die "the docker daemon is not reachable"
   docker compose version >/dev/null 2>&1 || die "docker compose v2 is missing"
-  command -v uv >/dev/null || die "uv is not installed (https://docs.astral.sh/uv/)"
+
+  if ! command -v uv >/dev/null 2>&1; then
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+    uv sync --quiet
+  fi
+  
   if [ -r /proc/meminfo ]; then
     mem_gb=$(awk '/MemTotal/ {printf "%d", $2/1048576}' /proc/meminfo)
     [ "$mem_gb" -ge 8 ] || echo "warning: ${mem_gb} GB RAM; the stack wants about 8 GB"
