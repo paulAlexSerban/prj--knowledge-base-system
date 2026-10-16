@@ -5,8 +5,8 @@
     "name": "kbs-harness",
     "namespace": "default",
     "uid": "03131ca0-efde-4e91-9782-c1ff3bb88e7c",
-    "resourceVersion": "1791899550459019",
-    "generation": 2,
+    "resourceVersion": "1792159709024007",
+    "generation": 4,
     "creationTimestamp": "2026-10-13T12:33:35Z",
     "labels": {
       "grafana.app/deprecatedInternalID": "2301278948675584"
@@ -16,11 +16,11 @@
       "grafana.app/folder": "kbs",
       "grafana.app/managedBy": "classic-file-provisioning",
       "grafana.app/managerId": "kbs",
-      "grafana.app/sourceChecksum": "9414bb7d5ad7448e7a6d655a109ec1e8",
+      "grafana.app/sourceChecksum": "8f9dc71469231e01cd50db041bb6bca3",
       "grafana.app/sourcePath": "/var/lib/grafana/dashboards/harness/kbs-harness.json",
-      "grafana.app/sourceTimestamp": "1791894810000",
+      "grafana.app/sourceTimestamp": "1792159703000",
       "grafana.app/updatedBy": "access-policy:service",
-      "grafana.app/updatedTimestamp": "2026-10-13T13:52:30Z",
+      "grafana.app/updatedTimestamp": "2026-10-16T14:08:29Z",
       "grafana.app/folderTitle": "KBS",
       "grafana.app/folderUrl": "/dashboards/f/kbs/kbs"
     }
@@ -151,6 +151,7 @@
                       "group": "loki",
                       "kind": "DataQuery",
                       "spec": {
+                        "direction": "backward",
                         "editorMode": "code",
                         "expr": "{service=~\"harness-hr|harness-sales|harness-product|harness-engineering\"}",
                         "queryType": "range"
@@ -178,20 +179,22 @@
                 "overrides": []
               },
               "options": {
-                "dedupStrategy": "none",
+                "dedupStrategy": "signature",
+                "detailsMode": "inline",
                 "enableInfiniteScrolling": false,
                 "enableLogDetails": true,
                 "prettifyLogMessage": false,
                 "showCommonLabels": false,
                 "showControls": false,
                 "showFieldSelector": false,
-                "showLabels": true,
+                "showLabels": false,
                 "showLevel": true,
                 "showTime": true,
                 "sortOrder": "Descending",
+                "syntaxHighlighting": true,
                 "timestampResolution": "ms",
                 "unwrappedColumns": false,
-                "wrapLogMessage": true
+                "wrapLogMessage": false
               }
             },
             "version": "13.2.3"
@@ -1117,8 +1120,8 @@
                           "kind": "ElementReference",
                           "name": "panel-10"
                         },
-                        "height": 10,
-                        "width": 12,
+                        "height": 12,
+                        "width": 24,
                         "x": 0,
                         "y": 0
                       }
@@ -1131,9 +1134,9 @@
                           "name": "panel-11"
                         },
                         "height": 10,
-                        "width": 12,
-                        "x": 12,
-                        "y": 0
+                        "width": 24,
+                        "x": 0,
+                        "y": 12
                       }
                     }
                   ]
@@ -1209,7 +1212,7 @@
       "timezone": "browser",
       "to": "now"
     },
-    "title": "KBS / Demo harness",
+    "title": "01 KBS / Demo harness",
     "variables": []
   }
 }

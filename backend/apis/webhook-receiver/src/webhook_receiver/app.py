@@ -6,25 +6,21 @@ not enqueued. A queue failure is 503.
 """
 
 import logging
-import os
-import uuid
 
-import boto3
 import uvicorn
 from botocore.exceptions import BotoCoreError, ClientError
 from fastapi import FastAPI, HTTPException, Request
-from opentelemetry.trace import SpanKind
+
 from prometheus_client import REGISTRY, Counter, make_asgi_app
 from pydantic import ValidationError
 
-from ingest_contract.events import fit_sqs_id
-from ingest_contract.hooks import HOOK_QUEUE, HookNotice
+from ingest_contract.hooks import HookNotice
 from shared.http_metrics import HttpMetricsMiddleware
 from shared.logging import configure, log_event
-from shared.telemetry import FASTAPI_TELEMETRY, init_telemetry, span, sqs_message_attributes
+from shared.telemetry import FASTAPI_TELEMETRY, init_telemetry
+from webhook_receiver.enqueue import enqueue
 
 LOG = logging.getLogger("webhook-receiver")
-
 
 def _events() -> Counter:
     existing = REGISTRY._names_to_collectors.get("kbs_webhook_events_total")
@@ -58,6 +54,7 @@ def create_app() -> FastAPI:
             EVENTS.labels(result="invalid").inc()
             log_event(LOG, "rejected product webhook", level=logging.WARNING, error=str(exc))
             raise HTTPException(422, "invalid hook") from exc
+
         try:
             enqueue(notice)
         except (BotoCoreError, ClientError, OSError) as exc:
@@ -70,6 +67,7 @@ def create_app() -> FastAPI:
                 error=str(exc),
             )
             raise HTTPException(503, "not enqueued") from exc
+
         EVENTS.labels(result="ok").inc()
         log_event(
             LOG,
@@ -79,47 +77,13 @@ def create_app() -> FastAPI:
             event_type=notice.event_type,
             enqueued=True,
         )
+
         return {"accepted": True, "enqueued": True}
 
     app.mount("/metrics", make_asgi_app())
     app.add_middleware(HttpMetricsMiddleware, templates=HTTP_ROUTES)
+    
     return app
-
-
-def enqueue(notice: HookNotice) -> None:
-    client = _sqs_client()
-    url = client.get_queue_url(QueueName=HOOK_QUEUE)["QueueUrl"]
-    with span(
-        "sqs.publish",
-        span_kind=SpanKind.PRODUCER,
-        queue=HOOK_QUEUE,
-        source_id="product",
-        event_type=notice.event_type,
-    ):
-        kwargs: dict[str, object] = {
-            "QueueUrl": url,
-            "MessageBody": notice.to_json(),
-            "MessageGroupId": fit_sqs_id(f"product:{notice.object_id}"),
-            # Random, because content-based dedup is off. Two edits of one spec both enqueue.
-            "MessageDeduplicationId": uuid.uuid4().hex,
-        }
-        attributes = sqs_message_attributes()
-        if attributes:
-            kwargs["MessageAttributes"] = attributes
-        client.send_message(**kwargs)
-
-
-def _sqs_client():
-    kwargs = {
-        "region_name": os.environ.get("AWS_DEFAULT_REGION", "us-east-1"),
-        "aws_access_key_id": os.environ.get("AWS_ACCESS_KEY_ID", "test"),
-        "aws_secret_access_key": os.environ.get("AWS_SECRET_ACCESS_KEY", "test"),
-    }
-    endpoint = os.environ.get("AWS_ENDPOINT_URL")
-    if endpoint:
-        kwargs["endpoint_url"] = endpoint
-    return boto3.client("sqs", **kwargs)
-
 
 app = create_app()
 

@@ -4,8 +4,6 @@ providers:
   - name: kbs
     # One folder. Subdirectories stay in git so the files are grouped.
     # They are not Grafana folders. UI edits are not written back.
-    folder: KBS
-    folderUid: kbs
     type: file
     allowUiUpdates: false
     disableDeletion: true
