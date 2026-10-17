@@ -45,9 +45,11 @@ class HashEmbedder:
     semantic = False
 
     def embed(self, texts: list[str]) -> list[list[float]]:
+        """Deterministic 1024-d unit vectors. Nearby sentences are not nearby vectors."""
         return [_hash_vector(text) for text in texts]
 
     def embed_query(self, text: str) -> list[float]:
+        """Same hash as a passage. There is no query prefix on hash-v1."""
         return _hash_vector(text)
 
 
@@ -63,12 +65,15 @@ class FastEmbedEmbedder:
         self._model = TextEmbedding(FASTEMBED_ID)
 
     def embed(self, texts: list[str]) -> list[list[float]]:
+        """Passage vectors with the e5 `passage: ` prefix."""
         return self._run([PASSAGE_PREFIX + text for text in texts])
 
     def embed_query(self, text: str) -> list[float]:
+        """Query vector with the e5 `query: ` prefix. Mixing prefixes collapses recall."""
         return self._run([QUERY_PREFIX + text])[0]
 
     def _run(self, texts: list[str]) -> list[list[float]]:
+        """Run ONNX on CPU and reject a width other than 1024."""
         rows = []
         for row in self._model.embed(texts):
             values = [float(item) for item in row]
@@ -79,6 +84,7 @@ class FastEmbedEmbedder:
 
 
 def build_embedder(name: str) -> Embedder:
+    """One embedder per process. Search filters to this name, so mixing models needs reindex."""
     if name in {"hash", HASH_MODEL}:
         return HashEmbedder()
     if name in {"fastembed", FASTEMBED_MODEL}:
@@ -87,6 +93,7 @@ def build_embedder(name: str) -> Embedder:
 
 
 def _hash_vector(text: str) -> list[float]:
+    """Expand SHA-256 into 1024 dimensions and L2-normalize. Offline and tests only."""
     seed = hashlib.sha256(text.encode()).digest()
     values: list[float] = []
     while len(values) < DIMENSIONS:

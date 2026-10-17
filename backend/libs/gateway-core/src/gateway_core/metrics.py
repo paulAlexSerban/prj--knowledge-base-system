@@ -58,6 +58,7 @@ ROUTER = Counter(
 
 
 def permission_group(principal: Principal) -> str:
+    """Coarse dashboard label. Never a principal id, object id, or snippet."""
     for name in _RANK:
         if name in principal.groups:
             return name

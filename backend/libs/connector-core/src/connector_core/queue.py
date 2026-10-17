@@ -19,6 +19,7 @@ class SqsPublisher:
         self.queue_url = client.get_queue_url(QueueName=queue_name)["QueueUrl"]
 
     def publish(self, event: ChangeEvent) -> None:
+        """Send a pointer, not the document. Group and dedup ids keep per-object order."""
         extra: dict[str, str] = {}
         object_type = _type_from_pointer(event.s3_pointer)
         if object_type:
@@ -45,6 +46,7 @@ class SqsPublisher:
 
 
 def _type_from_pointer(key: str | None) -> str:
+    """Object type from raw/{source}/{type}/{id}.ext. Empty when the key is a delete."""
     parts = (key or "").split("/")
     if len(parts) < 4 or parts[0] != "raw":
         return ""

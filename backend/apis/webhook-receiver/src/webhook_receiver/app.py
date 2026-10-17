@@ -10,7 +10,6 @@ import logging
 import uvicorn
 from botocore.exceptions import BotoCoreError, ClientError
 from fastapi import FastAPI, HTTPException, Request
-
 from prometheus_client import REGISTRY, Counter, make_asgi_app
 from pydantic import ValidationError
 
@@ -23,6 +22,7 @@ from webhook_receiver.enqueue import enqueue
 LOG = logging.getLogger("webhook-receiver")
 
 def _events() -> Counter:
+    """Reuse the counter when tests create more than one app in-process."""
     existing = REGISTRY._names_to_collectors.get("kbs_webhook_events_total")
     if isinstance(existing, Counter):
         return existing
@@ -39,14 +39,17 @@ HTTP_ROUTES = ("/health", "/metrics", "/webhooks/product")
 
 
 def create_app() -> FastAPI:
+    """Local stand-in for API Gateway plus Lambda. Validates, then enqueues."""
     app = FastAPI(title="Webhook receiver", version="0.2.0", telemetry=FASTAPI_TELEMETRY)
 
     @app.get("/health")
     def health() -> dict[str, str]:
+        """Compose probe. Does not touch SQS."""
         return {"status": "ok"}
 
     @app.post("/webhooks/product", status_code=202)
     async def product_change(request: Request) -> dict[str, object]:
+        """Accept a product pointer. 202 only after SQS accepts the message."""
         try:
             payload = await request.json()
             notice = HookNotice.model_validate(payload)
@@ -89,6 +92,7 @@ app = create_app()
 
 
 def main() -> None:
+    """Serve the receiver on 8090."""
     configure("webhook-receiver", "sources")
     init_telemetry("webhook-receiver")
     uvicorn.run(app, host="0.0.0.0", port=8090, log_config=None, access_log=False)

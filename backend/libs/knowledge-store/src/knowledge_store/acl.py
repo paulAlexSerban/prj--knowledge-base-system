@@ -26,10 +26,12 @@ class AclView:
     unmapped: tuple[str, ...]
 
     def as_json(self) -> list[dict[str, str]]:
+        """Exact rules stored on the chunk and the graph node."""
         return [dict(rule) for rule in self.rules]
 
 
 def clearance_rank(label: str) -> int:
+    """Index in public < internal < confidential < restricted. Unknown is -1."""
     try:
         return CLEARANCE.index(label)
     except ValueError:
@@ -37,6 +39,7 @@ def clearance_rank(label: str) -> int:
 
 
 def map_acl(native: list[str], contract: SourceContract) -> AclView:
+    """Native labels to coarse columns plus exact rules. Unmapped values grant nothing."""
     by_native = {rule.native: rule for rule in contract.acl_mapping}
     rules: list[dict[str, str]] = []
     unmapped: list[str] = []
@@ -104,6 +107,7 @@ def allows(view: AclView, principal: Principal) -> tuple[bool, dict[str, str] | 
 
 
 def _complete(rule: dict[str, str]) -> bool:
+    """A grant needs group, department, and a known clearance together."""
     group = rule.get("group") or ""
     department = rule.get("department") or ""
     return bool(group and department and clearance_rank(rule.get("clearance") or "") >= 0)

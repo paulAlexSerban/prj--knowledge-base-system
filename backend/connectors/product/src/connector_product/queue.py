@@ -25,6 +25,7 @@ class HookQueue:
         self.url = ""
 
     def ready(self) -> bool:
+        """True when kbs-product-hooks exists. The process waits rather than exiting."""
         try:
             self.url = self.client.get_queue_url(QueueName=HOOK_QUEUE)["QueueUrl"]
         except (BotoCoreError, ClientError, OSError):
@@ -32,6 +33,7 @@ class HookQueue:
         return True
 
     def receive(self, wait: int = 10) -> list[tuple[HookNotice, str, object]]:
+        """Valid notices plus their receipt handle. Invalid bodies stay for the DLQ."""
         response = self.client.receive_message(
             QueueUrl=self.url,
             MaxNumberOfMessages=10,
@@ -50,9 +52,11 @@ class HookQueue:
         return found
 
     def ack(self, handle: str) -> None:
+        """Delete after a successful snapshot and enqueue. A failed apply leaves the message."""
         self.client.delete_message(QueueUrl=self.url, ReceiptHandle=handle)
 
     def observe(self) -> None:
+        """Visible depth on the hook queue and its dead-letter queue."""
         for name in (HOOK_QUEUE, HOOK_DLQ):
             try:
                 url = self.client.get_queue_url(QueueName=name)["QueueUrl"]

@@ -16,6 +16,7 @@ def canonical_record(record: dict) -> bytes:
 
 
 def _stable(value: object) -> object:
+    """Sort lists so native_acl order does not change the snapshot hash."""
     if isinstance(value, list):
         return sorted(str(item) for item in value)
     return value
@@ -30,6 +31,7 @@ class HarnessClient:
         self.backoff = backoff
 
     def get(self, path: str, params: dict | None = None) -> httpx.Response:
+        """GET with a client span. Trace headers go on the harness request."""
         peer = peer_host(str(self.client.base_url)) or "harness"
         with client_span(peer, "harness.get") as current:
             response = self._get(path, params)
@@ -37,6 +39,7 @@ class HarnessClient:
             return response
 
     def _get(self, path: str, params: dict | None) -> httpx.Response:
+        """Retry transport errors and 5xx. A 4xx is a connector error and is not retried."""
         delay = self.backoff
         last: Exception | None = None
         for attempt in range(self.attempts):

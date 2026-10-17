@@ -27,6 +27,7 @@ TEAM_SOURCE = "hr"
 
 
 def deal_fields(record: dict, version: str, source_id: str, acl: AclView) -> dict[str, object]:
+    """Deal node properties. Account fields sit on the deal; there is no Account node."""
     return {
         "source_id": source_id,
         "version": version,
@@ -44,6 +45,7 @@ def deal_fields(record: dict, version: str, source_id: str, acl: AclView) -> dic
 def epic_fields(
     record: dict, title: str, version: str, source_id: str, acl: AclView
 ) -> dict[str, object]:
+    """Epic node properties. team is the HR team key for OWNED_BY."""
     return {
         "source_id": source_id,
         "version": version,
@@ -60,6 +62,7 @@ class GraphWriter:
         self.driver = driver
 
     def ping(self) -> bool:
+        """True when the Neo4j driver can verify connectivity."""
         try:
             self.driver.verify_connectivity()
         except Exception:  # noqa: BLE001 - the driver raises several connection errors
@@ -76,6 +79,7 @@ class GraphWriter:
         acl: AclView,
         version: str,
     ) -> None:
+        """Idempotent merge for person, policy, deal, or epic. Specs are not graph nodes."""
         bind(self.driver)
         with db.write_transaction:
             if object_type == "person":
@@ -95,6 +99,7 @@ class GraphWriter:
                 _write_epic(source_id, object_id, record, title, acl, version)
 
     def set_acl(self, source_id: str, object_id: str, acl: AclView) -> None:
+        """Patch ACL properties on matching content nodes. Edges stay as they are."""
         bind(self.driver)
         fields = _acl_fields(acl)
         with db.write_transaction:
@@ -104,6 +109,7 @@ class GraphWriter:
                 node.save()
 
     def delete(self, source_id: str, object_id: str) -> None:
+        """Remove the object's nodes, then drop teams and stub epics that nothing references."""
         bind(self.driver)
         with db.write_transaction:
             for node in _matching(source_id, object_id, NODE_TYPES):
@@ -112,11 +118,13 @@ class GraphWriter:
             _drop_stub_epics()
 
     def count_node(self, source_id: str, object_id: str) -> int:
+        """Remaining nodes after a delete. Non-zero is a verified failure."""
         bind(self.driver)
         with db.read_transaction:
             return len(_matching(source_id, object_id, NODE_TYPES))
 
     def depends_on(self, deal_id: str, epic_id: str) -> bool:
+        """True when the deal-to-epic edge exists. Used by tests, not by retrieval."""
         bind(self.driver)
         with db.read_transaction:
             deal = Deal.nodes.get_or_none(node_id=deal_id)
@@ -126,6 +134,7 @@ class GraphWriter:
 
 
 def _write_person(source_id: str, object_id: str, record: dict, acl: AclView, version: str) -> None:
+    """Person node and BELONGS_TO the HR team named on the record."""
     team = str(record.get("team") or "")
     person = _upsert(
         Person,
@@ -144,6 +153,7 @@ def _write_person(source_id: str, object_id: str, record: dict, acl: AclView, ve
 
 
 def _write_deal(source_id: str, object_id: str, record: dict, acl: AclView, version: str) -> None:
+    """Deal node and DEPENDS_ON a stub epic if that epic has not been ingested yet."""
     fields = deal_fields(record, version, source_id, acl)
     deal = _upsert(Deal, object_id, **fields)
     epic_id = str(fields["epic_id"])
@@ -158,6 +168,7 @@ def _write_deal(source_id: str, object_id: str, record: dict, acl: AclView, vers
 def _write_epic(
     source_id: str, object_id: str, record: dict, title: str, acl: AclView, version: str
 ) -> None:
+    """Epic node, OWNED_BY its team, and backfill DEPENDS_ON from deals that named it."""
     fields = epic_fields(record, title, version, source_id, acl)
     epic = _upsert(Epic, object_id, **fields)
     epic.owned_by.disconnect_all()
@@ -173,6 +184,7 @@ def _write_epic(
 
 
 def _upsert(cls, node_id: str, **fields: object):
+    """Create or overwrite by business key `id`. Safe to retry after a graph failure."""
     node = cls.nodes.get_or_none(node_id=node_id)
     if node is None:
         return cls(node_id=node_id, **fields).save()
@@ -182,6 +194,7 @@ def _upsert(cls, node_id: str, **fields: object):
 
 
 def _matching(source_id: str, object_id: str, kinds: tuple) -> list:
+    """Nodes of the given types with this source and object id."""
     found = []
     for cls in kinds:
         found.extend(cls.nodes.filter(node_id=object_id, source_id=source_id).all())
@@ -189,24 +202,28 @@ def _matching(source_id: str, object_id: str, kinds: tuple) -> list:
 
 
 def _drop_orphan_teams() -> None:
+    """Remove a team that has no members and no owned epics."""
     for team in Team.nodes.all():
         if not team.members.all() and not team.epics.all():
             team.delete()
 
 
 def _drop_stub_epics() -> None:
+    """Remove an epic created only as a deal dependency, with no version and no edges left."""
     for epic in Epic.nodes.all():
         if epic.version is None and not epic.deals.all() and not epic.owned_by.all():
             epic.delete()
 
 
 def _arr(value: object) -> int | None:
+    """Integer ARR for the roadmap filter. Empty is stored as null."""
     if value is None or value == "":
         return None
     return int(value)
 
 
 def _acl_fields(acl: AclView) -> dict[str, object]:
+    """Coarse columns plus JSON rules copied onto the node for the Cypher templates."""
     return {
         "acl_groups": list(acl.groups),
         "acl_departments": list(acl.departments),

@@ -4,23 +4,21 @@
   "metadata": {
     "name": "kbs-store",
     "namespace": "default",
-    "uid": "e203b101-59cb-4b50-85e6-b0480c780d4c",
-    "resourceVersion": "1791899550271010",
-    "generation": 2,
-    "creationTimestamp": "2026-10-13T12:33:35Z",
+    "uid": "324593d4-ec66-4c0b-8366-e68d2e318636",
+    "resourceVersion": "1792169260654999",
+    "generation": 1,
+    "creationTimestamp": "2026-10-16T16:47:40Z",
     "labels": {
-      "grafana.app/deprecatedInternalID": "2301278772514816"
+      "grafana.app/deprecatedInternalID": "3452383480246272"
     },
     "annotations": {
       "grafana.app/createdBy": "access-policy:service",
       "grafana.app/folder": "kbs",
       "grafana.app/managedBy": "classic-file-provisioning",
       "grafana.app/managerId": "kbs",
-      "grafana.app/sourceChecksum": "930a7f8a2cc18a088e2ba6269dd8b3bd",
+      "grafana.app/sourceChecksum": "f6bc6f43fb1a6d6928599d3d7fc7764c",
       "grafana.app/sourcePath": "/var/lib/grafana/dashboards/store/kbs-store.json",
-      "grafana.app/sourceTimestamp": "1791894810000",
-      "grafana.app/updatedBy": "access-policy:service",
-      "grafana.app/updatedTimestamp": "2026-10-13T13:52:30Z",
+      "grafana.app/sourceTimestamp": "1791971517000",
       "grafana.app/folderTitle": "KBS",
       "grafana.app/folderUrl": "/dashboards/f/kbs/kbs"
     }
@@ -224,7 +222,7 @@
                 "syntaxHighlighting": true,
                 "timestampResolution": "ms",
                 "unwrappedColumns": false,
-                "wrapLogMessage": true
+                "wrapLogMessage": false
               }
             },
             "version": "13.2.3"

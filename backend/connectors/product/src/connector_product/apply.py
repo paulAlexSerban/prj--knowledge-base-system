@@ -16,5 +16,6 @@ def apply_notice(
     publisher: object | None,
     notice: HookNotice,
 ) -> SyncReport:
+    """Wrap the notice as a one-item feed and run the shared syncer."""
     feed = NoticeFeed(connector, notice)
     return Syncer(feed, contract, state, snapshots, 1, publisher).run()

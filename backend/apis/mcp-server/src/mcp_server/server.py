@@ -37,7 +37,9 @@ HTTP_ROUTES = ("/health", "/metrics", "/mcp")
 
 
 class JwtVerifier(TokenVerifier):
+    """HS256 verifier for FastMCP. Claims become the tool principal; MCP is not the ACL boundary."""
     async def verify_token(self, token: str) -> AccessToken | None:
+        """HS256 claims for the tool. FastMCP stores them; the tool rebuilds the principal."""
         secret = os.environ.get("GATEWAY_JWT_SECRET", "")
         try:
             principal = principal_from_token(token, secret)
@@ -57,6 +59,7 @@ class JwtVerifier(TokenVerifier):
 
 
 def build_server(service: GatewayService) -> FastMCP:
+    """Same five tools as the REST routes. There is no write tool."""
     service.surface = "mcp"
     server = FastMCP("knowledge-gateway", auth=JwtVerifier())
 
@@ -152,16 +155,19 @@ def build_server(service: GatewayService) -> FastMCP:
 
     @server.custom_route("/health", methods=["GET"])
     async def health(_: Request) -> Response:
+        """Open probe. Bearer auth applies only to /mcp."""
         return Response('{"status":"ok"}', media_type="application/json")
 
     @server.custom_route("/metrics", methods=["GET"])
     async def metrics(_: Request) -> Response:
+        """Prometheus scrape. Same registry as the REST process labels."""
         return Response(generate_latest(), media_type="text/plain; version=0.0.4")
 
     return server
 
 
 def _mark_tool(current, body: object) -> None:
+    """Record error and route on the MCP span. Does not log snippet text."""
     if isinstance(body, dict) and "error" in body:
         current.set_attribute("error", True)
     route = body.get("route") if isinstance(body, dict) else None
@@ -178,6 +184,7 @@ def _with_trace[T](fn: Callable[[], T]) -> Callable[[], T]:
     parent = otel_context.get_current()
 
     def run():
+        """Worker-thread body. Attach the parent context, then detach."""
         token = otel_context.attach(parent)
         try:
             return fn()
@@ -188,6 +195,7 @@ def _with_trace[T](fn: Callable[[], T]) -> Callable[[], T]:
 
 
 def _caller() -> Principal:
+    """Principal from the verified token. Tools never take store credentials."""
     access = get_access_token()
     if access is None or not access.client_id or not access.claims:
         raise PermissionError("unauthorized")
@@ -201,6 +209,7 @@ def _caller() -> Principal:
 
 
 def _request_id() -> str:
+    """Reuse x-request-id when the client sent one, otherwise mint a hex id."""
     found = get_http_headers().get("x-request-id")
     return found or uuid.uuid4().hex
 
@@ -211,10 +220,12 @@ def _middleware() -> list[Middleware]:
 
 
 def http_app(server: FastMCP):
+    """ASGI app for tests. Production calls server.run in main."""
     return server.http_app(path="/mcp", transport="streamable-http", middleware=_middleware())
 
 
 def main() -> None:
+    """Serve streamable HTTP on 8001. The store opens before the server accepts traffic."""
     configure("gateway-mcp", "access")
     init_telemetry("gateway-mcp")
     log_event(LOG, "mcp server started")

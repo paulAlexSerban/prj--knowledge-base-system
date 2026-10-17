@@ -11,6 +11,7 @@ _bound: object = None
 
 
 def bind(driver: object) -> None:
+    """Point neomodel at this process's driver. Called on every write and read."""
     global _bound
     if driver is None or driver is _bound:
         return

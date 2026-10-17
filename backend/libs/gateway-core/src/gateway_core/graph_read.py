@@ -45,6 +45,7 @@ _DEPARTMENT = """
 
 
 def _templates() -> dict[str, str]:
+    """Four bounded Cypher templates. Labels come from the node models."""
     person = Person.__label__
     team = Team.__label__
     policy = Policy.__label__
@@ -163,6 +164,7 @@ class GraphReader:
         quarter: str | None = None,
         min_arr: int | None = None,
     ) -> list[GraphAccess]:
+        """Read-only template plus a fine-grained rule check. Empty groups see nothing."""
         if kind in ("teammates", "team") and not entity_id:
             raise ValueError("entity_id is required")
         query = TEMPLATES.get(kind)
@@ -189,6 +191,7 @@ class GraphReader:
 
 
 def _bounds(quarter: str | None, min_arr: int | None) -> tuple[str, int]:
+    """Default 2026-Q3 and 200000 ARR. Invalid values are a client error, not a fallback."""
     resolved_quarter = DEFAULT_QUARTER if quarter is None else quarter
     if _QUARTER.fullmatch(resolved_quarter) is None:
         raise ValueError("quarter")
@@ -200,6 +203,7 @@ def _bounds(quarter: str | None, min_arr: int | None) -> tuple[str, int]:
 
 
 def _access(kind: str, row: dict, principal: Principal) -> GraphAccess:
+    """Post-check every node on the path. One failed rule denies the whole path."""
     # On a deny, object_id is the node whose rule failed, so the audit row names it.
     if kind == "teammates":
         from_ok, _from_rule = allows(view_from_rules(row.get("from_rules")), principal)
@@ -225,6 +229,7 @@ def _access(kind: str, row: dict, principal: Principal) -> GraphAccess:
 
 
 def _path(kind: str, row: dict) -> dict[str, object]:
+    """Steps the agent cites. Teams have no ACL; deals and epics do."""
     if kind == "teammates":
         steps = [
             {"type": "Person", "id": row["from_id"]},

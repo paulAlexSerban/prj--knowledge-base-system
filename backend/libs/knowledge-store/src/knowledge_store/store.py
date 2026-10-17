@@ -46,12 +46,15 @@ class KnowledgeStore:
         self.contracts = contracts
 
     def upsert_object(self, event: ChangeEvent) -> None:
+        """Chunk, embed if the hash changed, commit Postgres, then merge Neo4j."""
         self._write(event, acl_only=False)
 
     def apply_acl(self, event: ChangeEvent) -> None:
+        """Patch ACL columns in place. Does not re-embed when the content hash matches."""
         self._write(event, acl_only=True)
 
     def delete_object(self, event: ChangeEvent) -> None:
+        """Tombstone, hard-delete chunks, then delete graph nodes. Both stores are verified."""
         source_id = event.source_id
         object_id = event.object_id
         object_type = _type_from_pointer(event.s3_pointer)
@@ -101,6 +104,7 @@ class KnowledgeStore:
         request_id: str = "",
         object_ids: list[str] | None = None,
     ) -> list[Hit]:
+        """Embed the question, then hybrid-search authorized chunks for this principal."""
         with span("embed.query", model=self.embedder.name, semantic=self.embedder.semantic):
             vector = self.embedder.embed_query(query)
         metrics.EMBED_CALLS.labels(model=self.embedder.name).inc()
@@ -116,6 +120,7 @@ class KnowledgeStore:
         )
 
     def reconcile_index(self) -> None:
+        """Delete orphan chunks, backfill missing versions, and record index drift."""
         for source_id, object_id, _object_type in self.chunks.orphans():
             self.delete_object(
                 ChangeEvent(
@@ -167,6 +172,7 @@ class KnowledgeStore:
         return {"rebuilt": len(pending) - len(still_missing), "missing": len(still_missing), "removed": removed}
 
     def _write(self, event: ChangeEvent, acl_only: bool) -> None:
+        """Apply one create, update, or ACL event. A matching tombstone blocks a replayed older create."""
         if not event.s3_pointer:
             raise StoreError("snapshot pointer is required")
         contract = self.contracts.get(event.source_id)
@@ -244,6 +250,7 @@ class KnowledgeStore:
         _log_written(event, parsed)
 
     def _graph_write(self, event: ChangeEvent, parsed: Parsed, acl, version: str) -> None:
+        """Merge Neo4j after Postgres committed. A failure leaves the SQS message unacked."""
         try:
             with (
                 span(
@@ -266,6 +273,7 @@ class KnowledgeStore:
             raise
 
     def _graph_acl(self, event: ChangeEvent, acl, object_type: str) -> None:
+        """Patch ACL properties on existing nodes. No new edges."""
         try:
             with (
                 span("neo4j.write", store="neo4j", op="acl", source_id=event.source_id) as current,
@@ -278,6 +286,7 @@ class KnowledgeStore:
             raise
 
     def _snapshot(self, event: ChangeEvent) -> tuple[bytes, list[str], str]:
+        """Load the S3 object. Refuse a pointer whose stored hash does not match the event."""
         key = event.s3_pointer or ""
         try:
             head = self.snapshots.head_object(Bucket=self.bucket, Key=key)
@@ -296,12 +305,14 @@ class KnowledgeStore:
 
 
 def _chunker_version(parsed: Parsed) -> str:
+    """Version of the first chunk. Empty when the object produced no prose."""
     if not parsed.chunks:
         return ""
     return parsed.chunks[0].chunker_version
 
 
 def _log_written(event: ChangeEvent, parsed: Parsed) -> None:
+    """Structured write log. Chunk text is not included."""
     log_event(
         LOG,
         "object written",
@@ -313,6 +324,7 @@ def _log_written(event: ChangeEvent, parsed: Parsed) -> None:
 
 
 def _object_type(key: str) -> str:
+    """Require a well-formed snapshot key. Upserts cannot proceed without a type."""
     found = _type_from_pointer(key)
     if not found:
         raise StoreError(f"unexpected snapshot key {key}")
@@ -320,6 +332,7 @@ def _object_type(key: str) -> str:
 
 
 def _type_from_pointer(key: str | None) -> str:
+    """Object type from the S3 key, or empty on a delete that has no pointer."""
     parts = (key or "").split("/")
     if len(parts) < 4 or parts[0] != "raw":
         return ""
@@ -329,6 +342,7 @@ def _type_from_pointer(key: str | None) -> str:
 def _annotate_write(
     current, event: ChangeEvent, object_type: str, chunks: int | None = None
 ) -> None:
+    """Span attributes for a store write. No payload bytes."""
     current.set_attribute("event_type", event.event_type.value)
     if object_type:
         current.set_attribute("object_type", object_type)

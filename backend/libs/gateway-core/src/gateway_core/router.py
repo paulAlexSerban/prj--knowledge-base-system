@@ -102,6 +102,7 @@ class Route:
     source: Source = "rules"
 
     def public(self) -> dict[str, object]:
+        """Fields returned on /v1/ask. entity_id stays off the payload."""
         return {
             "class": self.kind,
             "source": self.source,
@@ -117,6 +118,7 @@ class Router:
 
     @classmethod
     def from_env(cls) -> "Router":
+        """Rules-only unless both OPENROUTER_API_KEY and OPENROUTER_ROUTER_MODEL are set."""
         key = os.environ.get("OPENROUTER_API_KEY", "").strip()
         model = os.environ.get("OPENROUTER_ROUTER_MODEL", "").strip()
         if not key or not model:
@@ -124,6 +126,7 @@ class Router:
         return cls(lambda query: _openrouter(query, key, model))
 
     def classify(self, query: str) -> Route:
+        """Pick semantic, relational, or hybrid. The label is not an authorization decision."""
         # High confidence returns the rule. The model runs only on a low-confidence tie.
         ruled = rules(query)
         if ruled.confidence == "high" or self.complete is None:
@@ -167,6 +170,7 @@ def rules(query: str) -> Route:
 
 
 def parse_model_json(raw: str) -> Route:
+    """Allow-listed model JSON. Anything else raises and the rules result is kept."""
     data = json.loads(raw)
     if not isinstance(data, dict):
         raise RouterError("not an object")
@@ -193,6 +197,7 @@ def parse_model_json(raw: str) -> Route:
 
 
 def _quarter(text: str) -> str | None:
+    """YYYY-Qn, or a bare Qn in the demo year 2026."""
     found = _YEAR_QUARTER.search(text)
     if found:
         return f"{found.group(1)}-Q{found.group(2)}"
@@ -203,6 +208,7 @@ def _quarter(text: str) -> str | None:
 
 
 def _min_arr(text: str) -> int | None:
+    """ARR floor from the question. A year next to Q3 is not treated as ARR."""
     found = _ARR_BEFORE.search(text) or _ARR_AFTER.search(text) or _ARR_STATED.search(text)
     if found is None:
         return None
@@ -210,6 +216,7 @@ def _min_arr(text: str) -> int | None:
 
 
 def _scale(number: str, suffix: str | None) -> int:
+    """Apply k or m to an ARR number. No suffix is the raw integer."""
     value = int(number.replace(",", ""))
     if suffix is None:
         return value
@@ -218,6 +225,7 @@ def _scale(number: str, suffix: str | None) -> int:
 
 
 def _entity_id(text: str) -> str | None:
+    """First hyphenated token that is not high-arr. teammates and team need this."""
     for match in _TOKEN.finditer(text):
         token = match.group(1)
         if token.lower() not in _SKIP_TOKENS:
@@ -226,6 +234,7 @@ def _entity_id(text: str) -> str | None:
 
 
 def _optional_entity(value: object) -> str | None:
+    """Reject a model entity_id that is not a safe identifier."""
     if value is None:
         return None
     if not isinstance(value, str) or _ENTITY.fullmatch(value) is None:
@@ -234,6 +243,7 @@ def _optional_entity(value: object) -> str | None:
 
 
 def _optional_quarter(value: object) -> str | None:
+    """Reject a model quarter that is not YYYY-Qn."""
     if value is None:
         return None
     if not isinstance(value, str) or _QUARTER.fullmatch(value) is None:
@@ -242,6 +252,7 @@ def _optional_quarter(value: object) -> str | None:
 
 
 def _optional_arr(value: object) -> int | None:
+    """Reject a boolean or a negative ARR from the model."""
     if value is None:
         return None
     if isinstance(value, bool) or not isinstance(value, int) or value < 0:
@@ -250,6 +261,7 @@ def _optional_arr(value: object) -> int | None:
 
 
 def _openrouter(query: str, key: str, model: str) -> str:
+    """Low-confidence tie-break only. Strict JSON schema, 2s timeout, never Cypher."""
     body = {
         "model": model,
         "temperature": 0,

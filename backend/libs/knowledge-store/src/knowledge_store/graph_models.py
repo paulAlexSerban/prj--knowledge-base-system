@@ -20,6 +20,7 @@ OWNED_BY = "OWNED_BY"
 
 
 def _key() -> StringProperty:
+    """Business key stored as Neo4j `id`. Python uses node_id because neomodel reserves id."""
     return StringProperty(unique_index=True, required=True, db_property="id")
 
 

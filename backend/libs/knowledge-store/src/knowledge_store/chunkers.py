@@ -41,6 +41,7 @@ def parse_object(
     body: bytes,
     contract: SourceContract,
 ) -> Parsed:
+    """Pick markdown, PDF, or record chunking from the object type and bytes."""
     if object_type in {"person", "deal", "epic"} or _looks_like_json(body):
         record = _public_record(json.loads(body), contract)
         title = str(
@@ -62,6 +63,7 @@ def parse_object(
 
 
 def chunk_markdown(body: str) -> tuple[list[ChunkDraft], str]:
+    """Split on headings. Each chunk starts with the heading path as a contextual header."""
     drafts: list[ChunkDraft] = []
     stack: list[tuple[int, str]] = []
     title = ""
@@ -92,6 +94,7 @@ def chunk_markdown(body: str) -> tuple[list[ChunkDraft], str]:
 
 
 def chunk_pdf(body: bytes) -> tuple[list[ChunkDraft], str]:
+    """One chunk per paragraph. The harness PDF renderer drops heading marks."""
     text = _pdf_text(body)
     paragraphs = [part.strip() for part in re.split(r"\n\s*\n", text) if part.strip()]
     if not paragraphs:
@@ -110,6 +113,7 @@ def chunk_record(
     object_type: str,
     title: str,
 ) -> list[ChunkDraft]:
+    """One chunk from in-scope fields. Forbidden keys are never rendered."""
     lines = []
     for key in contract.in_scope_fields:
         if key.lower() in FORBIDDEN or key not in record:
@@ -126,6 +130,7 @@ def chunk_record(
 
 
 def _public_record(record: dict, contract: SourceContract) -> dict:
+    """Drop excluded fields. Keep epic_id, team, and manager_id for graph edges."""
     # Drop forbidden fields. Keep epic_id, team, and manager_id even when they
     # are outside in_scope_fields: the graph edges come from them.
     allowed = {name.lower() for name in contract.in_scope_fields} | {"epic_id", "team", "manager_id"}
@@ -137,11 +142,13 @@ def _public_record(record: dict, contract: SourceContract) -> dict:
 
 
 def _looks_like_json(body: bytes) -> bool:
+    """Treat a JSON body as a record even when object_type is unexpected."""
     stripped = body.lstrip()
     return stripped.startswith((b"{", b"["))
 
 
 def _pdf_text(body: bytes) -> str:
+    """Pull Tj showing strings from a simple PDF. No layout reconstruction."""
     raw = body.decode("latin-1", errors="replace")
     lines = []
     for match in PDF_LINE.finditer(raw):

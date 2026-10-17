@@ -24,6 +24,7 @@ LOG = logging.getLogger("connector-product")
 
 
 def _client(base_url: str) -> ProductConnector:
+    """Product harness client. There is no updated_since poll."""
     return ProductConnector(httpx.Client(base_url=base_url, timeout=30))
 
 
@@ -45,6 +46,7 @@ def take_notices(hooks: HookQueue) -> list[tuple[HookNotice, str, object]] | Non
 
 
 def main() -> None:
+    """Drain hook pointers, then reconcile from /ids on a timer."""
     ready = prepare("connector-product", "product", "HARNESS_PRODUCT_URL", _client)
     hooks = HookQueue(sqs_client())
     delay = 2.0

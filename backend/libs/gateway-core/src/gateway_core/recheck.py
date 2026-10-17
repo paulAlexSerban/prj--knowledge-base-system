@@ -28,11 +28,14 @@ class AclSource:
 
 
 class HttpAclRecheck(AclSource):
+    """Live HR policy ACL. Sales, Product, and Engineering trust the indexed rule."""
+
     def __init__(self, base_url: str, timeout: float = 2.0) -> None:
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
 
     def current_acl(self, source_id: str, object_type: str, object_id: str) -> list[str] | None:
+        """GET the policy ACL. 404 means gone. Timeout or a bad body fails closed."""
         if not self.base_url:
             raise RecheckFailed("no harness url")
         url = f"{self.base_url}/policies/{object_id}/acl"
@@ -102,6 +105,7 @@ def apply_recheck(
 def _still_allowed(
     source: AclSource, contract: SourceContract, principal: Principal, hit: Hit
 ) -> bool:
+    """Map the live native ACL and apply the same rule check as indexed search."""
     with RECHECK_SECONDS.labels(source_id=hit.source_id).time():
         native = source.current_acl(hit.source_id, hit.object_type, hit.object_id)
     if native is None:

@@ -22,6 +22,8 @@ class Base(DeclarativeBase):
 
 
 class Chunk(Base):
+    """Authoritative prose, vector, full-text, and ACL columns. Search filters to one embedding_model."""
+
     __tablename__ = "chunks"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
@@ -53,6 +55,8 @@ class Chunk(Base):
 
 
 class Tombstone(Base):
+    """Hard-delete marker. A matching create is ignored so a replay cannot resurrect the object."""
+
     __tablename__ = "tombstones"
 
     source_id: Mapped[str] = mapped_column(Text, primary_key=True)
@@ -83,6 +87,8 @@ class AuditLog(Base):
 
 
 class SyncState(Base):
+    """Connector watermark. The same table is mapped again in connector_core.state."""
+
     __tablename__ = "sync_state"
 
     source_id: Mapped[str] = mapped_column(Text, primary_key=True)
@@ -93,6 +99,8 @@ class SyncState(Base):
 
 
 class SourceObject(Base):
+    """Objects the connector has snapshotted. Index reconciliation compares chunks to this."""
+
     __tablename__ = "source_objects"
 
     source_id: Mapped[str] = mapped_column(Text, primary_key=True)

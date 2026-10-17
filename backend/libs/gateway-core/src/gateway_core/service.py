@@ -85,6 +85,7 @@ class GatewayService:
         request_id: str,
         object_ids: list[str],
     ) -> list[Hit]:
+        """Search only the object ids on an authorized roadmap path. Specs are not on that path."""
         with (
             span("retrieval", tool="search", surface=self.surface) as current,
             RETRIEVAL_SECONDS.labels(tool="search", surface=self.surface).time(),
@@ -107,6 +108,7 @@ class GatewayService:
     def search(
         self, principal: Principal, query: str, limit: int, request_id: str
     ) -> dict[str, object]:
+        """Hybrid search, HR ACL re-check, then one chunk per object."""
         with (
             span("retrieval", tool="search", surface=self.surface) as current,
             RETRIEVAL_SECONDS.labels(tool="search", surface=self.surface).time(),
@@ -125,6 +127,7 @@ class GatewayService:
     def get_document(
         self, principal: Principal, chunk_id: int, request_id: str
     ) -> dict[str, object] | None:
+        """One authorized chunk. None means missing or the caller cannot read it."""
         with (
             span("retrieval", tool="get_document", surface=self.surface) as current,
             RETRIEVAL_SECONDS.labels(tool="get_document", surface=self.surface).time(),
@@ -160,6 +163,7 @@ class GatewayService:
         quarter: str | None = None,
         min_arr: int | None = None,
     ) -> dict[str, object]:
+        """Run one Cypher template, post-check rules, and audit allows and denies."""
         with (
             span("retrieval", tool="find_related", surface=self.surface) as retrieval,
             RETRIEVAL_SECONDS.labels(tool="find_related", surface=self.surface).time(),
@@ -212,6 +216,7 @@ class GatewayService:
         return {"request_id": request_id, "kind": kind, "paths": paths}
 
     def _recheck(self, hits: list[Hit], principal: Principal) -> list[Hit]:
+        """Drop HR policy chunks the harness no longer allows. A timeout empties the page."""
         with span("acl.recheck") as current:
             kept, failed = apply_recheck(hits, principal, self.store.contracts, self.recheck)
             current.set_attribute("count", len(kept))
@@ -228,6 +233,7 @@ class GatewayService:
         *,
         empty_rate: bool,
     ) -> None:
+        """Increment request counters and write the access-decision log line."""
         result = "empty" if count == 0 else "ok"
         REQUESTS.labels(tool=tool, surface=self.surface, result=result).inc()
         group = permission_group(principal)
@@ -247,6 +253,7 @@ class GatewayService:
         )
 
     def list_sources(self) -> list[dict[str, object]]:
+        """Owner, tier, and last successful sync. No document bodies."""
         payloads = source_payloads(list(self.store.contracts.values()))
         sync = self.store.chunks.last_success()
         for item in payloads:
@@ -257,6 +264,7 @@ class GatewayService:
 def _finish_retrieval(
     current, hits: list[Hit], limit: int, request_id: str, *, restricted: bool = False
 ) -> str:
+    """Span attributes for one retrieval. Returns the first hit's source_id or none."""
     source = hits[0].source_id if hits else "none"
     current.set_attribute("count", len(hits))
     current.set_attribute("source_id", source)
@@ -295,6 +303,7 @@ def _object_ids(paths: object) -> list[str]:
 
 
 def _one_chunk_per_object(hits: list[Hit]) -> list[Hit]:
+    """Keep the first hit for each source+object. Search ranks chunks, agents get objects."""
     seen: set[tuple[str, str]] = set()
     kept: list[Hit] = []
     for hit in hits:
@@ -307,6 +316,7 @@ def _one_chunk_per_object(hits: list[Hit]) -> list[Hit]:
 
 
 def _public_hit(hit: Hit) -> dict[str, object]:
+    """API payload. Snippet is wrapped as untrusted content so it cannot instruct the agent."""
     return {
         "chunk_id": hit.chunk_id,
         "source_id": hit.source_id,

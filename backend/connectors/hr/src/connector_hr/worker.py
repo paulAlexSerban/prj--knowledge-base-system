@@ -23,8 +23,10 @@ def select_hr(contracts: list[SourceContract]) -> SourceContract:
 
 
 def _client(base_url: str) -> HrConnector:
+    """HR harness client. The poll loop lives in connector-core."""
     return HrConnector(httpx.Client(base_url=base_url, timeout=30))
 
 
 def main() -> None:
+    """P0 poll (default 10s) plus the reconciliation sweep."""
     run_poll("connector-hr", "hr", "HARNESS_HR_URL", _client)

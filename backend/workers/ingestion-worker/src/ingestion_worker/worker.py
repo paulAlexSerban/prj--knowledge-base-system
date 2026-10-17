@@ -24,6 +24,7 @@ DEPTH_SECONDS = 10
 
 
 def main() -> None:
+    """Drain P0 then P1 then P2 until stopped. One bad poll must not kill the process."""
     configure("ingestion-worker", "ingestion")
     init_telemetry("ingestion-worker")
     contracts = load_registry()
@@ -64,6 +65,7 @@ def main() -> None:
 
 
 def _wait_for_store():
+    """Block until Postgres, Neo4j, and the snapshot bucket answer."""
     delay = 2.0
     while True:
         try:
@@ -82,6 +84,7 @@ def _wait_for_store():
 
 
 def _sqs_client():
+    """SQS against floci."""
     return boto3.client(
         "sqs",
         endpoint_url=os.environ["AWS_ENDPOINT_URL"],

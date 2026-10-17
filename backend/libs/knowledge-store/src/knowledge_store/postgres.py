@@ -68,6 +68,7 @@ class ChunkTable:
         self.reader = reader
 
     def ping(self) -> bool:
+        """True when the writer (or reader) accepts a query."""
         engine = self.writer if self.writer is not None else self.reader
         try:
             with engine.connect() as connection:
@@ -77,6 +78,7 @@ class ChunkTable:
         return True
 
     def same_hash(self, source_id: str, object_id: str, content_hash: str, model: str) -> bool:
+        """True when this model already indexed these bytes. Skip embed and still merge the graph."""
         statement = (
             select(func.count())
             .select_from(Chunk)
@@ -94,6 +96,7 @@ class ChunkTable:
     def blocked_by_tombstone(
         self, source_id: str, object_id: str, version: str, content_hash: str
     ) -> bool:
+        """True when a matching tombstone exists. A newer version is allowed through."""
         statement = select(Tombstone).where(
             Tombstone.source_id == source_id, Tombstone.object_id == object_id
         )
@@ -116,6 +119,7 @@ class ChunkTable:
         vectors: list[list[float]],
         acl: AclView,
     ) -> None:
+        """Replace this model's chunks for one object. Other models' rows survive reindex."""
         rules = acl.as_json()
         with Session(self.writer) as session, session.begin():
             session.execute(
@@ -155,6 +159,7 @@ class ChunkTable:
             )
 
     def touch(self, source_id: str, object_id: str, version: str) -> None:
+        """Refresh synced_at without rewriting embeddings. Used on a matching content hash."""
         statement = (
             update(Chunk)
             .where(Chunk.source_id == source_id, Chunk.object_id == object_id)
@@ -164,6 +169,7 @@ class ChunkTable:
             session.execute(statement)
 
     def update_acl(self, source_id: str, object_id: str, acl: AclView) -> int:
+        """Patch grants in place. Returns 0 when no chunk exists yet."""
         statement = (
             update(Chunk)
             .where(Chunk.source_id == source_id, Chunk.object_id == object_id)
@@ -180,6 +186,7 @@ class ChunkTable:
         return result.rowcount or 0
 
     def tombstone(self, source_id: str, object_id: str, version: str, content_hash: str) -> None:
+        """Record the delete, then hard-delete chunks. Soft delete is not used."""
         values = {
             "source_id": source_id,
             "object_id": object_id,
@@ -202,6 +209,7 @@ class ChunkTable:
             )
 
     def count_chunks(self, source_id: str, object_id: str) -> int:
+        """Remaining chunks after a delete. Non-zero is a verified failure."""
         statement = (
             select(func.count())
             .select_from(Chunk)
@@ -229,6 +237,7 @@ class ChunkTable:
         max_distance: float = DEFAULT_MAX_DISTANCE,
         object_ids: list[str] | None = None,
     ) -> list[Hit]:
+        """Vector plus full-text, fused with RRF, pre-filtered by ACL, then post-checked."""
         fetch = max(limit * OVERFETCH, limit)
         vector_sql = _vector_select(principal, model, query_vector, fetch, object_ids)
         lexical_sql = _lexical_select(principal, model, query, fetch, object_ids)
@@ -323,6 +332,7 @@ class ChunkTable:
                 )
 
     def last_success(self) -> dict[str, str | None]:
+        """Last successful connector watermark time per source, for list_sources."""
         statement = select(SyncState.source_id, SyncState.last_success_at)
         with Session(self.reader) as session:
             found: dict[str, str | None] = {}
@@ -331,6 +341,7 @@ class ChunkTable:
             return found
 
     def orphans(self) -> list[tuple[str, str, str]]:
+        """Chunks whose source_objects row is gone. The index sweep deletes them."""
         statement = (
             select(Chunk.source_id, Chunk.object_id, Chunk.object_type)
             .distinct()
@@ -350,16 +361,19 @@ class ChunkTable:
             ]
 
     def delete_other_models(self, model: str) -> int:
+        """Drop chunks that are not the active embedder. Called only after reindex succeeds."""
         statement = delete(Chunk).where(Chunk.embedding_model != model)
         with Session(self.writer) as session, session.begin():
             return int(session.execute(statement).rowcount or 0)
 
     def count_by_model(self) -> dict[str, int]:
+        """Chunk counts by embedding_model. make reindex prints this before and after."""
         statement = select(Chunk.embedding_model, func.count()).group_by(Chunk.embedding_model)
         with Session(self.writer) as session:
             return {model: int(count) for model, count in session.execute(statement)}
 
     def missing(self, model: str) -> list[dict]:
+        """source_objects rows with no chunk at this version and model."""
         indexed = (
             select(Chunk.id)
             .where(
@@ -382,6 +396,7 @@ class ChunkTable:
             return [dict(row) for row in session.execute(statement).mappings()]
 
     def drift(self) -> dict[str, tuple[int, int]]:
+        """Indexed object count and source_objects count per source."""
         indexed_ids = select(Chunk.source_id, Chunk.object_id).distinct().subquery()
         indexed = select(
             indexed_ids.c.source_id.label("source_id"),
@@ -403,6 +418,7 @@ class ChunkTable:
 
 
 def _columns():
+    """Hit columns shared by vector and lexical selects. Embedding is not returned."""
     return (
         Chunk.id,
         Chunk.source_id,
@@ -417,6 +433,7 @@ def _columns():
 
 
 def _acl(principal: Principal):
+    """Coarse pre-filter: group overlap, department (empty list is any), clearance rank."""
     return and_(
         Chunk.acl_groups.overlap(literal(list(principal.groups), type_=ARRAY(Text))),
         or_(
@@ -428,6 +445,7 @@ def _acl(principal: Principal):
 
 
 def _limit_objects(statement, object_ids: list[str] | None):
+    """Restrict hybrid search to graph-named ids. An empty list returns nothing."""
     if object_ids is None:
         return statement
     if not object_ids:
@@ -442,6 +460,7 @@ def _vector_select(
     fetch: int,
     object_ids: list[str] | None,
 ):
+    """Nearest neighbors for one model, already ACL-filtered. Distance is cosine."""
     distance = Chunk.embedding.cosine_distance(query_vector).label("distance")
     statement = (
         select(*_columns(), distance)
@@ -459,6 +478,7 @@ def _lexical_select(
     fetch: int,
     object_ids: list[str] | None,
 ):
+    """English full-text match, ranked with ts_rank. Not BM25."""
     tsquery = func.plainto_tsquery("english", query)
     statement = (
         select(*_columns())
@@ -470,6 +490,7 @@ def _lexical_select(
 
 
 def _hit(row, score: float) -> Hit:
+    """Map a selected row to the public hit. Score is RRF, not raw cosine."""
     stamp = row["synced_at"]
     return Hit(
         chunk_id=int(row["id"]),
@@ -485,6 +506,7 @@ def _hit(row, score: float) -> Hit:
 
 
 def _set_principal(session: Session, principal: Principal | None) -> None:
+    """Transaction-local settings that row-level security reads. Empty means nobody."""
     groups = ",".join(principal.groups) if principal else ""
     clearance = principal.clearance if principal else ""
     department = principal.department if principal else ""
@@ -503,6 +525,7 @@ def _audit(
     source_id: str | None = None,
     object_id: str | None = None,
 ) -> None:
+    """Insert an audit row naming the attributes that justified allow or deny."""
     attributes = {
         "groups": list(principal.groups),
         "clearance": principal.clearance,
@@ -532,6 +555,7 @@ def _audit(
 
 
 def _fuse(vector_rows: list, lexical_rows: list) -> list[tuple[object, float]]:
+    """Reciprocal rank fusion. No score calibration and no reranker."""
     scores: dict[int, float] = {}
     by_id = {}
     for rank, row in enumerate(vector_rows, start=1):

@@ -18,6 +18,7 @@ def canonical_record(record: dict) -> bytes:
 
 
 def _stable(value: object) -> object:
+    """Sort lists so native_acl order does not change the snapshot hash."""
     if isinstance(value, list):
         return sorted(str(item) for item in value)
     return value
@@ -32,9 +33,11 @@ class HrConnector(SourceConnector):
         self.backoff = backoff
 
     def discover(self) -> dict:
+        """Harness metadata. Not used on every poll."""
         return self._get("/discover").json()
 
     def list_changes(self, updated_since: str | None, page_token: str | None) -> dict:
+        """updated_since listing. Deletes are not on this feed; the sweep uses /ids."""
         params: dict[str, str | int] = {"limit": PAGE}
         if updated_since:
             params["updated_since"] = updated_since
@@ -43,6 +46,7 @@ class HrConnector(SourceConnector):
         return self._get("/changes", params).json()
 
     def fetch(self, object_type: str, object_id: str) -> FetchResult:
+        """Person as canonical JSON, policy as markdown or PDF bytes."""
         if object_type == "person":
             record = self._get(f"/people/{object_id}").json()
             return FetchResult(canonical_record(record), "application/json", "json", record)
@@ -53,11 +57,13 @@ class HrConnector(SourceConnector):
         return FetchResult(content.content, media, ext, record)
 
     def get_acl(self, object_type: str, object_id: str) -> list[str]:
+        """Native ACL. Search re-checks policy ACL at read time."""
         path = "people" if object_type == "person" else "policies"
         body = self._get(f"/{path}/{object_id}/acl").json()
         return list(body["native_acl"])
 
     def list_ids(self) -> dict:
+        """Live people and policy ids for the delete sweep."""
         return self._get("/ids").json()
 
     def snapshot_body(self, item: dict) -> tuple[bytes, str, str]:
@@ -68,6 +74,7 @@ class HrConnector(SourceConnector):
         return super().snapshot_body(item)
 
     def _get(self, path: str, params: dict | None = None) -> httpx.Response:
+        """GET with a client span. Trace headers go on the harness request."""
         peer = peer_host(str(self.client.base_url)) or "harness-hr"
         with client_span(peer, "harness.get") as current:
             response = self._attempt(path, params)
@@ -75,6 +82,7 @@ class HrConnector(SourceConnector):
             return response
 
     def _attempt(self, path: str, params: dict | None) -> httpx.Response:
+        """Retry transport errors and 5xx. A 4xx is final."""
         delay = self.backoff
         last: Exception | None = None
         for attempt in range(self.attempts):

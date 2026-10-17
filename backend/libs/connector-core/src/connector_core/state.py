@@ -57,6 +57,7 @@ class ObjectRow:
 
 
 def _now() -> datetime:
+    """UTC stamp for synced_at and watermark rows."""
     return datetime.now(UTC)
 
 
@@ -69,6 +70,7 @@ class State:
         Base.metadata.create_all(self.engine)
 
     def ping(self) -> bool:
+        """True when sync_state is queryable. Migrations may still be applying."""
         try:
             with self.engine.connect() as connection:
                 connection.execute(select(SyncState.source_id).limit(1))
@@ -77,16 +79,19 @@ class State:
         return True
 
     def _insert(self):
+        """Postgres upsert in production, SQLite upsert in tests."""
         if self.engine.dialect.name == "postgresql":
             return pg_insert
         return sqlite_insert
 
     def get_watermark(self, source_id: str) -> str | None:
+        """Cursor or timestamp of the last fully successful cycle. Failures do not advance it."""
         statement = select(SyncState.watermark).where(SyncState.source_id == source_id)
         with Session(self.engine) as session:
             return session.scalar(statement)
 
     def mark_success(self, source_id: str, watermark: str) -> None:
+        """Advance the watermark only after every object in the cycle succeeded."""
         now = _now()
         stmt = self._insert()(SyncState).values(
             source_id=source_id,
@@ -108,6 +113,7 @@ class State:
             session.execute(stmt)
 
     def mark_error(self, source_id: str, error: str) -> None:
+        """Record the failure without moving the watermark, so the next cycle retries."""
         now = _now()
         current = self.get_watermark(source_id)
         stmt = self._insert()(SyncState).values(
@@ -125,6 +131,7 @@ class State:
             session.execute(stmt)
 
     def get_object(self, source_id: str, object_id: str) -> ObjectRow | None:
+        """Last snapshotted version, hash, ACL, and S3 key for one object."""
         statement = select(SourceObject).where(
             SourceObject.source_id == source_id, SourceObject.object_id == object_id
         )
@@ -135,6 +142,7 @@ class State:
         return _row(row)
 
     def list_objects(self, source_id: str) -> dict[str, ObjectRow]:
+        """All snapshotted objects for the delete sweep."""
         statement = select(SourceObject).where(SourceObject.source_id == source_id)
         with Session(self.engine) as session:
             return {row.object_id: _row(row) for row in session.scalars(statement)}
@@ -151,6 +159,7 @@ class State:
         s3_version_id: str | None,
         source_updated_at: str,
     ) -> None:
+        """Remember what was snapshotted. Called only after the change event is accepted."""
         now = _now()
         values = {
             "source_id": source_id,
@@ -173,6 +182,7 @@ class State:
             session.execute(stmt)
 
     def delete_object(self, source_id: str, object_id: str) -> None:
+        """Drop the row after the delete event is accepted and S3 is gone."""
         statement = delete(SourceObject).where(
             SourceObject.source_id == source_id, SourceObject.object_id == object_id
         )
@@ -180,6 +190,7 @@ class State:
             session.execute(statement)
 
     def count_objects(self, source_id: str) -> int:
+        """Snapshotted object count for the drift gauge."""
         statement = (
             select(func.count())
             .select_from(SourceObject)
@@ -190,6 +201,7 @@ class State:
 
 
 def _row(row: SourceObject) -> ObjectRow:
+    """Detach ORM state into a frozen row the syncer can pass across threads."""
     return ObjectRow(
         object_id=row.object_id,
         object_type=row.object_type,

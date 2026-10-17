@@ -20,7 +20,6 @@ from gateway_core.runtime import open_gateway
 from gateway_core.service import GatewayService
 from gateway_core.tools import ASK, FIND_RELATED, GET_DOCUMENT, LIST_SOURCES, SEARCH
 from knowledge_api.types import AskBody, RelatedBody, SearchBody, TokenBody
-
 from knowledge_store.acl import Principal
 from shared.http_metrics import HttpMetricsMiddleware
 from shared.logging import configure, log_event
@@ -43,10 +42,12 @@ HTTP_ROUTES = (
 
 
 def create_app(service: GatewayService | None = None) -> FastAPI:
+    """Thin REST adapter. JWT validation lives here; retrieval is GatewayService."""
     contracts = load_registry()
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
+        """Open the reader store only when Compose sets GATEWAY_CONNECT=1."""
         if app.state.service is None and os.environ.get("GATEWAY_CONNECT") == "1":
             app.state.service = open_gateway()
         yield
@@ -62,6 +63,7 @@ def create_app(service: GatewayService | None = None) -> FastAPI:
 
     @app.middleware("http")
     async def access_log(request: Request, call_next):
+        """Stamp x-request-id. Health and metrics stay off the access log."""
         request_id = request.headers.get("x-request-id") or uuid.uuid4().hex
         request.state.request_id = request_id
         response = await call_next(request)
@@ -74,10 +76,12 @@ def create_app(service: GatewayService | None = None) -> FastAPI:
 
     @app.get("/health")
     def health() -> dict[str, object]:
+        """Compose probe. Does not touch Postgres or Neo4j."""
         return {"status": "ok", "sources": len(contracts)}
 
     @app.get("/v1/sources", description=LIST_SOURCES)
     def list_sources() -> list[dict[str, object]]:
+        """Registered sources and last sync. No document text."""
         if app.state.service is not None:
             return app.state.service.list_sources()
         payloads = source_payloads(contracts)
@@ -87,8 +91,9 @@ def create_app(service: GatewayService | None = None) -> FastAPI:
 
     @app.post("/v1/ask", description=ASK)
     def ask(
-        body: AskBody, request: Request, principal: Principal = require_principal
+        body: AskBody, request: Request,         principal: Principal = require_principal
     ) -> dict[str, object]:
+        """Route one question, then run the same checked retrieval as search or find_related."""
         _require_service(request)
         try:
             return request.app.state.service.ask(
@@ -99,8 +104,9 @@ def create_app(service: GatewayService | None = None) -> FastAPI:
 
     @app.post("/v1/search", description=SEARCH)
     def search(
-        body: SearchBody, request: Request, principal: Principal = require_principal
+        body: SearchBody, request: Request,         principal: Principal = require_principal
     ) -> dict[str, object]:
+        """Hybrid search over authorized chunks. Returns at most one chunk per object."""
         _require_service(request)
         return request.app.state.service.search(
             principal, body.query, body.limit, request.state.request_id
@@ -108,8 +114,9 @@ def create_app(service: GatewayService | None = None) -> FastAPI:
 
     @app.get("/v1/documents/{chunk_id}", description=GET_DOCUMENT)
     def get_document(
-        chunk_id: int, request: Request, principal: Principal = require_principal
+        chunk_id: int, request: Request,         principal: Principal = require_principal
     ) -> dict[str, object]:
+        """One authorized chunk. Missing and unauthorized both return 404."""
         _require_service(request)
         found = request.app.state.service.get_document(principal, chunk_id, request.state.request_id)
         if found is None:
@@ -118,8 +125,9 @@ def create_app(service: GatewayService | None = None) -> FastAPI:
 
     @app.post("/v1/graph/related", description=FIND_RELATED)
     def find_related(
-        body: RelatedBody, request: Request, principal: Principal = require_principal
+        body: RelatedBody, request: Request,         principal: Principal = require_principal
     ) -> dict[str, object]:
+        """Bounded graph path. kind is teammates, team, policies, or roadmap_deals."""
         _require_service(request)
         try:
             return request.app.state.service.find_related(
@@ -136,6 +144,7 @@ def create_app(service: GatewayService | None = None) -> FastAPI:
 
     @app.post("/dev/token")
     def dev_token(body: TokenBody) -> dict[str, object]:
+        """Issue an HS256 JWT for a named persona. Production identity is OIDC, not this route."""
         if os.environ.get("DEV_TOKEN_ENDPOINT") != "1":
             raise HTTPException(status_code=404, detail="not found")
         secret = os.environ.get("GATEWAY_JWT_SECRET", "")
@@ -164,6 +173,7 @@ _AUTHORIZATION = Header(default=None)
 
 
 def _principal(authorization: str | None = _AUTHORIZATION) -> Principal:
+    """Build the caller from the bearer token. A missing or bad token is 401."""
     if not authorization or not authorization.lower().startswith("bearer "):
         AUTH_FAILURES.labels(reason="missing").inc()
         raise HTTPException(status_code=401, detail="unauthorized")
@@ -179,6 +189,7 @@ require_principal = Depends(_principal)
 
 
 def _require_service(request: Request) -> None:
+    """Refuse retrieval when the process started without a store (unit tests)."""
     if request.app.state.service is None:
         raise HTTPException(status_code=503, detail="store unavailable")
 
@@ -187,6 +198,7 @@ app = create_app()
 
 
 def main() -> None:
+    """Serve the API. Logging and traces start before the HTTP server."""
     configure("gateway-api", "access")
     init_telemetry("gateway-api")
     log_event(LOG, "gateway api started")

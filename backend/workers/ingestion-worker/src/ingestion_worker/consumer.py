@@ -44,6 +44,7 @@ class Consumer:
         self._urls: dict[str, str] = {}
 
     def queues_ready(self) -> bool:
+        """Resolve tier and DLQ URLs. False keeps the process up while floci starts."""
         try:
             for name in (*TIER_ORDER, *DLQ_FOR.values()):
                 self.queue_url(name)
@@ -54,6 +55,7 @@ class Consumer:
         return True
 
     def queue_url(self, name: str) -> str:
+        """Cached queue URL. Construction does not call SQS until the first poll."""
         if name not in self._urls:
             self._urls[name] = self.client.get_queue_url(QueueName=name)["QueueUrl"]
         return self._urls[name]
@@ -80,12 +82,14 @@ class Consumer:
         return 0
 
     def observe_depths(self) -> None:
+        """Approximate visible depth on each tier and DLQ."""
         for name in TIER_ORDER:
             self._set_depth(metrics.QUEUE_DEPTH, name)
         for name in DLQ_FOR.values():
             self._set_depth(metrics.DLQ_DEPTH, name)
 
     def _set_depth(self, gauge, name: str) -> None:
+        """One ApproximateNumberOfMessages sample. A miss is logged, not fatal."""
         try:
             attributes = self.client.get_queue_attributes(
                 QueueUrl=self.queue_url(name),
@@ -99,6 +103,7 @@ class Consumer:
         )
 
     def _receive(self, name: str, wait: int) -> list[dict]:
+        """Receive up to 10. P0 long-polls; P1 and P2 do not wait if empty."""
         kwargs = {
             "QueueUrl": self.queue_url(name),
             "MaxNumberOfMessages": 10,
@@ -126,6 +131,7 @@ class Consumer:
             return self._apply(queue_name, message, current)
 
     def _apply(self, queue_name: str, message: dict, current) -> bool:
+        """Dispatch one event. On failure leave it in flight; after 5 receives copy to the DLQ."""
         count = int(message.get("Attributes", {}).get("ApproximateReceiveCount", "1"))
         current.set_attribute("receive_count", count)
         if count > MAX_RECEIVE:
@@ -191,6 +197,7 @@ class Consumer:
         return True
 
     def _move_to_dlq(self, queue_name: str, message: dict) -> bool:
+        """Copy the body to the tier DLQ, then delete. Covers a floci redrive that is not applied."""
         dlq_name = DLQ_FOR[queue_name]
         attributes = message.get("Attributes", {})
         group = attributes.get("MessageGroupId") or "poison"
@@ -225,6 +232,7 @@ class Consumer:
         return True
 
     def _delete(self, queue_name: str, message: dict) -> None:
+        """Ack. Called only after a successful write or a successful DLQ copy."""
         self.client.delete_message(
             QueueUrl=self.queue_url(queue_name),
             ReceiptHandle=message["ReceiptHandle"],
@@ -232,6 +240,7 @@ class Consumer:
 
 
 def _type_from_pointer(key: str | None) -> str:
+    """Span label from the S3 key. Empty on a delete."""
     parts = (key or "").split("/")
     if len(parts) < 4 or parts[0] != "raw":
         return ""
@@ -239,5 +248,6 @@ def _type_from_pointer(key: str | None) -> str:
 
 
 def _lag(occurred_at: datetime) -> float:
+    """Seconds from event time to handle time. The freshness histogram uses this."""
     moment = occurred_at if occurred_at.tzinfo is not None else occurred_at.replace(tzinfo=UTC)
     return max(0.0, (datetime.now(UTC) - moment).total_seconds())
