@@ -2050,7 +2050,7 @@
       "timezone": "browser",
       "to": "now"
     },
-    "title": "02 KBS / Ingestion",
+    "title": "KBS / Ingestion",
     "variables": [
       {
         "kind": "QueryVariable",
