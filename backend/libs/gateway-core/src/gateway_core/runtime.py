@@ -17,11 +17,14 @@ from shared.registry import load_registry
 
 
 def open_gateway() -> GatewayService:
+    """Reader-only store: gateway_ro, no chunk writer, HR re-check when the contract asks."""
     reader = _engine("gateway_ro", os.environ["GATEWAY_DB_PASSWORD"])
     driver = GraphDatabase.driver(
         os.environ.get("NEO4J_URI", "bolt://neo4j:7687"),
         auth=("neo4j", os.environ["NEO4J_PASSWORD"]),
     )
+    # The chunk writer is None, so this process cannot insert chunks.
+    # GraphWriter is required by KnowledgeStore and is never called.
     store = KnowledgeStore(
         ChunkTable(None, reader),
         GraphWriter(driver),
@@ -38,6 +41,7 @@ def open_gateway() -> GatewayService:
 
 
 def _engine(user: str, password: str):
+    """gateway_ro engine. RLS still applies even if a query forgets the predicate."""
     host = os.environ.get("POSTGRES_HOST", "postgres")
     database = os.environ.get("POSTGRES_DB", "kbs")
     return create_engine(

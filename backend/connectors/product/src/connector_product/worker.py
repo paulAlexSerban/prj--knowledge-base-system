@@ -9,6 +9,7 @@ import time
 
 import httpx
 from botocore.exceptions import BotoCoreError, ClientError
+from opentelemetry.trace import SpanKind
 
 from connector_core.runtime import prepare, sqs_client
 from connector_core.sync import Syncer
@@ -23,6 +24,7 @@ LOG = logging.getLogger("connector-product")
 
 
 def _client(base_url: str) -> ProductConnector:
+    """Product harness client. There is no updated_since poll."""
     return ProductConnector(httpx.Client(base_url=base_url, timeout=30))
 
 
@@ -44,6 +46,7 @@ def take_notices(hooks: HookQueue) -> list[tuple[HookNotice, str, object]] | Non
 
 
 def main() -> None:
+    """Drain hook pointers, then reconcile from /ids on a timer."""
     ready = prepare("connector-product", "product", "HARNESS_PRODUCT_URL", _client)
     hooks = HookQueue(sqs_client())
     delay = 2.0
@@ -77,9 +80,11 @@ def main() -> None:
                 with span(
                     "hook.apply",
                     context=parent,
+                    span_kind=SpanKind.CONSUMER,
                     source_id="product",
                     event_type=notice.event_type,
-                ):
+                    object_type="spec",
+                ) as current:
                     report = apply_notice(
                         ready.connector,
                         ready.contract,
@@ -88,6 +93,7 @@ def main() -> None:
                         ready.publisher,
                         notice,
                     )
+                    current.set_attribute("result", "ok" if report.ok else "error")
             except Exception as exc:  # noqa: BLE001 - one bad notice must not kill the process
                 log_event(
                     LOG,

@@ -15,6 +15,7 @@ class SalesConnector(SourceConnector):
         self.http = HarnessClient(client, attempts, backoff)
 
     def discover(self) -> dict:
+        """Harness metadata. Not used on every poll."""
         return self.http.get("/discover").json()
 
     def list_changes(self, updated_since: str | None, page_token: str | None) -> dict:
@@ -29,21 +30,26 @@ class SalesConnector(SourceConnector):
                 return {"items": items, "server_time": cursor, "next_page_token": None}
 
     def fetch(self, object_type: str, object_id: str) -> FetchResult:
+        """One deal as canonical JSON. Account fields sit on the deal."""
         record = self.http.get(f"/deals/{object_id}").json()
         return FetchResult(canonical_record(record), "application/json", "json", record)
 
     def get_acl(self, object_type: str, object_id: str) -> list[str]:
+        """Native ACL. The indexed rule is authoritative inside the freshness window."""
         body = self.http.get(f"/deals/{object_id}/acl").json()
         return list(body["native_acl"])
 
     def list_ids(self) -> dict:
+        """Live deal ids. The cursor feed already includes deletes; the sweep is the backstop."""
         return self.http.get("/ids").json()
 
     def snapshot_body(self, item: dict) -> tuple[bytes, str, str]:
+        """Canonical JSON of the feed record. Avoids a second GET on every change."""
         return canonical_record(item["record"]), "application/json", "json"
 
 
 def _item(row: dict) -> dict:
+    """Normalize a feed row. Deletes have no record body."""
     if row["op"] == "delete":
         return {"op": "delete", "object_type": row["object_type"], "id": row["id"]}
     return {

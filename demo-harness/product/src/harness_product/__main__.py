@@ -5,6 +5,7 @@ SQLITE_PATH selects the database. Spec files live in FILES_DIR, default
 after each admin write. An empty database is seeded on start.
 """
 
+import logging
 import os
 from pathlib import Path
 
@@ -13,6 +14,7 @@ import uvicorn
 from harness_product.app import create_app
 from harness_product.notify import Notifier
 from harness_product.store import Store
+from shared.logging import configure, log_event
 from shared.telemetry import init_telemetry
 
 
@@ -20,11 +22,14 @@ def main() -> None:
     db_path = Path(os.environ.get("SQLITE_PATH", "/tmp/harness-product/harness.db"))
     files_dir = Path(os.environ.get("FILES_DIR", db_path.parent / "specs"))
     port = int(os.environ.get("PORT", "8080"))
+    configure("harness-product", "sources")
     init_telemetry("harness-product")
+    log_event(logging.getLogger("harness-product"), "harness ready", source_id="product")
     uvicorn.run(
         create_app(Store(db_path, files_dir), Notifier(os.environ.get("WEBHOOK_URL"))),
         host="0.0.0.0",
         port=port,
+        log_config=None,
         access_log=False,
     )
 

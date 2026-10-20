@@ -10,6 +10,7 @@ import os
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from typing import Any
+from urllib.parse import urlparse
 
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
@@ -17,7 +18,7 @@ from opentelemetry.propagate import extract, inject
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from opentelemetry.trace import Span, Status, StatusCode
+from opentelemetry.trace import Span, SpanKind, Status, StatusCode
 
 _READY = False
 _SAFE = (str, int, float, bool)
@@ -106,12 +107,19 @@ def span(
     name: str,
     *,
     context: Any = None,
+    span_kind: SpanKind | None = None,
     **attributes: Any,
 ) -> Iterator[Span]:
-    """Current span. Attributes are the safe types only, and secrets are dropped."""
+    """Current span. Attributes are the safe types only, and secrets are dropped.
+
+    span_kind is the OpenTelemetry kind. The service graph uses client, server,
+    producer, and consumer. Other spans stay internal.
+    """
     kwargs: dict[str, Any] = {}
     if context is not None:
         kwargs["context"] = context
+    if span_kind is not None:
+        kwargs["kind"] = span_kind
     tracer = trace.get_tracer("kbs")
     with tracer.start_as_current_span(name, **kwargs) as current:
         for key, value in attributes.items():
@@ -139,6 +147,23 @@ def trace_headers() -> dict[str, str]:
     carrier: dict[str, str] = {}
     inject(carrier)
     return carrier
+
+
+def peer_host(url: str) -> str:
+    """Hostname of an internal URL. Compose service names are those hostnames."""
+    return urlparse(url).hostname or ""
+
+
+@contextmanager
+def client_span(peer: str, name: str = "http.client") -> Iterator[Span]:
+    """Outbound HTTP span. peer.service is the other process on the service graph.
+
+    Call trace_headers inside the block so the server span is a child of this one.
+    """
+    with span(name, span_kind=SpanKind.CLIENT) as current:
+        if peer:
+            current.set_attribute("peer.service", peer)
+        yield current
 
 
 def sqs_message_attributes() -> dict[str, dict[str, str]]:

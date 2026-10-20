@@ -8,7 +8,7 @@ The roadmap question is a short typed traversal: a deal depends on an epic, and 
 
 ## Decision
 
-Neo4j 5 Community holds the graph. The writer creates `Person`, `Team`, `Policy`, `Deal`, and `Epic`, and the edges `BELONGS_TO`, `DEPENDS_ON`, and `OWNED_BY`. Those edges come from structured records in code. Account is a field on the deal, not a node. Product specs stay prose and are not nodes. The gateway runs four parameterized templates on a read-only session, including `roadmap_deals`. There is no open Cypher and no query router. The router in spike 02 is a production path and is not built.
+Neo4j 5 Community holds the graph. The writer creates `Person`, `Team`, `Policy`, `Deal`, and `Epic`, and the edges `BELONGS_TO`, `DEPENDS_ON`, and `OWNED_BY`, through neomodel ([ADR 0028](0028-orm-and-ogm.md)). Those edges come from structured records in code. Account is a field on the deal, not a node. Product specs stay prose and are not nodes. The gateway runs four parameterized templates on a read-only transaction, including `roadmap_deals`. neomodel cannot express the array ACL predicate, so those templates stay Cypher inside the reader. There is no open Cypher. The query router ([ADR 0026](0026-query-router.md)) picks one of those templates, or search. It does not write Cypher.
 
 Community has no roles. The gateway and the worker share the `neo4j` user. That is an accepted shortcut. The read-only session and the templates are the only database guard on that user.
 

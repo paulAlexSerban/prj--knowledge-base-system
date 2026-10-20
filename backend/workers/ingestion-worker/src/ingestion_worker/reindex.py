@@ -11,6 +11,7 @@ from knowledge_store.runtime import open_store
 
 
 def main() -> int:
+    """Rebuild under EMBEDDER, then drop other models. Exit 1 if anything is still missing."""
     store = open_store()
     before = store.chunks.count_by_model()
     result = store.reindex()

@@ -116,6 +116,11 @@ def test_formatter_drops_excluded_fields(capsys) -> None:
         assert forbidden not in raw
 
 
+def test_images_disable_onnx_telemetry() -> None:
+    text = (ROOT / "docker" / "python-service.Dockerfile").read_text()
+    assert "ORT_DISABLE_TELEMETRY=1" in text
+
+
 def test_alloy_does_not_label_principal_or_request() -> None:
     text = ALLOY_CONFIG.read_text()
     labeled = text.split("discovery.relabel", 1)[1].split("loki.write", 1)[0]

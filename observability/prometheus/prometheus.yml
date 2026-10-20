@@ -4,7 +4,8 @@ global:
 rule_files:
   - /etc/prometheus/rules.yml
 
-# Application targets are scraped by Alloy and remote-written here.
+# Application targets, including chat-ui:9105, are scraped by Alloy and remote-written here.
+# Tempo's metrics generator also remote-writes service-graph and span-metrics series here.
 # Prometheus itself scrapes the collector, the log store, and its own /metrics.
 # Jupyter, pgAdmin, and the SQLite viewers have no /metrics endpoint and are not targets.
 scrape_configs:

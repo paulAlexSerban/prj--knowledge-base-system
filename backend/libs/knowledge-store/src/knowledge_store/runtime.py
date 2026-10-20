@@ -18,6 +18,7 @@ from shared.registry import load_registry
 
 
 def open_store() -> KnowledgeStore:
+    """Writer store for the ingestion worker: ingestion_rw plus Neo4j writes."""
     writer = _engine(os.environ.get("POSTGRES_USER", "ingestion_rw"), os.environ["INGESTION_DB_PASSWORD"])
     reader = _engine("gateway_ro", os.environ["GATEWAY_DB_PASSWORD"])
     driver = GraphDatabase.driver(
@@ -35,6 +36,7 @@ def open_store() -> KnowledgeStore:
 
 
 def ready(store: KnowledgeStore) -> bool:
+    """Postgres, Neo4j, and the snapshot bucket all answer."""
     postgres_up = store.chunks.ping()
     metrics.DEPENDENCY.labels(dependency="postgres").set(1 if postgres_up else 0)
     neo4j_up = store.graph.ping()
@@ -51,6 +53,7 @@ def ready(store: KnowledgeStore) -> bool:
 
 
 def _engine(user: str, password: str):
+    """SQLAlchemy engine with search_path=kbs so models stay unqualified."""
     host = os.environ.get("POSTGRES_HOST", "postgres")
     database = os.environ.get("POSTGRES_DB", "kbs")
     return create_engine(
@@ -60,6 +63,7 @@ def _engine(user: str, password: str):
 
 
 def _s3():
+    """Path-style S3 client against floci."""
     return boto3.client(
         "s3",
         endpoint_url=os.environ["AWS_ENDPOINT_URL"],

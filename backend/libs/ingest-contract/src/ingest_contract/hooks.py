@@ -13,6 +13,7 @@ HOOK_DLQ = "kbs-product-hooks-dlq.fifo"
 
 
 class HookNotice(BaseModel):
+    """Pointer only. The product connector fetches the spec, then emits a ChangeEvent."""
     model_config = ConfigDict(extra="forbid")
 
     source_id: Literal["product"]
@@ -20,8 +21,10 @@ class HookNotice(BaseModel):
     event_type: Literal["create", "update", "delete"]
 
     def to_json(self) -> str:
+        """Hook-queue body. The product connector fetches the spec after this."""
         return self.model_dump_json()
 
     @classmethod
     def from_json(cls, body: str) -> "HookNotice":
+        """Parse a pointer. A bad body stays on the queue and lands in the DLQ."""
         return cls.model_validate_json(body)

@@ -8,3 +8,8 @@ _docs
 **/*.pyc
 **/*.egg-info
 .env
+notebooks/*.ipynb
+observability
+**/.terraform
+**/*.tfstate
+**/*.tfstate.*

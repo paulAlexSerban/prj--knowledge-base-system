@@ -12,11 +12,17 @@ from ingest_contract.events import ChangeEvent, EventType
 
 
 class Store(Protocol):
-    def upsert_object(self, event: ChangeEvent) -> None: ...
+    def upsert_object(self, event: ChangeEvent) -> None:
+        """Create or replace chunks and graph nodes for this object."""
+        ...
 
-    def apply_acl(self, event: ChangeEvent) -> None: ...
+    def apply_acl(self, event: ChangeEvent) -> None:
+        """Patch grants without re-embedding."""
+        ...
 
-    def delete_object(self, event: ChangeEvent) -> None: ...
+    def delete_object(self, event: ChangeEvent) -> None:
+        """Tombstone and hard-delete the object from both stores."""
+        ...
 
 
 class MemoryStore:
@@ -28,21 +34,25 @@ class MemoryStore:
         self._seen: set[str] = set()
 
     def upsert_object(self, event: ChangeEvent) -> None:
+        """Keep the latest event for tests. Deduped on the FIFO id."""
         if not self._remember(event):
             return
         self.objects[(event.source_id, event.object_id)] = event
 
     def apply_acl(self, event: ChangeEvent) -> None:
+        """Same as upsert in memory. The real store patches ACL columns only."""
         if not self._remember(event):
             return
         self.objects[(event.source_id, event.object_id)] = event
 
     def delete_object(self, event: ChangeEvent) -> None:
+        """Drop the object if this dedup id has not been seen."""
         if not self._remember(event):
             return
         self.objects.pop((event.source_id, event.object_id), None)
 
     def _remember(self, event: ChangeEvent) -> bool:
+        """False on a replay of the same FIFO dedup id."""
         token = event.dedup_id()
         if token in self._seen:
             return False
@@ -52,6 +62,7 @@ class MemoryStore:
 
 
 def dispatch(store: Store, event: ChangeEvent) -> None:
+    """Route delete, acl_change, or upsert. The consumer acks only if this returns."""
     if event.event_type == EventType.DELETE:
         store.delete_object(event)
     elif event.event_type == EventType.ACL_CHANGE:

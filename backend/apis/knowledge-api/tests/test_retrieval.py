@@ -601,6 +601,37 @@ def test_roadmap_deals_is_an_access_boundary(api) -> None:
     assert {row.grp for row in rows} == {"roadmap"}
 
 
+def test_ask_routes_the_roadmap_question_and_hides_it_from_an_outsider(api) -> None:
+    http, _admin = api
+    _seed_roadmap(http.app.state.service.graph.driver)
+    question = "Which high-ARR Sales deals in Q3 depend on unreleased Engineering epics?"
+    allowed = http.post(
+        "/v1/ask",
+        json={"query": question},
+        headers={**_auth("product_lead"), "x-request-id": "ask-roadmap"},
+    )
+    assert allowed.status_code == 200
+    assert allowed.json()["route"] == {
+        "class": "relational",
+        "source": "rules",
+        "graph": "roadmap_deals",
+        "quarter": "2026-Q3",
+        "min_arr": None,
+    }
+    assert _deal_ids(allowed.json()) == {"deal-northwind-q3"}
+    outsider = http.post("/v1/ask", json={"query": question}, headers=_auth("outsider"))
+    assert outsider.status_code == 200
+    assert outsider.json()["paths"] == []
+    assert outsider.json()["route"]["class"] == "relational"
+    policy = "parental leave in Germany"
+    engineer = http.post("/v1/ask", json={"query": policy}, headers=_auth("employee_eng"))
+    assert engineer.json()["route"]["class"] == "semantic"
+    assert any(item["object_id"] == "pol-de" for item in engineer.json()["results"])
+    hidden = http.post("/v1/ask", json={"query": policy}, headers=_auth("outsider"))
+    assert hidden.json()["results"] == []
+    assert http.post("/v1/ask", json={"query": question}).status_code == 401
+
+
 def test_dev_token_issues_a_persona_and_stays_hidden(api, monkeypatch) -> None:
     http, _admin = api
     issued = http.post("/dev/token", json={"persona": "employee_eng"})

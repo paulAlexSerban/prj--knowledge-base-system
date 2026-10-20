@@ -8,7 +8,7 @@ Freshness and authorization are distributions, so the demo needs metrics. The de
 
 ## Decision
 
-Grafana Alloy (`grafana/alloy:v1.20.1`) is the collector. It scrapes `/metrics` and remote-writes to Prometheus, pushes container logs to Loki, and exports OTLP traces to Tempo. Grafana is the UI. Every feature process writes JSON logs to stdout and exposes metrics. The publisher puts a W3C `traceparent` on the queue message, and the worker continues that trace. Definitions are in [observability/metrics.md](../../observability/metrics.md). Cardinality is bounded: source id and permission group, not user id, object id, or chunk text. Per-user detail stays in `kbs.audit_log` and in the log line.
+Grafana Alloy (`grafana/alloy:v1.20.1`) is the collector. It scrapes `/metrics` and remote-writes to Prometheus, pushes container logs to Loki, and exports OTLP traces to Tempo. Grafana is the UI. Every feature process writes JSON logs to stdout and exposes metrics. The publisher puts a W3C `traceparent` on the queue message, and the worker continues that trace. Outbound HTTP does the same with a client span. Tempo remote-writes a service graph and span metrics to Prometheus. How the spans join is [ADR 0027](0027-service-graph.md). Definitions are in [observability/metrics.md](../../observability/metrics.md). Cardinality is bounded: source id and permission group, not user id, object id, or chunk text. Per-user detail stays in `kbs.audit_log` and in the log line.
 
 ## Alternatives rejected
 
@@ -20,7 +20,8 @@ Grafana Alloy (`grafana/alloy:v1.20.1`) is the collector. It scrapes `/metrics` 
 
 ## Consequences
 
-- A new service needs a scrape entry, a healthcheck, and JSON logs. Jupyter, the chat page, pgAdmin, and the SQLite viewers are the exception: a healthcheck, and no scrape.
+- A new service needs a scrape entry, a healthcheck, and JSON logs. The chat page is scraped at `chat-ui:9105`. Jupyter, pgAdmin, and the SQLite viewers are the exception: a healthcheck, and no scrape.
+- ONNX Runtime telemetry is off (`ORT_DISABLE_TELEMETRY`). Its device-id warning is not JSON, and Loki would show it as a parse error.
 - The read-only Docker socket is a separate decision ([ADR 0011](0011-alloy-docker-socket.md)). Dashboards and alerts are too ([ADR 0010](0010-dashboards-as-code.md)).
 
 ## Production path

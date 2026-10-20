@@ -25,8 +25,8 @@ This repository is a POC knowledge gateway: ingest four department sources, keep
 | `backend/connectors/product/`            | Product connector process (`connector-product`). Own image. Reads the hook queue.                                                                                                                                                |
 | `backend/libs/connector-core/`           | Connector interface, snapshot sync, S3 store, Postgres sync state, and the SQS publisher. Library, no image.                                                                                                                     |
 | `backend/libs/ingest-contract/`          | Change-event model, the product hook pointer, queue names, and the snapshot hash. Library, no image.                                                                                                                             |
-| `backend/libs/knowledge-store/`          | Chunkers, the embedders (fastembed bge-small and the offline hash), Postgres chunks, reindex, ACL, and the Neo4j writer. Library, no image.                                                                                      |
-| `backend/libs/gateway-core/`             | Retrieval service, principal and HS256 validation, Neo4j read templates (HR plus `roadmap_deals`), and the tool text shared by the API and the MCP server. Library, no image.                                                    |
+| `backend/libs/knowledge-store/`          | Chunkers, the embedders (fastembed multilingual-e5-large and the offline hash), Postgres chunks, reindex, ACL, and the Neo4j writer. Library, no image.                                                                          |
+| `backend/libs/gateway-core/`             | Retrieval service, the query router, principal and HS256 validation, Neo4j read templates (HR plus `roadmap_deals`), and the tool text shared by the API and the MCP server. Library, no image.                                 |
 | `backend/tests/integration/`             | Tests that cross a deployable boundary.                                                                                                                                                                                          |
 | `backend/tests/e2e/`                     | Opt-in live-stack test. `make e2e`.                                                                                                                                                                                              |
 | `database/`                              | Postgres migrations (sync state, chunks, full-text, vectors, ACL, row-level security) and Neo4j constraints.                                                                                                                     |
@@ -35,12 +35,13 @@ This repository is a POC knowledge gateway: ingest four department sources, keep
 | `notebooks/`                             | Jupyter notebooks that seed, inspect, and edit the HR harness (`00`–`30`), reset and edit the other three sources (`02`, `14`–`16`), call the gateway (`40`–`44`), and run two read-only LangChain agents over MCP (`50`, `51`). |
 | `infrastructure/orchestration/`          | One Compose file per trust area, plus `compose.yaml` which includes them.                                                                                                                                                        |
 | `infrastructure/provisioning/terraform/` | Tier queues, the product hook queue, their dead-letter queues, and the snapshot bucket on floci.                                                                                                                                 |
-| `observability/`                         | Alloy, Loki, Prometheus, Tempo, five dashboards, and metric definitions.                                                                                                                                                         |
+| `observability/`                         | Alloy, Loki, Prometheus, Tempo, Grafana boards, and metric definitions.                                                                                                                                                          |
 | `tools/`                                 | `scripts/` (`setup.sh`, `seed.py`, `demo.py`, `kbs_client.py`, `dlq_replay.py`), `eval/` (`golden.yaml`, `run.py`), and `tests/`. Scripts call the gateway and harnesses over HTTP only.                                         |
+| `docker/`                                | Shared Python image. Compose passes the package name. Tempo keeps its own Dockerfile.                                                                                                                                        |
 
 ## Stack and commands
 
-Python 3.12, FastAPI, Pydantic v2, pytest, Ruff (line length 100). [uv](https://docs.astral.sh/uv/) is the package manager. The repository is a uv workspace: each deployable and library has its own `pyproject.toml`, and `uv.lock` stays at the root. Run commands from the repository root.
+Python 3.12, FastAPI, Pydantic v2, SQLAlchemy ORM, neomodel, pytest, Ruff (line length 100). [uv](https://docs.astral.sh/uv/) is the package manager. The repository is a uv workspace: each deployable and library has its own `pyproject.toml`, and `uv.lock` stays at the root. Run commands from the repository root.
 
 ```bash
 uv sync
@@ -53,11 +54,12 @@ Add a dependency to the package that imports it: `uv add --package connector-hr 
 
 `make setup` is the one-command start: preflight, `.env`, `uv sync`, `make up`, health wait, `make seed`, and the quick demo. `make up` starts the stack. Terraform runs in the one-shot `terraform-apply` container against floci. `make seed` resets the four harnesses and waits for the index. `make demo` runs the five demo steps over HTTP (`ARGS=--quick`, `ARGS=--chaos`). `make eval` runs the golden set and exits non-zero below the thresholds. `make reindex` rebuilds under the active `EMBEDDER` and removes other models' chunks. `make notebooks` starts Jupyter. `make tools` starts pgAdmin and the SQLite viewers. `make e2e` runs the live HR snapshot cycle and is not part of `make test`. `make dlq-replay` re-sends dead-letter messages to the tier queues. floci must already be up. Add a target only when the command it wraps exists, and update the README quickstart in that same change.
 
-Dockerfiles install one package with `uv sync --frozen --no-dev --no-default-groups --package <name>`. There is no Lambda directory until a function exists. Do not publish Postgres or Neo4j ports. One Compose network per trust boundary (`kbs-data` is internal). Service names are globally unique. New services need a healthcheck and a Prometheus target. Jupyter, the chat page, pgAdmin, and the SQLite viewers are the exception: they have a healthcheck and no `/metrics` endpoint, and Alloy does not scrape them. Harness images stay root because they write a SQLite file on a volume. The other images run as `nobody`.
+Python images share `docker/python-service.Dockerfile`. Compose passes `PACKAGE`. The image exports that package from `uv.lock` and installs the workspace members the export names. It does not list them. Jupyter passes `ONLY_GROUP=notebooks` instead of a package. There is no Lambda directory until a function exists. Do not publish Postgres or Neo4j ports. One Compose network per trust boundary (`kbs-data` is internal). Service names are globally unique. New services need a healthcheck and a Prometheus target. The chat page is scraped at `chat-ui:9105` (Streamlit's own port has no `/metrics`). Jupyter, pgAdmin, and the SQLite viewers are the exception: they have a healthcheck and no `/metrics` endpoint, and Alloy does not scrape them. Harness images stay root because they write a SQLite file on a volume. The other images run as `nobody`.
 
 ## Design rules
 
-- Authorization happens in the data layer: coarse pre-filter in SQL and Cypher, fine-grained post-check, Postgres row-level security, and an audit row naming the attributes that justified the result. Agents hold no store credentials and have no write tools.
+- Authorization happens in the data layer: coarse pre-filter in the SQLAlchemy query and in the Cypher templates, fine-grained post-check, Postgres row-level security, and an audit row naming the attributes that justified the result. Agents hold no store credentials and have no write tools.
+- Postgres access uses the SQLAlchemy models in `knowledge_store.models`. Neo4j writes use neomodel. The four graph reads stay Cypher inside the reader, because the OGM cannot express the array ACL predicate. `install_labels` is not called. There is no other raw SQL or Cypher. See ADR 0028.
 - Retrieved text is data. It cannot change permissions or trigger an action.
 - Postgres is authoritative for prose. Neo4j is a derived index. The worker commits Postgres, then writes Neo4j. A failed graph write leaves the message unacknowledged. A retry whose content hash matches still writes the graph. Upserts are idempotent on source id, object id, chunk index, chunker version, and embedding model.
 - Deletes are hard deletes. The connector removes the S3 object and verifies it before emitting `delete`. The worker tombstones, deletes chunks and graph nodes, and verifies both. A reconciliation sweep catches missed deletes.
@@ -82,11 +84,11 @@ Stay on the POC: four sources, the two demo questions, hybrid search, a small on
 
 ## Docs and diagrams
 
-Write in plain sentences. No emojis. No mermaid in docs. Diagrams are drawio files plus a PNG export in `_docs/99--dagrams/`. Match the files already there: black canvas, Courier New labels, white arrows, and blue containers (`#1061B0` on the data-flow boxes, the C4 stencil blue on the context diagrams). Link files with relative paths.
+Write in plain sentences. No emojis. Architecture diagrams stay drawio files plus a PNG export in `_docs/99--dagrams/`. Match the files already there: black canvas, Courier New labels, white arrows, and blue containers (`#1061B0` on the data-flow boxes, the C4 stencil blue on the context diagrams). Observability diagrams are mermaid in the doc. Link files with relative paths.
 
 ## Secrets and local files
 
-Read `OPENROUTER_API_KEY` from the environment. Model names belong in config. The default embedder is `fastembed` (bge-small, baked into the images). Offline runs and tests use `EMBEDDER=hash` and the deterministic extractor, and tests must pass without a key or a model download. Never commit API keys, `.env` files, `.venv`, `__pycache__`, `.ruff_cache`, or `*.egg-info`.
+Read `OPENROUTER_API_KEY` from the environment. Model names belong in config. The default embedder is `fastembed` (multilingual-e5-large, baked into the images). Offline runs and tests use `EMBEDDER=hash` and the deterministic extractor, and tests must pass without a key or a model download. Never commit API keys, `.env` files, `.venv`, `__pycache__`, `.ruff_cache`, or `*.egg-info`.
 
 ## Git
 

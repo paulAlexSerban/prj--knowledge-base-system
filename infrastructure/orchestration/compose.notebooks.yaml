@@ -6,7 +6,11 @@ services:
   jupyter:
     build:
       context: ../..
-      dockerfile: notebooks/Dockerfile
+      dockerfile: docker/python-service.Dockerfile
+      args:
+        ONLY_GROUP: notebooks
+        APP_USER: root
+        APP_WORKDIR: /notebooks
     command:
       [
         "jupyter", "lab",

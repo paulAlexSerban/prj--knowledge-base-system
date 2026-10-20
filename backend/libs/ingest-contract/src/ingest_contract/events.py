@@ -42,6 +42,7 @@ class EventType(str, Enum):
 
 
 class ChangeEvent(BaseModel):
+    """Claim-check event: identity, type, version or hash, and an S3 pointer (except delete)."""
     model_config = ConfigDict(extra="forbid")
 
     source_id: str = Field(min_length=1)
@@ -54,6 +55,7 @@ class ChangeEvent(BaseModel):
 
     @model_validator(mode="after")
     def require_version_or_hash(self) -> "ChangeEvent":
+        """A delete may omit the S3 pointer. Every other event must name the snapshot key."""
         if not self.version and not self.content_hash:
             raise ValueError("version or content_hash is required")
         if self.event_type != EventType.DELETE and not self.s3_pointer:
@@ -70,10 +72,12 @@ class ChangeEvent(BaseModel):
         return fit_sqs_id(f"{self.source_id}:{self.object_id}:{self.event_type.value}:{token}")
 
     def to_json(self) -> str:
+        """Queue body. The document itself stays in S3 (claim-check)."""
         return self.model_dump_json()
 
     @classmethod
     def from_json(cls, body: str) -> "ChangeEvent":
+        """Parse one queue message. Extra fields are rejected."""
         return cls.model_validate_json(body)
 
 

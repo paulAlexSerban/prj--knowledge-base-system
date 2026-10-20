@@ -9,6 +9,7 @@ thresholds:
   conflicting: 1.0
   access: 1.0
   graph: 1.0
+  route: 1.0
   latency_p95_ms: 500        # regression guard on a laptop. The design target is 250 ms p95.
 
 cases:
@@ -39,11 +40,27 @@ cases:
   - {id: access-admin-sees, category: access, persona: hr_admin, query: "disciplinary termination procedure", expect: [pol-disciplinary-procedure]}
   - {id: access-compensation, category: access, persona: employee_eng, query: "compensation review guidelines", expect_none_of: [pol-compensation-review]}
 
-  # Question 2 through the graph
+  # Looks relational because it says "depend", and must stay on chunk search.
+  - {id: route-depend-policy, category: route, persona: employee_eng, query: "Does the parental leave policy depend on manager approval in Germany?", expect_route: semantic}
+
+  # Question 2 through the router. The graph template is still the authority.
   - id: graph-roadmap-lead
     category: graph
     persona: product_lead
-    kind: roadmap_deals
+    query: "Which high-ARR Sales deals in Q3 depend on unreleased Engineering epics?"
+    expect_route: relational
     expect_deals: [deal-northwind-q3, deal-fabrikam-q3, deal-adventure-q3, deal-wideworld-q3, deal-litware-q3, deal-alpine-q3]
-  - {id: graph-roadmap-employee, category: graph, persona: employee_eng, kind: roadmap_deals, expect_deals: []}
-  - {id: graph-roadmap-outsider, category: graph, persona: outsider, kind: roadmap_deals, expect_deals: []}
+  - id: graph-roadmap-phrasing-arr
+    category: graph
+    persona: product_lead
+    query: "What unreleased epics do our high ARR deals in 2026 Q3 depend on?"
+    expect_route: relational
+    expect_deals: [deal-northwind-q3, deal-fabrikam-q3, deal-adventure-q3, deal-wideworld-q3, deal-litware-q3, deal-alpine-q3]
+  - id: graph-roadmap-phrasing-show
+    category: graph
+    persona: product_lead
+    query: "Show the Q3 roadmap deals that depend on engineering epics that are not released"
+    expect_route: relational
+    expect_deals: [deal-northwind-q3, deal-fabrikam-q3, deal-adventure-q3, deal-wideworld-q3, deal-litware-q3, deal-alpine-q3]
+  - {id: graph-roadmap-employee, category: graph, persona: employee_eng, query: "Which high-ARR Sales deals in Q3 depend on unreleased Engineering epics?", expect_route: relational, expect_deals: []}
+  - {id: graph-roadmap-outsider, category: graph, persona: outsider, query: "Which high-ARR Sales deals in Q3 depend on unreleased Engineering epics?", expect_route: relational, expect_deals: []}

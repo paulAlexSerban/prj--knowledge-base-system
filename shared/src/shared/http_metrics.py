@@ -5,14 +5,18 @@ The raw path is never a label, so a scan cannot create a series per URL.
 `job` from the scrape already names the process, so it is not a label here.
 """
 
+import logging
 import time
 from collections.abc import Awaitable, Callable, Iterable
 
 from opentelemetry.propagate import extract
-from opentelemetry.trace import Status, StatusCode
+from opentelemetry.trace import SpanKind, Status, StatusCode
 from prometheus_client import Counter, Histogram
 
+from shared.logging import log_event
 from shared.telemetry import operational_path, span
+
+LOG = logging.getLogger("http")
 
 BUCKETS = (0.01, 0.05, 0.1, 0.25, 0.5, 1, 2, 5)
 METHODS = frozenset({"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"})
@@ -119,12 +123,27 @@ class HttpMetricsMiddleware:
 
         parent = extract(_carrier(scope))
         try:
-            with span(f"{method} {route}", context=parent, method=method, route=route) as current:
+            with span(
+                f"{method} {route}",
+                context=parent,
+                span_kind=SpanKind.SERVER,
+                method=method,
+                route=route,
+            ) as current:
                 try:
                     await self.app(scope, receive, send_wrapper)
                 finally:
                     current.set_attribute("http.status_code", status)
                     if status >= 500:
                         current.set_status(Status(StatusCode.ERROR))
+                    # Inside the span so the line carries its trace id. The
+                    # route is the template, not the raw path.
+                    log_event(
+                        LOG,
+                        "http request",
+                        method=method,
+                        route=route,
+                        status=status,
+                    )
         finally:
             _record(route, method, status, started)
