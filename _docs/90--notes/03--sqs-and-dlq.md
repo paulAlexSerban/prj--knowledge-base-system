@@ -6,12 +6,12 @@ The queue never carries the document. The connector writes S3 first, then sends 
 
 ## The queues
 
-| Queue | Who writes | Who reads | Dedup |
-| ----- | ---------- | --------- | ----- |
-| `kbs-p0.fifo` | HR; any ACL change | Ingestion worker first | Content-based on, but every send still sets an explicit id |
-| `kbs-p1.fifo` | Sales, Engineering, Product | Worker if P0 is empty | Same |
-| `kbs-p2.fifo` | Nobody yet | Worker last | Same |
-| `kbs-product-hooks.fifo` | Webhook receiver | Product connector | Off, so two edits of one spec both arrive |
+| Queue                    | Who writes                  | Who reads              | Dedup                                                      |
+| ------------------------ | --------------------------- | ---------------------- | ---------------------------------------------------------- |
+| `kbs-p0.fifo`            | HR; any ACL change          | Ingestion worker first | Content-based on, but every send still sets an explicit id |
+| `kbs-p1.fifo`            | Sales, Engineering, Product | Worker if P0 is empty  | Same                                                       |
+| `kbs-p2.fifo`            | Nobody yet                  | Worker last            | Same                                                       |
+| `kbs-product-hooks.fifo` | Webhook receiver            | Product connector      | Off, so two edits of one spec both arrive                  |
 
 Each of those has a matching `*-dlq.fifo`. Visibility timeout is 60 seconds, longer than one embed call, so a crashed worker's message becomes visible again. Terraform sets `maxReceiveCount` to 5.
 
