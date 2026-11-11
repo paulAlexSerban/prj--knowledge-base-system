@@ -15,7 +15,12 @@ import run
 
 def _search_returns(monkeypatch, ids: list[str]) -> None:
     monkeypatch.setattr(
-        kbs, "search", lambda persona, query, limit=5: [{"object_id": i} for i in ids]
+        kbs,
+        "ask",
+        lambda persona, query, limit=5: {
+            "route": {"class": "semantic"},
+            "results": [{"object_id": i} for i in ids],
+        },
     )
 
 
@@ -67,7 +72,7 @@ def test_eval_exits_2_when_the_gateway_is_down(monkeypatch) -> None:
     def down(*args, **kwargs):
         raise kbs.Failure("down")
 
-    monkeypatch.setattr(kbs, "search", down)
+    monkeypatch.setattr(kbs, "ask", down)
     assert run.main([]) == 2
 
 

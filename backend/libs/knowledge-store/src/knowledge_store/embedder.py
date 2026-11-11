@@ -1,24 +1,30 @@
-"""One active embedder per process. Vectors are 384 dimensions.
+"""One active embedder per process. Vectors are 1024 dimensions.
 
 hash-v1 is deterministic and needs no download. It does not put similar
 sentences near each other; lexical search still finds exact terms. It is the
-default for tests and offline runs. The fastembed model (bge-small, ONNX, CPU)
-is the semantic path and is selected with EMBEDDER=fastembed; the images bake
-the model file in at build time. Mixing the two in one index is an ADR 0006
-rebuild (`make reindex`), so config picks one name and every query filters to it.
+default for tests and offline runs. The fastembed model (multilingual-e5-large,
+ONNX, CPU) is the semantic path and is selected with EMBEDDER=fastembed. The
+images bake the model file in at build time. e5 needs a ``query: `` prefix on
+questions and a ``passage: `` prefix on stored text. Mixing models in one index
+is an ADR 0006 rebuild (``make reindex``), so config picks one name and every
+query filters to it.
 """
 
 import hashlib
+import os
 from typing import Protocol
 
-DIMENSIONS = 384
+# Read before fastembed loads the ONNX library. The container also sets this.
+os.environ.setdefault("ORT_DISABLE_TELEMETRY", "1")
+
+DIMENSIONS = 1024
 HASH_MODEL = "hash-v1"
-FASTEMBED_MODEL = "fastembed-bge-small-v1"
+FASTEMBED_MODEL = "fastembed-e5-large-v1"
 
-
-# bge models embed a query with this instruction and a passage without it.
-BGE_QUERY_PREFIX = "Represent this sentence for searching relevant passages: "
-FASTEMBED_ID = "BAAI/bge-small-en-v1.5"
+# intfloat e5 models are asymmetric. fastembed does not add these itself.
+QUERY_PREFIX = "query: "
+PASSAGE_PREFIX = "passage: "
+FASTEMBED_ID = "intfloat/multilingual-e5-large"
 
 
 class Embedder(Protocol):
@@ -39,14 +45,16 @@ class HashEmbedder:
     semantic = False
 
     def embed(self, texts: list[str]) -> list[list[float]]:
+        """Deterministic 1024-d unit vectors. Nearby sentences are not nearby vectors."""
         return [_hash_vector(text) for text in texts]
 
     def embed_query(self, text: str) -> list[float]:
+        """Same hash as a passage. There is no query prefix on hash-v1."""
         return _hash_vector(text)
 
 
 class FastEmbedEmbedder:
-    """Local bge-small through fastembed. The image build downloads the model file."""
+    """Local multilingual-e5-large through fastembed. The image build downloads the weights."""
 
     name = FASTEMBED_MODEL
     semantic = True
@@ -57,12 +65,15 @@ class FastEmbedEmbedder:
         self._model = TextEmbedding(FASTEMBED_ID)
 
     def embed(self, texts: list[str]) -> list[list[float]]:
-        return self._run(texts)
+        """Passage vectors with the e5 `passage: ` prefix."""
+        return self._run([PASSAGE_PREFIX + text for text in texts])
 
     def embed_query(self, text: str) -> list[float]:
-        return self._run([BGE_QUERY_PREFIX + text])[0]
+        """Query vector with the e5 `query: ` prefix. Mixing prefixes collapses recall."""
+        return self._run([QUERY_PREFIX + text])[0]
 
     def _run(self, texts: list[str]) -> list[list[float]]:
+        """Run ONNX on CPU and reject a width other than 1024."""
         rows = []
         for row in self._model.embed(texts):
             values = [float(item) for item in row]
@@ -73,6 +84,7 @@ class FastEmbedEmbedder:
 
 
 def build_embedder(name: str) -> Embedder:
+    """One embedder per process. Search filters to this name, so mixing models needs reindex."""
     if name in {"hash", HASH_MODEL}:
         return HashEmbedder()
     if name in {"fastembed", FASTEMBED_MODEL}:
@@ -81,6 +93,7 @@ def build_embedder(name: str) -> Embedder:
 
 
 def _hash_vector(text: str) -> list[float]:
+    """Expand SHA-256 into 1024 dimensions and L2-normalize. Offline and tests only."""
     seed = hashlib.sha256(text.encode()).digest()
     values: list[float] = []
     while len(values) < DIMENSIONS:

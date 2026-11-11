@@ -36,6 +36,21 @@ def token(persona: str) -> str:
     return _TOKENS[persona]
 
 
+def ask(persona: str, query: str, limit: int = 5) -> dict:
+    response = httpx.post(
+        f"{API}/v1/ask",
+        json={"query": query, "limit": limit},
+        headers={"authorization": f"Bearer {token(persona)}"},
+        timeout=60,
+    )
+    if response.status_code != 200:
+        raise Failure(f"ask as {persona}: {response.status_code} {response.text[:120]}")
+    body = response.json()
+    if not isinstance(body, dict):
+        raise Failure(f"ask as {persona}: unexpected body")
+    return body
+
+
 def search(persona: str, query: str, limit: int = 5) -> list[dict]:
     response = httpx.post(
         f"{API}/v1/search",

@@ -26,6 +26,7 @@ class PutResult:
 
 
 def object_key(source_id: str, object_type: str, object_id: str, ext: str) -> str:
+    """Stable S3 key. One object, one key; versioning keeps the previous bytes."""
     return f"raw/{source_id}/{object_type}/{object_id}.{ext}"
 
 
@@ -48,7 +49,7 @@ class SnapshotStore:
             if stored == metadata[METADATA_HASH]:
                 return PutResult(skipped=True, version_id=current.get("VersionId"))
         source_id = key.split("/")[1] if key.startswith("raw/") else ""
-        with span("s3.put", source_id=source_id):
+        with span("s3.put", source_id=source_id, bytes=len(body)):
             response = self.client.put_object(
                 Bucket=self.bucket,
                 Key=key,
@@ -83,9 +84,11 @@ class SnapshotStore:
         return len(batch)
 
     def exists(self, key: str) -> bool:
+        """True when a head succeeds. Used to verify a hard delete."""
         return self._head(key) is not None
 
     def list_object_ids(self, source_id: str) -> set[str]:
+        """Ids currently in the bucket for this source. The sweep compares them to /ids."""
         prefix = f"raw/{source_id}/"
         found: set[str] = set()
         paginator = self.client.get_paginator("list_objects_v2")
@@ -95,6 +98,7 @@ class SnapshotStore:
         return found
 
     def _head(self, key: str) -> dict | None:
+        """Object metadata, or None when the key is gone. Other errors propagate."""
         try:
             return self.client.head_object(Bucket=self.bucket, Key=key)
         except ClientError as exc:

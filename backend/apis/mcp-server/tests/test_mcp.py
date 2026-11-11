@@ -13,7 +13,7 @@ from gateway_core.auth import issue_token, principal_from_token
 from gateway_core.graph_read import GraphReader
 from gateway_core.metrics import AUTH_FAILURES
 from gateway_core.service import GatewayService
-from gateway_core.tools import FIND_RELATED, GET_DOCUMENT, LIST_SOURCES, SEARCH
+from gateway_core.tools import ASK, FIND_RELATED, GET_DOCUMENT, LIST_SOURCES, SEARCH
 from ingest_contract.events import RAW_BUCKET, ChangeEvent
 from knowledge_store.embedder import HashEmbedder
 from knowledge_store.graph import GraphWriter
@@ -154,6 +154,7 @@ def test_tools_match_the_shared_descriptions(mcp) -> None:
     tools = asyncio.run(server.list_tools())
     descriptions = {tool.name: tool.description for tool in tools}
     assert descriptions == {
+        "ask_knowledge": ASK,
         "search_knowledge": SEARCH,
         "get_document": GET_DOCUMENT,
         "find_related": FIND_RELATED,
@@ -215,3 +216,10 @@ def test_roadmap_deals_matches_the_service(mcp) -> None:
     rejected = _call(server, "employee_eng", "find_related", kind="roadmap_deals", quarter="Q3")
     assert hidden["paths"] == []
     assert rejected["error"] == "quarter"
+    question = "Which high-ARR Sales deals in Q3 depend on unreleased Engineering epics?"
+    via_ask = _call(server, "product_lead", "ask_knowledge", query=question)
+    hidden_ask = _call(server, "outsider", "ask_knowledge", query=question)
+    assert via_ask["route"]["class"] == "relational"
+    assert via_ask["paths"][0]["steps"][0]["id"] == "deal-northwind-q3"
+    assert hidden_ask["route"]["class"] == "relational"
+    assert hidden_ask["paths"] == []

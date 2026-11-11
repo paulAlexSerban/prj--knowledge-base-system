@@ -1,7 +1,8 @@
 """Deal and epic properties, and the team edge that must survive a person delete."""
 
 from knowledge_store.acl import AclView
-from knowledge_store.graph import ORPHAN_TEAMS, GraphWriter
+from knowledge_store.graph import TEAM_SOURCE, GraphWriter, deal_fields, epic_fields
+from knowledge_store.graph_models import BELONGS_TO, OWNED_BY, Epic, Person, Team
 
 ACL = AclView(
     ("sales_team",),
@@ -12,28 +13,8 @@ ACL = AclView(
 )
 
 
-class FakeDriver:
-    def __init__(self) -> None:
-        self.calls: list[tuple[str, dict]] = []
-
-    def execute_query(self, query: str, **params: object):
-        self.calls.append((query, params))
-        return ([], None, None)
-
-
-def _params(driver: FakeDriver, marker: str) -> dict:
-    found = [params for query, params in driver.calls if marker in query]
-    assert found, marker
-    return found[-1]
-
-
-def test_deal_and_epic_writes_pass_the_question_fields() -> None:
-    driver = FakeDriver()
-    graph = GraphWriter(driver)
-    graph.write(
-        "sales",
-        "deal",
-        "deal-northwind-q3",
+def test_deal_and_epic_fields_keep_the_question_columns() -> None:
+    deal = deal_fields(
         {
             "account_id": "northwind",
             "account_name": "Northwind Traders",
@@ -43,21 +24,17 @@ def test_deal_and_epic_writes_pass_the_question_fields() -> None:
             "stage": "negotiation",
             "product_key": "checkout",
         },
-        "Northwind",
-        ACL,
         "2",
+        "sales",
+        ACL,
     )
-    deal = _params(driver, "d.arr")
     assert deal["arr"] == 480_000
     assert deal["quarter"] == "Q3"
     assert deal["stage"] == "negotiation"
     assert deal["product_key"] == "checkout"
     assert deal["epic_id"] == "epic-checkout-retry"
     assert deal["account_name"] == "Northwind Traders"
-    graph.write(
-        "engineering",
-        "epic",
-        "epic-checkout-retry",
+    epic = epic_fields(
         {
             "title": "Retry",
             "status": "in_progress",
@@ -65,24 +42,28 @@ def test_deal_and_epic_writes_pass_the_question_fields() -> None:
             "product_key": "checkout",
         },
         "Retry",
-        ACL,
         "3",
+        "engineering",
+        ACL,
     )
-    epic = _params(driver, "e.team")
     assert epic["team"] == "platform"
     assert epic["product_key"] == "checkout"
     assert epic["status"] == "in_progress"
-    owner = _params(driver, "OWNED_BY")
-    assert owner["team"] == "platform"
-    assert owner["team_source"] == "hr"
+    assert epic["source_id"] == "engineering"
+    assert TEAM_SOURCE == "hr"
 
 
-def test_orphan_sweep_keeps_a_team_that_only_owns_an_epic() -> None:
-    assert "OWNED_BY" in ORPHAN_TEAMS
-    assert "BELONGS_TO" in ORPHAN_TEAMS
-    driver = FakeDriver()
-    GraphWriter(driver).delete("hr", "emp-1")
-    assert any("OWNED_BY" in query for query, _params in driver.calls)
+def test_orphan_sweep_watches_both_team_edges() -> None:
+    assert Person.belongs_to.definition["relation_type"] == BELONGS_TO
+    assert Team.members.definition["relation_type"] == BELONGS_TO
+    assert Epic.owned_by.definition["relation_type"] == OWNED_BY
+    assert Team.epics.definition["relation_type"] == OWNED_BY
+
+
+def test_blank_arr_is_null_and_names_no_epic() -> None:
+    fields = deal_fields({"account_id": "acme", "epic_id": ""}, "1", "sales", ACL)
+    assert fields["arr"] is None
+    assert fields["epic_id"] == ""
 
 
 def test_owner_edge_keeps_the_team_after_the_person_is_deleted(neo4j_driver) -> None:
@@ -197,18 +178,3 @@ def test_deleting_the_last_deal_removes_a_versionless_epic(neo4j_driver) -> None
         0
     ]["n"]
     assert real == 1
-
-
-def test_blank_arr_is_stored_as_null() -> None:
-    driver = FakeDriver()
-    GraphWriter(driver).write(
-        "sales",
-        "deal",
-        "deal-1",
-        {"account_id": "acme", "epic_id": ""},
-        "Acme",
-        ACL,
-        "1",
-    )
-    assert _params(driver, "d.arr")["arr"] is None
-    assert not any("OWNED_BY" in query and "MERGE" in query for query, _params in driver.calls)

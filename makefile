@@ -1,4 +1,4 @@
-.PHONY: setup seed demo eval reindex sync contracts-schema contracts-check test e2e networks up down ps logs notebooks tools tf-apply compose-check dlq-replay
+.PHONY: setup seed demo eval reindex dashboards sync contracts-schema contracts-check test e2e networks up down ps logs notebooks tools tf-apply compose-check dlq-replay
 
 COMPOSE_DIR := infrastructure/orchestration
 ENV_FILE := .env
@@ -51,6 +51,19 @@ eval:
 demo:
 	uv run python tools/scripts/demo.py $(ARGS)
 
+# Re-read observability/grafana/dashboards into the running Grafana.
+# The JSON is bind-mounted; Grafana keeps a copy in its database until this reload.
+dashboards: networks $(ENV_FILE)
+	$(COMPOSE) up -d grafana
+	@password=$$(set -a && . ./$(ENV_FILE) && set +a && printf '%s' "$${GRAFANA_ADMIN_PASSWORD:-admin}"); \
+	i=0; \
+	until curl -sf -u "admin:$$password" http://127.0.0.1:3000/api/health >/dev/null; do \
+		i=$$((i + 1)); \
+		if [ $$i -ge 30 ]; then echo "grafana did not become ready on :3000" >&2; exit 1; fi; \
+		sleep 1; \
+	done; \
+	curl -fsS -u "admin:$$password" -X POST http://127.0.0.1:3000/api/admin/provisioning/dashboards/reload; \
+	echo
 
 down:
 	@test -f $(ENV_FILE) || cp .env.example $(ENV_FILE)

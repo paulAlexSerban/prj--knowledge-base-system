@@ -4,119 +4,57 @@ HR writes Person -BELONGS_TO-> Team and a Policy node. A Deal -DEPENDS_ON-> Epic
 edge is written when either side is seen, and dropped when either side is deleted.
 An Epic -OWNED_BY-> Team edge uses the HR team key. A team is removed only when
 nothing belongs to it and nothing is owned by it.
-Each node stores acl_groups, acl_departments, min_clearance, and acl_rules.
+Each content node stores acl_groups, acl_departments, min_clearance, and acl_rules.
 """
 
 import json
 
+from neomodel import db
+
 from knowledge_store.acl import AclView
-
-PERSON = """
-MERGE (p:Person {id: $id})
-SET p.source_id = $source_id, p.name = $name, p.email = $email, p.role = $role,
-    p.version = $version, p.acl_groups = $groups, p.acl_departments = $departments,
-    p.min_clearance = $min_clearance, p.acl_rules = $rules
-WITH p
-OPTIONAL MATCH (p)-[old:BELONGS_TO]->(:Team)
-DELETE old
-"""
-
-LINK_TEAM = """
-MATCH (p:Person {id: $id})
-MERGE (t:Team {id: $team})
-SET t.source_id = $source_id
-MERGE (p)-[:BELONGS_TO]->(t)
-"""
-
-POLICY = """
-MERGE (p:Policy {id: $id})
-SET p.source_id = $source_id, p.title = $title, p.version = $version,
-    p.acl_groups = $groups, p.acl_departments = $departments,
-    p.min_clearance = $min_clearance, p.acl_rules = $rules
-"""
-
-DEAL = """
-MERGE (d:Deal {id: $id})
-SET d.source_id = $source_id, d.version = $version, d.account_id = $account_id,
-    d.account_name = $account_name, d.epic_id = $epic_id, d.arr = $arr,
-    d.quarter = $quarter, d.stage = $stage,
-    d.product_key = $product_key, d.acl_groups = $groups, d.acl_departments = $departments,
-    d.min_clearance = $min_clearance, d.acl_rules = $rules
-"""
-
-# The epic may not have been ingested yet. The stub has no version and no ACL.
-# delete() removes it once no deal still points at it.
-LINK_EPIC = """
-MATCH (d:Deal {id: $id})
-MERGE (e:Epic {id: $epic_id})
-ON CREATE SET e.source_id = $source_id
-MERGE (d)-[:DEPENDS_ON]->(e)
-"""
-
-EPIC = """
-MERGE (e:Epic {id: $id})
-SET e.source_id = $source_id, e.title = $title, e.status = $status, e.version = $version,
-    e.team = $team, e.product_key = $product_key,
-    e.acl_groups = $groups, e.acl_departments = $departments,
-    e.min_clearance = $min_clearance, e.acl_rules = $rules
-WITH e
-OPTIONAL MATCH (e)-[old:OWNED_BY]->(:Team)
-DELETE old
-"""
-
-# Teams are HR objects. A stub created from an epic keeps that source so the
-# later person write merges the same node.
-LINK_OWNER = """
-MATCH (e:Epic {id: $id})
-MERGE (t:Team {id: $team})
-ON CREATE SET t.source_id = $team_source
-MERGE (e)-[:OWNED_BY]->(t)
-"""
+from knowledge_store.graph_db import bind
+from knowledge_store.graph_models import (
+    CONTENT_TYPES,
+    NODE_TYPES,
+    Deal,
+    Epic,
+    Person,
+    Policy,
+    Team,
+)
 
 TEAM_SOURCE = "hr"
 
-LINK_DEALS = """
-MATCH (e:Epic {id: $id})
-MATCH (d:Deal)
-WHERE d.epic_id = $id
-MERGE (d)-[:DEPENDS_ON]->(e)
-"""
 
-DELETE = """
-MATCH (n)
-WHERE n.source_id = $source_id AND n.id = $object_id
-DETACH DELETE n
-"""
+def deal_fields(record: dict, version: str, source_id: str, acl: AclView) -> dict[str, object]:
+    """Deal node properties. Account fields sit on the deal; there is no Account node."""
+    return {
+        "source_id": source_id,
+        "version": version,
+        "account_id": str(record.get("account_id") or ""),
+        "account_name": str(record.get("account_name") or ""),
+        "epic_id": str(record.get("epic_id") or ""),
+        "arr": _arr(record.get("arr")),
+        "quarter": str(record.get("quarter") or ""),
+        "stage": str(record.get("stage") or ""),
+        "product_key": str(record.get("product_key") or ""),
+        **_acl_fields(acl),
+    }
 
-ORPHAN_TEAMS = """
-MATCH (t:Team)
-WHERE NOT ()-[:BELONGS_TO]->(t) AND NOT ()-[:OWNED_BY]->(t)
-DETACH DELETE t
-"""
 
-STUB_EPICS = """
-MATCH (e:Epic)
-WHERE e.version IS NULL AND NOT (e)--()
-DETACH DELETE e
-"""
-
-COUNT = """
-MATCH (n)
-WHERE n.source_id = $source_id AND n.id = $object_id
-RETURN count(n) AS n
-"""
-
-ACL = """
-MATCH (n)
-WHERE n.source_id = $source_id AND n.id = $object_id
-SET n.acl_groups = $groups, n.acl_departments = $departments,
-    n.min_clearance = $min_clearance, n.acl_rules = $rules
-"""
-
-DEPENDS = """
-MATCH (d:Deal {id: $deal_id})-[:DEPENDS_ON]->(e:Epic {id: $epic_id})
-RETURN count(*) AS n
-"""
+def epic_fields(
+    record: dict, title: str, version: str, source_id: str, acl: AclView
+) -> dict[str, object]:
+    """Epic node properties. team is the HR team key for OWNED_BY."""
+    return {
+        "source_id": source_id,
+        "version": version,
+        "title": str(record.get("title") or title),
+        "status": str(record.get("status") or ""),
+        "team": str(record.get("team") or ""),
+        "product_key": str(record.get("product_key") or ""),
+        **_acl_fields(acl),
+    }
 
 
 class GraphWriter:
@@ -124,6 +62,7 @@ class GraphWriter:
         self.driver = driver
 
     def ping(self) -> bool:
+        """True when the Neo4j driver can verify connectivity."""
         try:
             self.driver.verify_connectivity()
         except Exception:  # noqa: BLE001 - the driver raises several connection errors
@@ -140,88 +79,154 @@ class GraphWriter:
         acl: AclView,
         version: str,
     ) -> None:
-        common = {
-            "source_id": source_id,
-            "id": object_id,
-            "version": version,
-            **_acl_params(acl),
-        }
-        if object_type == "person":
-            team = str(record.get("team") or "")
-            self._run(
-                PERSON,
-                **common,
-                name=str(record.get("full_name") or ""),
-                email=str(record.get("email") or ""),
-                role=str(record.get("role") or ""),
-            )
-            if team:
-                self._run(LINK_TEAM, id=object_id, team=team, source_id=source_id)
-        elif object_type == "policy":
-            self._run(POLICY, **common, title=title)
-        elif object_type == "deal":
-            epic_id = str(record.get("epic_id") or "")
-            self._run(
-                DEAL,
-                **common,
-                account_id=str(record.get("account_id") or ""),
-                account_name=str(record.get("account_name") or ""),
-                epic_id=epic_id,
-                arr=_arr(record.get("arr")),
-                quarter=str(record.get("quarter") or ""),
-                stage=str(record.get("stage") or ""),
-                product_key=str(record.get("product_key") or ""),
-            )
-            if epic_id:
-                self._run(LINK_EPIC, id=object_id, epic_id=epic_id, source_id=source_id)
-        elif object_type == "epic":
-            team = str(record.get("team") or "")
-            self._run(
-                EPIC,
-                **common,
-                title=str(record.get("title") or title),
-                status=str(record.get("status") or ""),
-                team=team,
-                product_key=str(record.get("product_key") or ""),
-            )
-            if team:
-                self._run(LINK_OWNER, id=object_id, team=team, team_source=TEAM_SOURCE)
-            self._run(LINK_DEALS, id=object_id)
+        """Idempotent merge for person, policy, deal, or epic. Specs are not graph nodes."""
+        bind(self.driver)
+        with db.write_transaction:
+            if object_type == "person":
+                _write_person(source_id, object_id, record, acl, version)
+            elif object_type == "policy":
+                _upsert(
+                    Policy,
+                    object_id,
+                    source_id=source_id,
+                    title=title,
+                    version=version,
+                    **_acl_fields(acl),
+                )
+            elif object_type == "deal":
+                _write_deal(source_id, object_id, record, acl, version)
+            elif object_type == "epic":
+                _write_epic(source_id, object_id, record, title, acl, version)
 
     def set_acl(self, source_id: str, object_id: str, acl: AclView) -> None:
-        self._run(ACL, source_id=source_id, object_id=object_id, **_acl_params(acl))
+        """Patch ACL properties on matching content nodes. Edges stay as they are."""
+        bind(self.driver)
+        fields = _acl_fields(acl)
+        with db.write_transaction:
+            for node in _matching(source_id, object_id, CONTENT_TYPES):
+                for key, value in fields.items():
+                    setattr(node, key, value)
+                node.save()
 
     def delete(self, source_id: str, object_id: str) -> None:
-        self._run(DELETE, source_id=source_id, object_id=object_id)
-        self._run(ORPHAN_TEAMS)
-        self._run(STUB_EPICS)
+        """Remove the object's nodes, then drop teams and stub epics that nothing references."""
+        bind(self.driver)
+        with db.write_transaction:
+            for node in _matching(source_id, object_id, NODE_TYPES):
+                node.delete()
+            _drop_orphan_teams()
+            _drop_stub_epics()
 
     def count_node(self, source_id: str, object_id: str) -> int:
-        record = self._one(COUNT, source_id=source_id, object_id=object_id)
-        return int(record["n"]) if record else 0
+        """Remaining nodes after a delete. Non-zero is a verified failure."""
+        bind(self.driver)
+        with db.read_transaction:
+            return len(_matching(source_id, object_id, NODE_TYPES))
 
     def depends_on(self, deal_id: str, epic_id: str) -> bool:
-        record = self._one(DEPENDS, deal_id=deal_id, epic_id=epic_id)
-        return bool(record and record["n"])
+        """True when the deal-to-epic edge exists. Used by tests, not by retrieval."""
+        bind(self.driver)
+        with db.read_transaction:
+            deal = Deal.nodes.get_or_none(node_id=deal_id)
+            if deal is None:
+                return False
+            return any(epic.node_id == epic_id for epic in deal.depends_on.all())
 
-    def _run(self, query: str, **params: object) -> None:
-        self.driver.execute_query(query, **params)
 
-    def _one(self, query: str, **params: object):
-        records, _, _ = self.driver.execute_query(query, **params)
-        return records[0] if records else None
+def _write_person(source_id: str, object_id: str, record: dict, acl: AclView, version: str) -> None:
+    """Person node and BELONGS_TO the HR team named on the record."""
+    team = str(record.get("team") or "")
+    person = _upsert(
+        Person,
+        object_id,
+        source_id=source_id,
+        name=str(record.get("full_name") or ""),
+        email=str(record.get("email") or ""),
+        role=str(record.get("role") or ""),
+        version=version,
+        **_acl_fields(acl),
+    )
+    person.belongs_to.disconnect_all()
+    if team:
+        linked = _upsert(Team, team, source_id=source_id)
+        person.belongs_to.connect(linked)
+
+
+def _write_deal(source_id: str, object_id: str, record: dict, acl: AclView, version: str) -> None:
+    """Deal node and DEPENDS_ON a stub epic if that epic has not been ingested yet."""
+    fields = deal_fields(record, version, source_id, acl)
+    deal = _upsert(Deal, object_id, **fields)
+    epic_id = str(fields["epic_id"])
+    if epic_id:
+        epic = Epic.nodes.get_or_none(node_id=epic_id)
+        if epic is None:
+            epic = Epic(node_id=epic_id, source_id=source_id).save()
+        if not deal.depends_on.is_connected(epic):
+            deal.depends_on.connect(epic)
+
+
+def _write_epic(
+    source_id: str, object_id: str, record: dict, title: str, acl: AclView, version: str
+) -> None:
+    """Epic node, OWNED_BY its team, and backfill DEPENDS_ON from deals that named it."""
+    fields = epic_fields(record, title, version, source_id, acl)
+    epic = _upsert(Epic, object_id, **fields)
+    epic.owned_by.disconnect_all()
+    team = str(fields["team"])
+    if team:
+        owner = Team.nodes.get_or_none(node_id=team)
+        if owner is None:
+            owner = Team(node_id=team, source_id=TEAM_SOURCE).save()
+        epic.owned_by.connect(owner)
+    for deal in Deal.nodes.filter(epic_id=object_id):
+        if not deal.depends_on.is_connected(epic):
+            deal.depends_on.connect(epic)
+
+
+def _upsert(cls, node_id: str, **fields: object):
+    """Create or overwrite by business key `id`. Safe to retry after a graph failure."""
+    node = cls.nodes.get_or_none(node_id=node_id)
+    if node is None:
+        return cls(node_id=node_id, **fields).save()
+    for key, value in fields.items():
+        setattr(node, key, value)
+    return node.save()
+
+
+def _matching(source_id: str, object_id: str, kinds: tuple) -> list:
+    """Nodes of the given types with this source and object id."""
+    found = []
+    for cls in kinds:
+        found.extend(cls.nodes.filter(node_id=object_id, source_id=source_id).all())
+    return found
+
+
+def _drop_orphan_teams() -> None:
+    """Remove a team that has no members and no owned epics."""
+    for team in Team.nodes.all():
+        if not team.members.all() and not team.epics.all():
+            team.delete()
+
+
+def _drop_stub_epics() -> None:
+    """Remove an epic created only as a deal dependency, with no version and no edges left."""
+    for epic in Epic.nodes.all():
+        if epic.version is None and not epic.deals.all() and not epic.owned_by.all():
+            epic.delete()
 
 
 def _arr(value: object) -> int | None:
+    """Integer ARR for the roadmap filter. Empty is stored as null."""
     if value is None or value == "":
         return None
     return int(value)
 
 
-def _acl_params(acl: AclView) -> dict[str, object]:
+def _acl_fields(acl: AclView) -> dict[str, object]:
+    """Coarse columns plus JSON rules copied onto the node for the Cypher templates."""
     return {
-        "groups": list(acl.groups),
-        "departments": list(acl.departments),
+        "acl_groups": list(acl.groups),
+        "acl_departments": list(acl.departments),
         "min_clearance": acl.min_clearance,
-        "rules": json.dumps(acl.as_json()),
+        "acl_rules": json.dumps(acl.as_json()),
     }

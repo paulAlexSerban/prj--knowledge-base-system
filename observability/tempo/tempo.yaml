@@ -1,5 +1,7 @@
 # Single binary, local disk. No host port. Grafana reads traces.
 # Alloy sends OTLP. Applications do not talk to Tempo directly.
+# The metrics generator writes service-graph and span-metrics series to Prometheus.
+# local-blocks answers TraceQL metrics queries, which Traces Drilldown runs.
 
 stream_over_http_enabled: true
 
@@ -23,6 +25,33 @@ compactor:
   compaction:
     block_retention: 24h
 
+metrics_generator:
+  ring:
+    kvstore:
+      store: inmemory
+  registry:
+    external_labels:
+      source: tempo
+    collection_interval: 15s
+  storage:
+    path: /var/tempo/generator/wal
+    remote_write:
+      - url: http://prometheus:9090/api/v1/write
+        send_exemplars: true
+  traces_storage:
+    path: /var/tempo/generator/traces
+  processor:
+    service_graphs:
+      wait: 10s
+      dimensions: []
+    span_metrics:
+      dimensions: []
+    # TraceQL `| rate()` reads this processor. filter_server_spans stays off so
+    # a root span that is not a server span, such as chat.turn, is included.
+    local_blocks:
+      filter_server_spans: false
+      flush_to_storage: true
+
 storage:
   trace:
     backend: local
@@ -30,3 +59,9 @@ storage:
       path: /var/tempo/wal
     local:
       path: /var/tempo/blocks
+
+overrides:
+  defaults:
+    metrics_generator:
+      processors: [service-graphs, span-metrics, local-blocks]
+      generate_native_histograms: classic

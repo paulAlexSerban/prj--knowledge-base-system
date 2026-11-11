@@ -18,5 +18,5 @@ Those HTTP services use FastAPI, Pydantic v2, and uvicorn. Request and response 
 
 ## Consequences
 
-- The repo has two HTTP stacks: FastAPI, and FastMCP's own server. They share `gateway-core` and do not share a router.
+- The repo has two HTTP stacks: FastAPI, and FastMCP's own server. They share `gateway-core` and do not share an HTTP router. Both call `GatewayService.ask` for a routed question ([ADR 0026](0026-query-router.md)).
 - "We chose FastAPI" is not evidence that the others were slower or less safe. It is evidence that one stack was already in use and nothing forced a second look.

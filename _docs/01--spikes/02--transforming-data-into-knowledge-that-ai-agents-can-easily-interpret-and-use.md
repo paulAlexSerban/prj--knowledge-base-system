@@ -40,19 +40,19 @@ Population rules:
 - Product specs stay prose. They are not graph nodes. A later extractor could emit `REFERENCES` edges, each with a confidence and a source span, as supporting evidence only. That extractor is not built, and those edges would not decide the headline answer.
 - Entity identity is the shared source key or email. Fuzzy entity resolution is out of scope, and the demo data uses one product key across Sales, Product, and Engineering so the join is real.
 
-The graph writer is built. HR records write `Person -BELONGS_TO-> Team` and a `Policy` node. A deal writes `DEPENDS_ON` to its epic and stores the account name. An epic writes `OWNED_BY` to the HR team named on the record. `OWNS`, `REFERENCES`, the spec extractor, and the query router are not built. The gateway reads four templates: teammates of a person, people on a team, policies the caller may see, and `roadmap_deals` (`Deal -DEPENDS_ON-> Epic -OWNED_BY-> Team`, quarter and minimum ARR, epic not released). That last template is the built answer for question 2. It is one fixed question. The router is the production path. `hash-v1` is lexical, so the path does not depend on shared words.
+Chunk and graph writes go through SQLAlchemy and neomodel ([ADR 0028](../03--adrs/0028-orm-and-ogm.md)). The four read templates stay Cypher because the array ACL predicate does not fit the OGM. The graph writer is built. HR records write `Person -BELONGS_TO-> Team` and a `Policy` node. A deal writes `DEPENDS_ON` to its epic and stores the account name. An epic writes `OWNED_BY` to the HR team named on the record. `OWNS`, `REFERENCES`, and the spec extractor are not built. The gateway reads four templates: teammates of a person, people on a team, policies the caller may see, and `roadmap_deals` (`Deal -DEPENDS_ON-> Epic -OWNED_BY-> Team`, quarter and minimum ARR, epic not released). The query router is built ([ADR 0026](../03--adrs/0026-query-router.md)). It picks search, one of those templates, or both for `roadmap_deals`. It does not invent a new traversal. `hash-v1` is lexical, so the path does not depend on shared words.
 
 ### Query router
 
-The service layer classifies the request:
+Built ([ADR 0026](../03--adrs/0026-query-router.md)). `POST /v1/ask` and MCP `ask_knowledge` classify, then call the same checked methods as the explicit tools.
 
-| Class      | Authority                                | What runs                                                                                |
-| ---------- | ---------------------------------------- | ---------------------------------------------------------------------------------------- |
-| Semantic   | Chunk text                               | Hybrid search, fused, then authorized                                                    |
-| Relational | Graph                                    | Parameterized Cypher over the typed ontology, then the linked chunks for wording         |
-| Hybrid     | Graph for the path, chunks for the prose | Graph traversal to find the entities, hybrid search restricted to those entities' chunks |
+| Class      | Authority                                | What runs                                                                                          |
+| ---------- | ---------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Semantic   | Chunk text                               | Hybrid search, fused, then authorized                                                              |
+| Relational | Graph                                    | One of the four templates. Question 2 is `roadmap_deals`.                                          |
+| Hybrid     | Graph for the path, chunks for the prose | `roadmap_deals`, then hybrid search restricted to the deal and epic ids on that path               |
 
-Authority is code, not a prompt. Factual lookups on structured attributes trust the graph and the relational rows. Explanatory questions trust the document text, and the graph only locates it.
+Rules decide. A model may break a low-confidence tie only when `OPENROUTER_API_KEY` and `OPENROUTER_ROUTER_MODEL` are set, and only by returning one of those three classes and one of the four templates. Any other label, or any error, keeps the rules result. A question that says "depend" about a policy stays semantic. The router cannot answer a relational question that has no template.
 
 ### Evaluation, before tuning
 
@@ -69,7 +69,7 @@ Retrieval metrics and answer faithfulness are tracked separately. Faithfulness f
 
 - The two demo questions need different representations. Hybrid search answers the policy question. The graph answers the dependency question and can show the path, which is the explanation.
 - Putting both indexes in one design, and writing down which one is authoritative per question class, avoids a chatbot that improvises joins from retrieved prose.
-- Reciprocal rank fusion is enough. A reranker is justified only after the golden set shows recall is fine and precision is not. Measured on 20 cases and about 500 chunks: `bge-small-en-v1.5` plus full-text, fused, scores recall at 5 of 1.00 and MRR of 0.95. There is no gap to close, so the reranker stays out. The candidate if that changes is a small cross-encoder (`Xenova/ms-marco-MiniLM-L-6-v2` through fastembed) over the top 20, measured against the 250 ms budget. The same run with `hash-v1` scores 0.50 recall and 0.20 on paraphrases, which is the evidence that the dense side does the work.
+- Reciprocal rank fusion is enough. A reranker is justified only after the golden set shows recall is fine and precision is not. Measured on 20 cases and about 500 chunks: `bge-small-en-v1.5` plus full-text, fused, scores recall at 5 of 1.00 and MRR of 0.95. The later run on 23 cases with `multilingual-e5-large`, through the router, scores recall at 5 of 1.00 and MRR of 0.90, at 372 ms p95. That misses the 250 ms target. There is still no recall gap, so the reranker stays out. The candidate if that changes is a small cross-encoder (`Xenova/ms-marco-MiniLM-L-6-v2` through fastembed) over the top 20, measured against the 250 ms budget. The same run with `hash-v1` scores 0.50 recall and 0.20 on paraphrases, which is the evidence that the dense side does the work.
 - Deterministic edges from SQL and JSON avoid the failure mode where plausible extracted triples compound across hops.
 
 ## Alternatives rejected
@@ -88,8 +88,8 @@ Retrieval metrics and answer faithfulness are tracked separately. Faithfulness f
 
 - Two indexes must stay consistent with the document. A bug in one produces an answer that looks authoritative and is assembled from mismatched pieces. The worker commits the chunk, then writes the graph. A failed graph write leaves the message unacknowledged so the event retries (spike 04). Until that retry, the chunk can exist without the node.
 - Chunks that are too small lose the context needed to interpret them. Chunks that are too large dilute the embedding and waste the context budget. The contextual header (title plus section path) is the mitigation that stays inside the chunk, so a retrieved passage still names the policy and the version.
-- Dense retrieval returns topically close and factually irrelevant passages. Lexical search and fusion reduce that. They do not remove it. The golden set is how regressions are caught. The corpus is small, so a clean score here is weak evidence for 10 million objects. The similarity floor (`VECTOR_MAX_DISTANCE`, 0.40) was set from observed distances (related 0.29 to 0.44, unrelated 0.57 or more) and must be re-measured on another corpus.
-- Routing mistakes send a relational question to vector search. The router is a small classifier with an explicit fallback: when the question names a known entity type (deal, epic, policy), prefer the graph.
+- Dense retrieval returns topically close and factually irrelevant passages. Lexical search and fusion reduce that. They do not remove it. The golden set is how regressions are caught. The corpus is small, so a clean score here is weak evidence for 10 million objects. The similarity floor (`VECTOR_MAX_DISTANCE`, 0.20) was set from e5-large distances on the seeded chunks (paraphrases about 0.11 to 0.18, a no-answer query about 0.21). The earlier bge-small floor was 0.40. It must be re-measured on another corpus.
+- Routing mistakes send a relational question to vector search, or a policy question to the graph. High-confidence rules cover the two demo questions. A low-confidence question falls back to semantic search unless a configured model returns an allow-listed label. "Policy" alone does not select the graph, because the policies template lists policies and does not answer them.
 
 ## Production path
 
@@ -100,5 +100,4 @@ Retrieval metrics and answer faithfulness are tracked separately. Faithfulness f
 
 ## Open TODOs
 
-- Built: the golden-set file format and the `make eval` report (recall@k, MRR, abstention, access-boundary pass/fail, p95 latency). Open: a model-graded faithfulness check, and a multilingual embedder if policies stop being English.
-- A query router that chooses search or `roadmap_deals`. The template itself is built.
+- Built: the golden-set file format, the `make eval` report (recall@k, MRR, abstention, access-boundary pass/fail, route, p95 latency), the query router, and `multilingual-e5-large` for the dense side. Open: a model-graded faithfulness check. Full-text search is still English.

@@ -1,6 +1,8 @@
 """Unknown paths collapse to one label. The raw URL is not a series."""
 
 import asyncio
+import json
+import logging
 
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
@@ -8,6 +10,7 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 from prometheus_client import REGISTRY
 
 from shared.http_metrics import REQUESTS, HttpMetricsMiddleware, route_label
+from shared.logging import configure
 from shared.telemetry import FASTAPI_TELEMETRY, operational_path
 
 TEMPLATES = ("/health", "/v1/search", "/v1/documents/{chunk_id}")
@@ -107,7 +110,97 @@ def test_server_span_continues_traceparent_and_drops_the_raw_path(monkeypatch) -
     assert "ada-lovelace" not in str(current.attributes)
 
 
-def test_health_is_counted_and_not_traced(monkeypatch) -> None:
+def test_malformed_traceparent_starts_a_new_trace(monkeypatch) -> None:
+    exporter = InMemorySpanExporter()
+    provider = TracerProvider()
+    provider.add_span_processor(SimpleSpanProcessor(exporter))
+    monkeypatch.setattr(
+        "shared.telemetry.trace.get_tracer",
+        lambda *_args, **_kwargs: provider.get_tracer("kbs"),
+    )
+
+    async def app(scope, receive, send) -> None:
+        await send({"type": "http.response.start", "status": 200, "headers": []})
+        await send({"type": "http.response.body", "body": b""})
+
+    wrapped = HttpMetricsMiddleware(app, templates=("/changes",))
+
+    async def receive() -> dict:
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+    async def send(_message: dict) -> None:
+        return None
+
+    asyncio.run(
+        wrapped(
+            {
+                "type": "http",
+                "path": "/changes",
+                "method": "GET",
+                "headers": [(b"traceparent", b"not-a-traceparent")],
+            },
+            receive,
+            send,
+        )
+    )
+    finished = exporter.get_finished_spans()
+    assert len(finished) == 1
+    assert finished[0].name == "GET /changes"
+    assert finished[0].parent is None or not finished[0].parent.is_valid
+    assert format(finished[0].context.trace_id, "032x") != "notatraceparent"
+
+
+def test_feature_request_is_logged_without_the_raw_path(capsys, monkeypatch) -> None:
+    exporter = InMemorySpanExporter()
+    provider = TracerProvider()
+    provider.add_span_processor(SimpleSpanProcessor(exporter))
+    monkeypatch.setattr(
+        "shared.telemetry.trace.get_tracer",
+        lambda *_args, **_kwargs: provider.get_tracer("kbs"),
+    )
+    root = logging.getLogger()
+    previous_handlers = root.handlers[:]
+    previous_level = root.level
+    raw_path = "/v1/documents/ada-lovelace"
+
+    async def app(scope, receive, send) -> None:
+        await send({"type": "http.response.start", "status": 200, "headers": []})
+        await send({"type": "http.response.body", "body": b""})
+
+    async def receive() -> dict:
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+    async def send(_message: dict) -> None:
+        return None
+
+    try:
+        configure("harness-hr", "sources")
+        asyncio.run(
+            HttpMetricsMiddleware(app, templates=TEMPLATES)(
+                {"type": "http", "path": raw_path, "method": "GET", "headers": []},
+                receive,
+                send,
+            )
+        )
+        asyncio.run(
+            HttpMetricsMiddleware(app, templates=TEMPLATES)(
+                {"type": "http", "path": "/health", "method": "GET", "headers": []},
+                receive,
+                send,
+            )
+        )
+    finally:
+        root.handlers[:] = previous_handlers
+        root.setLevel(previous_level)
+    raw = capsys.readouterr().out
+    lines = [json.loads(line) for line in raw.splitlines() if line.strip()]
+    requests = [line for line in lines if line["msg"] == "http request"]
+    assert len(requests) == 1
+    assert requests[0]["service"] == "harness-hr"
+    assert requests[0]["route"] == "/v1/documents/{chunk_id}"
+    assert requests[0]["status"] == 200
+    assert requests[0]["trace_id"]
+    assert "ada-lovelace" not in raw
     exporter = InMemorySpanExporter()
     provider = TracerProvider()
     provider.add_span_processor(SimpleSpanProcessor(exporter))

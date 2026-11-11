@@ -50,9 +50,15 @@ RECHECK_FAILURES = Counter(
     "Read-time ACL checks that timed out or returned nothing usable",
     ["source_id"],
 )
+ROUTER = Counter(
+    "kbs_router_decisions_total",
+    "Questions classified before retrieval",
+    ["route", "source"],
+)
 
 
 def permission_group(principal: Principal) -> str:
+    """Coarse dashboard label. Never a principal id, object id, or snippet."""
     for name in _RANK:
         if name in principal.groups:
             return name

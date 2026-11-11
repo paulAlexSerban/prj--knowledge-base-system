@@ -1,18 +1,34 @@
-"""Read-only Cypher templates.
+"""Read-only graph templates.
 
-Neo4j Community has no roles. The session is read-only. Each template filters
-on acl_groups, acl_departments, and min_clearance, and drops a node whose
-acl_rules property is missing. The service then checks the rules, because one
-node can carry more than one rule. A missed predicate is not caught by the
-database. The gateway and the worker share the neo4j user.
+Neo4j Community has no roles. Each template filters on acl_groups,
+acl_departments, and min_clearance, and drops a node whose acl_rules property
+is missing. The service then checks the rules, because one node can carry more
+than one rule. A missed predicate is not caught by the database. The gateway
+and the worker share the neo4j user.
+
+neomodel NodeSet cannot express "any array element is in this list" on the
+ACL properties, so these four templates run through db.cypher_query inside a
+read transaction. The labels and relationship types come from the node
+models. Writes use the OGM. There is no open Cypher from the agent.
 """
 
 import re
 from dataclasses import dataclass
 
-from neo4j import READ_ACCESS
+from neomodel import db
 
 from knowledge_store.acl import Principal, allows, clearance_rank, view_from_rules
+from knowledge_store.graph_db import bind
+from knowledge_store.graph_models import (
+    BELONGS_TO,
+    DEPENDS_ON,
+    OWNED_BY,
+    Deal,
+    Epic,
+    Person,
+    Policy,
+    Team,
+)
 
 LIMIT = 25
 # Same bar as the sales harness. A deal at this ARR in the default quarter is "high".
@@ -27,64 +43,69 @@ _DEPARTMENT = """
   )
 """
 
-TEAMMATES = (
-    """
-MATCH (p:Person {id: $id})-[:BELONGS_TO]->(t:Team)<-[:BELONGS_TO]-(other:Person)
+
+def _templates() -> dict[str, str]:
+    """Four bounded Cypher templates. Labels come from the node models."""
+    person = Person.__label__
+    team = Team.__label__
+    policy = Policy.__label__
+    deal = Deal.__label__
+    epic = Epic.__label__
+    teammates = (
+        f"""
+MATCH (p:{person} {{id: $id}})-[:{BELONGS_TO}]->(t:{team})<-[:{BELONGS_TO}]-(other:{person})
 WHERE p.acl_rules IS NOT NULL
   AND any(g IN coalesce(p.acl_groups, []) WHERE g IN $groups)
   AND coalesce(p.min_clearance, 99) <= $clearance
 """
-    + _DEPARTMENT.format(alias="p")
-    + """
+        + _DEPARTMENT.format(alias="p")
+        + """
   AND other.acl_rules IS NOT NULL
   AND any(g IN coalesce(other.acl_groups, []) WHERE g IN $groups)
   AND coalesce(other.min_clearance, 99) <= $clearance
 """
-    + _DEPARTMENT.format(alias="other")
-    + """
+        + _DEPARTMENT.format(alias="other")
+        + """
   AND other.id <> p.id
 RETURN p.id AS from_id, t.id AS team_id, other.id AS to_id, other.name AS to_name,
        p.acl_rules AS from_rules, other.acl_rules AS to_rules,
        coalesce(other.source_id, p.source_id, '') AS source_id
 LIMIT $limit
 """
-)
-
-TEAM = (
-    """
-MATCH (t:Team {id: $id})<-[:BELONGS_TO]-(p:Person)
+    )
+    team_query = (
+        f"""
+MATCH (t:{team} {{id: $id}})<-[:{BELONGS_TO}]-(p:{person})
 WHERE p.acl_rules IS NOT NULL
   AND any(g IN coalesce(p.acl_groups, []) WHERE g IN $groups)
   AND coalesce(p.min_clearance, 99) <= $clearance
 """
-    + _DEPARTMENT.format(alias="p")
-    + """
+        + _DEPARTMENT.format(alias="p")
+        + """
 RETURN t.id AS team_id, p.id AS person_id, p.name AS name,
        p.acl_rules AS acl_rules, coalesce(p.source_id, '') AS source_id
 LIMIT $limit
 """
-)
-
-POLICIES = (
-    """
-MATCH (p:Policy)
+    )
+    policies = (
+        f"""
+MATCH (p:{policy})
 WHERE ($id = "" OR p.id = $id)
   AND p.acl_rules IS NOT NULL
   AND any(g IN coalesce(p.acl_groups, []) WHERE g IN $groups)
   AND coalesce(p.min_clearance, 99) <= $clearance
 """
-    + _DEPARTMENT.format(alias="p")
-    + """
+        + _DEPARTMENT.format(alias="p")
+        + """
 RETURN p.id AS policy_id, p.title AS title, p.version AS version,
        p.source_id AS source_id, p.acl_rules AS acl_rules
 LIMIT $limit
 """
-)
-
-# The team is only a key. It has no ACL. Both the deal and the epic do.
-ROADMAP = (
-    """
-MATCH (d:Deal)-[:DEPENDS_ON]->(e:Epic)-[:OWNED_BY]->(t:Team)
+    )
+    # The team is only a key. It has no ACL. Both the deal and the epic do.
+    roadmap = (
+        f"""
+MATCH (d:{deal})-[:{DEPENDS_ON}]->(e:{epic})-[:{OWNED_BY}]->(t:{team})
 WHERE d.quarter = $quarter
   AND d.arr >= $min_arr
   AND e.status <> 'released'
@@ -92,14 +113,14 @@ WHERE d.quarter = $quarter
   AND any(g IN coalesce(d.acl_groups, []) WHERE g IN $groups)
   AND coalesce(d.min_clearance, 99) <= $clearance
 """
-    + _DEPARTMENT.format(alias="d")
-    + """
+        + _DEPARTMENT.format(alias="d")
+        + """
   AND e.acl_rules IS NOT NULL
   AND any(g IN coalesce(e.acl_groups, []) WHERE g IN $groups)
   AND coalesce(e.min_clearance, 99) <= $clearance
 """
-    + _DEPARTMENT.format(alias="e")
-    + """
+        + _DEPARTMENT.format(alias="e")
+        + """
 RETURN d.id AS deal_id, d.account_name AS account_name, d.arr AS arr,
        d.quarter AS quarter, d.version AS deal_version,
        e.id AS epic_id, e.title AS epic_title, e.status AS epic_status,
@@ -109,7 +130,16 @@ RETURN d.id AS deal_id, d.account_name AS account_name, d.arr AS arr,
 ORDER BY d.id
 LIMIT $limit
 """
-)
+    )
+    return {
+        "teammates": teammates,
+        "team": team_query,
+        "policies": policies,
+        "roadmap_deals": roadmap,
+    }
+
+
+TEMPLATES = _templates()
 
 
 @dataclass(frozen=True)
@@ -134,14 +164,10 @@ class GraphReader:
         quarter: str | None = None,
         min_arr: int | None = None,
     ) -> list[GraphAccess]:
+        """Read-only template plus a fine-grained rule check. Empty groups see nothing."""
         if kind in ("teammates", "team") and not entity_id:
             raise ValueError("entity_id is required")
-        query = {
-            "teammates": TEAMMATES,
-            "team": TEAM,
-            "policies": POLICIES,
-            "roadmap_deals": ROADMAP,
-        }.get(kind)
+        query = TEMPLATES.get(kind)
         if query is None:
             raise ValueError("unknown kind")
         resolved_quarter, resolved_arr = _bounds(quarter, min_arr)
@@ -157,12 +183,15 @@ class GraphReader:
         if kind == "roadmap_deals":
             params["quarter"] = resolved_quarter
             params["min_arr"] = resolved_arr
-        with self.driver.session(default_access_mode=READ_ACCESS) as session:
-            rows = [record.data() for record in session.run(query, params)]
+        bind(self.driver)
+        with db.read_transaction:
+            results, meta = db.cypher_query(query, params)
+        rows = [dict(zip(meta, row, strict=True)) for row in results]
         return [_access(kind, row, principal) for row in rows]
 
 
 def _bounds(quarter: str | None, min_arr: int | None) -> tuple[str, int]:
+    """Default 2026-Q3 and 200000 ARR. Invalid values are a client error, not a fallback."""
     resolved_quarter = DEFAULT_QUARTER if quarter is None else quarter
     if _QUARTER.fullmatch(resolved_quarter) is None:
         raise ValueError("quarter")
@@ -174,6 +203,8 @@ def _bounds(quarter: str | None, min_arr: int | None) -> tuple[str, int]:
 
 
 def _access(kind: str, row: dict, principal: Principal) -> GraphAccess:
+    """Post-check every node on the path. One failed rule denies the whole path."""
+    # On a deny, object_id is the node whose rule failed, so the audit row names it.
     if kind == "teammates":
         from_ok, _from_rule = allows(view_from_rules(row.get("from_rules")), principal)
         to_ok, to_rule = allows(view_from_rules(row.get("to_rules")), principal)
@@ -198,15 +229,16 @@ def _access(kind: str, row: dict, principal: Principal) -> GraphAccess:
 
 
 def _path(kind: str, row: dict) -> dict[str, object]:
+    """Steps the agent cites. Teams have no ACL; deals and epics do."""
     if kind == "teammates":
         steps = [
             {"type": "Person", "id": row["from_id"]},
-            {"type": "Team", "id": row["team_id"], "relationship": "BELONGS_TO"},
+            {"type": "Team", "id": row["team_id"], "relationship": BELONGS_TO},
             {
                 "type": "Person",
                 "id": row["to_id"],
                 "name": row["to_name"],
-                "relationship": "BELONGS_TO",
+                "relationship": BELONGS_TO,
             },
         ]
     elif kind == "roadmap_deals":
@@ -226,10 +258,10 @@ def _path(kind: str, row: dict) -> dict[str, object]:
                 "title": row.get("epic_title") or "",
                 "status": row.get("epic_status") or "",
                 "version": row.get("epic_version"),
-                "relationship": "DEPENDS_ON",
+                "relationship": DEPENDS_ON,
                 "rule": row.get("epic_rule"),
             },
-            {"type": "Team", "id": row["team_id"], "relationship": "OWNED_BY"},
+            {"type": "Team", "id": row["team_id"], "relationship": OWNED_BY},
         ]
     elif kind == "team":
         steps = [
@@ -238,7 +270,7 @@ def _path(kind: str, row: dict) -> dict[str, object]:
                 "type": "Person",
                 "id": row["person_id"],
                 "name": row["name"],
-                "relationship": "BELONGS_TO",
+                "relationship": BELONGS_TO,
             },
         ]
     else:

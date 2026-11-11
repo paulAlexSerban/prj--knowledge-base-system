@@ -14,6 +14,7 @@ from gateway_core.metrics import RECHECK_FAILURES, RECHECK_SECONDS
 from knowledge_store.acl import Principal, allows, map_acl
 from knowledge_store.postgres import Hit
 from shared.contracts.source_contract import SourceContract
+from shared.telemetry import client_span, peer_host, trace_headers
 
 
 class RecheckFailed(Exception):
@@ -27,17 +28,30 @@ class AclSource:
 
 
 class HttpAclRecheck(AclSource):
+    """Live HR policy ACL. Sales, Product, and Engineering trust the indexed rule."""
+
     def __init__(self, base_url: str, timeout: float = 2.0) -> None:
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
 
     def current_acl(self, source_id: str, object_type: str, object_id: str) -> list[str] | None:
+        """GET the policy ACL. 404 means gone. Timeout or a bad body fails closed."""
         if not self.base_url:
             raise RecheckFailed("no harness url")
         url = f"{self.base_url}/policies/{object_id}/acl"
+        peer = peer_host(self.base_url) or "harness-hr"
         try:
-            with urllib.request.urlopen(url, timeout=self.timeout) as response:
-                body = json.loads(response.read().decode())
+            with client_span(peer, "acl.recheck.http") as current:
+                request = urllib.request.Request(url, headers=trace_headers())
+                try:
+                    with urllib.request.urlopen(request, timeout=self.timeout) as response:
+                        current.set_attribute("http.status_code", response.status)
+                        body = json.loads(response.read().decode())
+                except urllib.error.HTTPError as exc:
+                    current.set_attribute("http.status_code", exc.code)
+                    if exc.code == 404:
+                        return None
+                    raise
             values = body["native_acl"]
         except urllib.error.HTTPError as exc:
             if exc.code == 404:
@@ -62,10 +76,13 @@ def apply_recheck(
     principal: Principal,
     contracts: dict[str, SourceContract],
     source: AclSource | None,
-) -> list[Hit]:
-    """Drop hits the source no longer allows. One failed check drops the page."""
+) -> tuple[list[Hit], bool]:
+    """Drop hits the source no longer allows. One failed check drops the page.
+
+    The bool is true when the harness did not answer and the page was emptied.
+    """
     if source is None:
-        return hits
+        return hits, False
     verdict: dict[tuple[str, str], bool] = {}
     kept: list[Hit] = []
     for hit in hits:
@@ -79,15 +96,16 @@ def apply_recheck(
                 verdict[key] = _still_allowed(source, contract, principal, hit)
             except RecheckFailed:
                 RECHECK_FAILURES.labels(source_id=hit.source_id).inc()
-                return []
+                return [], True
         if verdict[key]:
             kept.append(hit)
-    return kept
+    return kept, False
 
 
 def _still_allowed(
     source: AclSource, contract: SourceContract, principal: Principal, hit: Hit
 ) -> bool:
+    """Map the live native ACL and apply the same rule check as indexed search."""
     with RECHECK_SECONDS.labels(source_id=hit.source_id).time():
         native = source.current_acl(hit.source_id, hit.object_type, hit.object_id)
     if native is None:

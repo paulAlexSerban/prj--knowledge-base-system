@@ -10,13 +10,13 @@ CREATE SCHEMA IF NOT EXISTS kbs;
 -- The app sets search_path=kbs and does not see public, so the type lives here.
 CREATE EXTENSION IF NOT EXISTS vector WITH SCHEMA kbs;
 
--- 384 matches the local embedders (hash-v1 and bge-small). ADR 0003.
+-- 1024 matches the local embedders (hash-v1 and multilingual-e5-large). ADR 0005.
 CREATE TABLE kbs.chunks (
     id bigserial PRIMARY KEY,
     source_id text NOT NULL,
     object_id text NOT NULL,
     content text,
-    embedding vector(384)
+    embedding vector(1024)
 );
 
 CREATE TABLE kbs.audit_log (

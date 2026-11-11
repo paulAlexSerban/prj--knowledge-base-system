@@ -46,40 +46,52 @@ class KnowledgeStore:
         self.contracts = contracts
 
     def upsert_object(self, event: ChangeEvent) -> None:
+        """Chunk, embed if the hash changed, commit Postgres, then merge Neo4j."""
         self._write(event, acl_only=False)
 
     def apply_acl(self, event: ChangeEvent) -> None:
+        """Patch ACL columns in place. Does not re-embed when the content hash matches."""
         self._write(event, acl_only=True)
 
     def delete_object(self, event: ChangeEvent) -> None:
+        """Tombstone, hard-delete chunks, then delete graph nodes. Both stores are verified."""
         source_id = event.source_id
         object_id = event.object_id
+        object_type = _type_from_pointer(event.s3_pointer)
         try:
             with (
-                span("postgres.commit", store="postgres", op="delete", source_id=source_id),
+                span(
+                    "postgres.commit", store="postgres", op="delete", source_id=source_id
+                ) as current,
                 metrics.STORE_WRITE.labels(store="postgres", op="delete").time(),
             ):
+                _annotate_write(current, event, object_type)
                 self.chunks.tombstone(
                     source_id, object_id, event.version or "", event.content_hash or ""
                 )
         except Exception:
             metrics.STORE_ERRORS.labels(store="postgres", op="delete").inc()
             raise
-        with span("delete.verify", store="postgres", source_id=source_id):
-            if self.chunks.count_chunks(source_id, object_id):
+        with span("delete.verify", store="postgres", source_id=source_id) as current:
+            remaining = self.chunks.count_chunks(source_id, object_id)
+            current.set_attribute("remaining", remaining)
+            if remaining:
                 metrics.DELETE_FAILURES.labels(source_id, "postgres").inc()
                 raise VerifyError("postgres")
         try:
             with (
-                span("neo4j.write", store="neo4j", op="delete", source_id=source_id),
+                span("neo4j.write", store="neo4j", op="delete", source_id=source_id) as current,
                 metrics.STORE_WRITE.labels(store="neo4j", op="delete").time(),
             ):
+                _annotate_write(current, event, object_type)
                 self.graph.delete(source_id, object_id)
         except Exception:
             metrics.STORE_ERRORS.labels(store="neo4j", op="delete").inc()
             raise
-        with span("delete.verify", store="neo4j", source_id=source_id):
-            if self.graph.count_node(source_id, object_id):
+        with span("delete.verify", store="neo4j", source_id=source_id) as current:
+            remaining = self.graph.count_node(source_id, object_id)
+            current.set_attribute("remaining", remaining)
+            if remaining:
                 metrics.DELETE_FAILURES.labels(source_id, "neo4j").inc()
                 raise VerifyError("neo4j")
         log_event(LOG, "object deleted", source_id=source_id, object_id=object_id)
@@ -90,8 +102,10 @@ class KnowledgeStore:
         principal: Principal,
         limit: int = 5,
         request_id: str = "",
+        object_ids: list[str] | None = None,
     ) -> list[Hit]:
-        with span("embed"):
+        """Embed the question, then hybrid-search authorized chunks for this principal."""
+        with span("embed.query", model=self.embedder.name, semantic=self.embedder.semantic):
             vector = self.embedder.embed_query(query)
         metrics.EMBED_CALLS.labels(model=self.embedder.name).inc()
         return self.chunks.search(
@@ -102,9 +116,11 @@ class KnowledgeStore:
             limit,
             request_id,
             semantic=self.embedder.semantic,
+            object_ids=object_ids,
         )
 
     def reconcile_index(self) -> None:
+        """Delete orphan chunks, backfill missing versions, and record index drift."""
         for source_id, object_id, _object_type in self.chunks.orphans():
             self.delete_object(
                 ChangeEvent(
@@ -156,6 +172,7 @@ class KnowledgeStore:
         return {"rebuilt": len(pending) - len(still_missing), "missing": len(still_missing), "removed": removed}
 
     def _write(self, event: ChangeEvent, acl_only: bool) -> None:
+        """Apply one create, update, or ACL event. A matching tombstone blocks a replayed older create."""
         if not event.s3_pointer:
             raise StoreError("snapshot pointer is required")
         contract = self.contracts.get(event.source_id)
@@ -185,7 +202,7 @@ class KnowledgeStore:
         version = event.version or ""
         content_hash = event.content_hash or ""
         if acl_only and self.chunks.update_acl(event.source_id, event.object_id, acl):
-            self._graph_acl(event, acl)
+            self._graph_acl(event, acl, object_type)
             log_event(
                 LOG,
                 "acl updated",
@@ -198,6 +215,8 @@ class KnowledgeStore:
         if content_hash and self.chunks.same_hash(
             event.source_id, event.object_id, content_hash, self.embedder.name
         ):
+            # Bytes already indexed. Skip the embed and the chunk rewrite, and
+            # still write Neo4j. A retry after a graph failure lands here.
             self.chunks.touch(event.source_id, event.object_id, version)
             metrics.EMBED_SKIPPED.labels(source_id=event.source_id).inc()
             self._graph_write(event, parsed, acl, version)
@@ -207,9 +226,12 @@ class KnowledgeStore:
         metrics.EMBED_CALLS.labels(model=self.embedder.name).inc(len(parsed.chunks))
         try:
             with (
-                span("postgres.commit", store="postgres", op="upsert", source_id=event.source_id),
+                span(
+                    "postgres.commit", store="postgres", op="upsert", source_id=event.source_id
+                ) as current,
                 metrics.STORE_WRITE.labels(store="postgres", op="upsert").time(),
             ):
+                _annotate_write(current, event, object_type, len(parsed.chunks))
                 self.chunks.replace_chunks(
                     event.source_id,
                     event.object_id,
@@ -228,11 +250,15 @@ class KnowledgeStore:
         _log_written(event, parsed)
 
     def _graph_write(self, event: ChangeEvent, parsed: Parsed, acl, version: str) -> None:
+        """Merge Neo4j after Postgres committed. A failure leaves the SQS message unacked."""
         try:
             with (
-                span("neo4j.write", store="neo4j", op="upsert", source_id=event.source_id),
+                span(
+                    "neo4j.write", store="neo4j", op="upsert", source_id=event.source_id
+                ) as current,
                 metrics.STORE_WRITE.labels(store="neo4j", op="upsert").time(),
             ):
+                _annotate_write(current, event, parsed.object_type, len(parsed.chunks))
                 self.graph.write(
                     event.source_id,
                     parsed.object_type,
@@ -246,18 +272,21 @@ class KnowledgeStore:
             metrics.STORE_ERRORS.labels(store="neo4j", op="upsert").inc()
             raise
 
-    def _graph_acl(self, event: ChangeEvent, acl) -> None:
+    def _graph_acl(self, event: ChangeEvent, acl, object_type: str) -> None:
+        """Patch ACL properties on existing nodes. No new edges."""
         try:
             with (
-                span("neo4j.write", store="neo4j", op="acl", source_id=event.source_id),
+                span("neo4j.write", store="neo4j", op="acl", source_id=event.source_id) as current,
                 metrics.STORE_WRITE.labels(store="neo4j", op="acl").time(),
             ):
+                _annotate_write(current, event, object_type)
                 self.graph.set_acl(event.source_id, event.object_id, acl)
         except Exception:
             metrics.STORE_ERRORS.labels(store="neo4j", op="acl").inc()
             raise
 
     def _snapshot(self, event: ChangeEvent) -> tuple[bytes, list[str], str]:
+        """Load the S3 object. Refuse a pointer whose stored hash does not match the event."""
         key = event.s3_pointer or ""
         try:
             head = self.snapshots.head_object(Bucket=self.bucket, Key=key)
@@ -268,6 +297,7 @@ class KnowledgeStore:
         metrics.DEPENDENCY.labels(dependency="s3").set(1)
         meta = {name.lower(): value for name, value in head.get("Metadata", {}).items()}
         stored = meta.get("kbs-content-hash", "")
+        # Refuse a stale pointer. The S3 object hash must match the event.
         if event.content_hash and stored and stored != event.content_hash:
             raise StoreError("snapshot hash does not match the event")
         native = [part for part in meta.get("kbs-native-acl", "").split(",") if part]
@@ -275,12 +305,14 @@ class KnowledgeStore:
 
 
 def _chunker_version(parsed: Parsed) -> str:
+    """Version of the first chunk. Empty when the object produced no prose."""
     if not parsed.chunks:
         return ""
     return parsed.chunks[0].chunker_version
 
 
 def _log_written(event: ChangeEvent, parsed: Parsed) -> None:
+    """Structured write log. Chunk text is not included."""
     log_event(
         LOG,
         "object written",
@@ -292,7 +324,27 @@ def _log_written(event: ChangeEvent, parsed: Parsed) -> None:
 
 
 def _object_type(key: str) -> str:
-    parts = key.split("/")
-    if len(parts) < 4 or parts[0] != "raw":
+    """Require a well-formed snapshot key. Upserts cannot proceed without a type."""
+    found = _type_from_pointer(key)
+    if not found:
         raise StoreError(f"unexpected snapshot key {key}")
+    return found
+
+
+def _type_from_pointer(key: str | None) -> str:
+    """Object type from the S3 key, or empty on a delete that has no pointer."""
+    parts = (key or "").split("/")
+    if len(parts) < 4 or parts[0] != "raw":
+        return ""
     return parts[2]
+
+
+def _annotate_write(
+    current, event: ChangeEvent, object_type: str, chunks: int | None = None
+) -> None:
+    """Span attributes for a store write. No payload bytes."""
+    current.set_attribute("event_type", event.event_type.value)
+    if object_type:
+        current.set_attribute("object_type", object_type)
+    if chunks is not None:
+        current.set_attribute("chunks", chunks)

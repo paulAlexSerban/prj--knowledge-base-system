@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS kbs.chunks (
     source_id text NOT NULL,
     object_id text NOT NULL,
     content text,
-    embedding vector(384)
+    embedding vector(1024)
 );
 CREATE TABLE IF NOT EXISTS kbs.audit_log (
     id bigserial PRIMARY KEY,

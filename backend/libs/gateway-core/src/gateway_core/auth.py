@@ -25,6 +25,7 @@ class AuthError(Exception):
 
 
 def personas_path() -> Path:
+    """principals.yaml. PRINCIPALS_FILE overrides for tests."""
     override = os.environ.get("PRINCIPALS_FILE")
     if override:
         return Path(override)
@@ -37,6 +38,7 @@ def personas_path() -> Path:
 
 
 def load_personas(path: Path | None = None) -> dict[str, Principal]:
+    """Named demo personas. Production identity is OIDC, not this file."""
     target = path or personas_path()
     raw = yaml.safe_load(target.read_text(encoding="utf-8")) or {}
     found: dict[str, Principal] = {}
@@ -52,6 +54,7 @@ def issue_token(
     path: Path | None = None,
     ttl_seconds: int = TOKEN_TTL_SECONDS,
 ) -> str:
+    """Sign an HS256 JWT for a persona. Used by /dev/token and the notebooks."""
     if not secret:
         raise AuthError("secret")
     principals = load_personas(path)
@@ -74,6 +77,7 @@ def issue_token(
 
 
 def principal_from_token(token: str, secret: str) -> Principal:
+    """Validate signature, expiry, and claims. This is the only file that knows the signer."""
     if not secret:
         raise AuthError("secret")
     try:
@@ -91,6 +95,7 @@ def principal_from_token(token: str, secret: str) -> Principal:
 
 
 def _principal(subject: str, claims: dict) -> Principal:
+    """Require groups, a known clearance, and a non-empty department. Empty groups see nothing."""
     if not subject or "groups" not in claims or "clearance" not in claims or "department" not in claims:
         raise AuthError("missing_claim")
     groups = claims["groups"]

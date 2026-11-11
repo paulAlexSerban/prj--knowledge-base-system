@@ -125,6 +125,7 @@ def run_poll(
 
 
 def postgres_engine():
+    """ingestion_rw engine. Connectors never use the gateway_ro password."""
     user = os.environ.get("POSTGRES_USER", "ingestion_rw")
     password = os.environ["INGESTION_DB_PASSWORD"]
     host = os.environ.get("POSTGRES_HOST", "postgres")
@@ -136,6 +137,7 @@ def postgres_engine():
 
 
 def sqs_client():
+    """SQS against floci. The publisher resolves the tier queue URL once."""
     return boto3.client(
         "sqs",
         endpoint_url=os.environ["AWS_ENDPOINT_URL"],
@@ -146,6 +148,7 @@ def sqs_client():
 
 
 def s3_client():
+    """S3 with path-style addressing so floci bucket names resolve."""
     return boto3.client(
         "s3",
         endpoint_url=os.environ["AWS_ENDPOINT_URL"],
@@ -157,12 +160,14 @@ def s3_client():
 
 
 def _poll_seconds() -> int:
+    """POLL_SECONDS wins. HR still uses P0_POLL_SECONDS because Scheduler cannot own P0."""
     if os.environ.get("POLL_SECONDS"):
         return int(os.environ["POLL_SECONDS"])
     return int(os.environ.get("P0_POLL_SECONDS", "10"))
 
 
 def _up() -> Gauge:
+    """Reuse kbs_worker_up when tests import more than one connector in-process."""
     existing = REGISTRY._names_to_collectors.get("kbs_worker_up")
     if isinstance(existing, Gauge):
         return existing
@@ -242,6 +247,7 @@ def _wait_until_ready(
 
 
 def _check_health(base: str) -> None:
+    """GET /health on the harness. A 4xx means that source is not ready."""
     with urllib.request.urlopen(base.rstrip("/") + "/health", timeout=5) as response:
         if response.status >= 400:
             raise OSError(f"harness health returned {response.status}")

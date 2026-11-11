@@ -2,7 +2,12 @@ services:
   harness-hr:
     build:
       context: ../..
-      dockerfile: demo-harness/hr/Dockerfile
+      dockerfile: docker/python-service.Dockerfile
+      args:
+        PACKAGE: harness-hr
+        ENTRYPOINT_MODULE: harness_hr
+        # The SQLite volume at /data is writable as root. This is a local harness.
+        APP_USER: root
     environment:
       SERVICE: hr
       PORT: "8080"
@@ -29,7 +34,11 @@ services:
   harness-sales:
     build:
       context: ../..
-      dockerfile: demo-harness/sales/Dockerfile
+      dockerfile: docker/python-service.Dockerfile
+      args:
+        PACKAGE: harness-sales
+        ENTRYPOINT_MODULE: harness_sales
+        APP_USER: root
     environment:
       SERVICE: sales
       PORT: "8080"
@@ -43,7 +52,11 @@ services:
   harness-product:
     build:
       context: ../..
-      dockerfile: demo-harness/product/Dockerfile
+      dockerfile: docker/python-service.Dockerfile
+      args:
+        PACKAGE: harness-product
+        ENTRYPOINT_MODULE: harness_product
+        APP_USER: root
     environment:
       SERVICE: product
       PORT: "8080"
@@ -59,7 +72,11 @@ services:
   harness-engineering:
     build:
       context: ../..
-      dockerfile: demo-harness/engineering/Dockerfile
+      dockerfile: docker/python-service.Dockerfile
+      args:
+        PACKAGE: harness-engineering
+        ENTRYPOINT_MODULE: harness_engineering
+        APP_USER: root
     environment:
       SERVICE: engineering
       PORT: "8080"

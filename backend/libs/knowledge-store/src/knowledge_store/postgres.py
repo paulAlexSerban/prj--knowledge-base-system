@@ -2,23 +2,44 @@
 
 The writer connects as ingestion_rw. Search connects as gateway_ro, so a query
 that forgets the predicate still cannot read another principal's rows.
+Statements are SQLAlchemy ORM expressions. The principal is applied with
+set_config for the transaction, which is what row-level security reads.
+gateway_ro can insert an audit row and cannot select one, so that insert does
+not use RETURNING.
 """
 
-import json
 import os
 from dataclasses import dataclass
 
-from sqlalchemy import text
+from sqlalchemy import (
+    Text,
+    and_,
+    any_,
+    delete,
+    false,
+    func,
+    insert,
+    literal,
+    or_,
+    select,
+    union_all,
+    update,
+)
+from sqlalchemy.dialects.postgresql import ARRAY
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.engine import Engine
+from sqlalchemy.orm import Session
 
 from knowledge_store.acl import AclView, Principal, allows, view_from_rules
 from knowledge_store.chunkers import ChunkDraft
+from knowledge_store.models import AuditLog, Chunk, SourceObject, SyncState, Tombstone
 from shared.telemetry import span
 
 RRF_K = 60
 # Cosine distance above which a vector-only hit is not an answer (semantic models only).
-# bge-small puts unrelated English text near 0.5; calibrated with `make eval`.
-DEFAULT_MAX_DISTANCE = float(os.environ.get("VECTOR_MAX_DISTANCE", "0.40"))
+# e5-large on the seeded chunks: paraphrases about 0.11 to 0.18,
+# and "xylophone quantum payroll" about 0.21. The floor sits between them.
+DEFAULT_MAX_DISTANCE = float(os.environ.get("VECTOR_MAX_DISTANCE", "0.20"))
 OVERFETCH = 3
 
 
@@ -47,47 +68,43 @@ class ChunkTable:
         self.reader = reader
 
     def ping(self) -> bool:
+        """True when the writer (or reader) accepts a query."""
         engine = self.writer if self.writer is not None else self.reader
         try:
             with engine.connect() as connection:
-                connection.execute(text("SELECT 1"))
+                connection.execute(select(literal(1)))
         except Exception:  # noqa: BLE001 - the driver raises several connection errors
             return False
         return True
 
     def same_hash(self, source_id: str, object_id: str, content_hash: str, model: str) -> bool:
-        statement = text(
-            """
-            SELECT count(*) AS n FROM chunks
-            WHERE source_id = :source_id AND object_id = :object_id
-              AND content_hash = :content_hash AND embedding_model = :model
-            """
+        """True when this model already indexed these bytes. Skip embed and still merge the graph."""
+        statement = (
+            select(func.count())
+            .select_from(Chunk)
+            .where(
+                Chunk.source_id == source_id,
+                Chunk.object_id == object_id,
+                Chunk.content_hash == content_hash,
+                Chunk.embedding_model == model,
+            )
         )
-        with self.writer.connect() as connection:
-            row = connection.execute(
-                statement,
-                {
-                    "source_id": source_id,
-                    "object_id": object_id,
-                    "content_hash": content_hash,
-                    "model": model,
-                },
-            ).one()
-        return int(row.n) > 0
+        with Session(self.writer) as session:
+            found = session.scalar(statement)
+        return int(found or 0) > 0
 
-    def blocked_by_tombstone(self, source_id: str, object_id: str, version: str, content_hash: str) -> bool:
-        statement = text(
-            """
-            SELECT version, content_hash FROM tombstones
-            WHERE source_id = :source_id AND object_id = :object_id
-            """
+    def blocked_by_tombstone(
+        self, source_id: str, object_id: str, version: str, content_hash: str
+    ) -> bool:
+        """True when a matching tombstone exists. A newer version is allowed through."""
+        statement = select(Tombstone).where(
+            Tombstone.source_id == source_id, Tombstone.object_id == object_id
         )
-        with self.writer.connect() as connection:
-            row = connection.execute(
-                statement, {"source_id": source_id, "object_id": object_id}
-            ).first()
+        with Session(self.writer) as session:
+            row = session.scalar(statement)
         if row is None:
             return False
+        # Block only when version and content hash both match. A newer create is allowed.
         return row.version == (version or "") and row.content_hash == (content_hash or "")
 
     def replace_chunks(
@@ -102,134 +119,111 @@ class ChunkTable:
         vectors: list[list[float]],
         acl: AclView,
     ) -> None:
-        delete = text(
-            """
-            DELETE FROM chunks
-            WHERE source_id = :source_id AND object_id = :object_id AND embedding_model = :model
-            """
-        )
-        forget = text(
-            "DELETE FROM tombstones WHERE source_id = :source_id AND object_id = :object_id"
-        )
-        insert = text(
-            """
-            INSERT INTO chunks (
-                source_id, object_id, object_type, chunk_index, version, section_path,
-                content, content_hash, chunker_version, embedding_model, acl_groups,
-                acl_departments, min_clearance, acl_rules, embedding, synced_at
-            ) VALUES (
-                :source_id, :object_id, :object_type, :chunk_index, :version, :section_path,
-                :content, :content_hash, :chunker_version, :embedding_model,
-                CAST(:acl_groups AS text[]), CAST(:acl_departments AS text[]),
-                :min_clearance, CAST(:acl_rules AS jsonb),
-                CAST(:embedding AS vector), now()
-            )
-            """
-        )
-        rules = json.dumps(acl.as_json())
-        with self.writer.begin() as connection:
-            connection.execute(forget, {"source_id": source_id, "object_id": object_id})
-            connection.execute(
-                delete, {"source_id": source_id, "object_id": object_id, "model": model}
-            )
-            for chunk, vector in zip(chunks, vectors, strict=True):
-                connection.execute(
-                    insert,
-                    {
-                        "source_id": source_id,
-                        "object_id": object_id,
-                        "object_type": object_type,
-                        "chunk_index": chunk.index,
-                        "version": version,
-                        "section_path": chunk.section_path,
-                        "content": chunk.text,
-                        "content_hash": content_hash,
-                        "chunker_version": chunk.chunker_version,
-                        "embedding_model": model,
-                        "acl_groups": _pg_array(acl.groups),
-                        "acl_departments": _pg_array(acl.departments),
-                        "min_clearance": acl.min_clearance,
-                        "acl_rules": rules,
-                        "embedding": _vector(vector),
-                    },
+        """Replace this model's chunks for one object. Other models' rows survive reindex."""
+        rules = acl.as_json()
+        with Session(self.writer) as session, session.begin():
+            session.execute(
+                delete(Tombstone).where(
+                    Tombstone.source_id == source_id, Tombstone.object_id == object_id
                 )
+            )
+            # This model only. Another model's rows survive reindex.
+            session.execute(
+                delete(Chunk).where(
+                    Chunk.source_id == source_id,
+                    Chunk.object_id == object_id,
+                    Chunk.embedding_model == model,
+                )
+            )
+            session.add_all(
+                [
+                    Chunk(
+                        source_id=source_id,
+                        object_id=object_id,
+                        object_type=object_type,
+                        chunk_index=chunk.index,
+                        version=version,
+                        section_path=chunk.section_path,
+                        content=chunk.text,
+                        content_hash=content_hash,
+                        chunker_version=chunk.chunker_version,
+                        embedding_model=model,
+                        acl_groups=list(acl.groups),
+                        acl_departments=list(acl.departments),
+                        min_clearance=acl.min_clearance,
+                        acl_rules=rules,
+                        embedding=vector,
+                    )
+                    for chunk, vector in zip(chunks, vectors, strict=True)
+                ]
+            )
 
     def touch(self, source_id: str, object_id: str, version: str) -> None:
-        statement = text(
-            """
-            UPDATE chunks SET synced_at = now(), version = :version
-            WHERE source_id = :source_id AND object_id = :object_id
-            """
+        """Refresh synced_at without rewriting embeddings. Used on a matching content hash."""
+        statement = (
+            update(Chunk)
+            .where(Chunk.source_id == source_id, Chunk.object_id == object_id)
+            .values(synced_at=func.now(), version=version)
         )
-        with self.writer.begin() as connection:
-            connection.execute(
-                statement, {"source_id": source_id, "object_id": object_id, "version": version}
-            )
+        with Session(self.writer) as session, session.begin():
+            session.execute(statement)
 
     def update_acl(self, source_id: str, object_id: str, acl: AclView) -> int:
-        statement = text(
-            """
-            UPDATE chunks
-            SET acl_groups = CAST(:acl_groups AS text[]),
-                acl_departments = CAST(:acl_departments AS text[]),
-                min_clearance = :min_clearance, acl_rules = CAST(:acl_rules AS jsonb),
-                synced_at = now()
-            WHERE source_id = :source_id AND object_id = :object_id
-            """
-        )
-        with self.writer.begin() as connection:
-            result = connection.execute(
-                statement,
-                {
-                    "source_id": source_id,
-                    "object_id": object_id,
-                    "acl_groups": _pg_array(acl.groups),
-                    "acl_departments": _pg_array(acl.departments),
-                    "min_clearance": acl.min_clearance,
-                    "acl_rules": json.dumps(acl.as_json()),
-                },
+        """Patch grants in place. Returns 0 when no chunk exists yet."""
+        statement = (
+            update(Chunk)
+            .where(Chunk.source_id == source_id, Chunk.object_id == object_id)
+            .values(
+                acl_groups=list(acl.groups),
+                acl_departments=list(acl.departments),
+                min_clearance=acl.min_clearance,
+                acl_rules=acl.as_json(),
+                synced_at=func.now(),
             )
+        )
+        with Session(self.writer) as session, session.begin():
+            result = session.execute(statement)
         return result.rowcount or 0
 
     def tombstone(self, source_id: str, object_id: str, version: str, content_hash: str) -> None:
-        statement = text(
-            """
-            INSERT INTO tombstones (source_id, object_id, version, content_hash)
-            VALUES (:source_id, :object_id, :version, :content_hash)
-            ON CONFLICT (source_id, object_id) DO UPDATE
-            SET version = EXCLUDED.version, content_hash = EXCLUDED.content_hash,
-                deleted_at = now()
-            """
-        )
-        delete = text(
-            "DELETE FROM chunks WHERE source_id = :source_id AND object_id = :object_id"
-        )
-        params = {
+        """Record the delete, then hard-delete chunks. Soft delete is not used."""
+        values = {
             "source_id": source_id,
             "object_id": object_id,
             "version": version or "",
             "content_hash": content_hash or "",
         }
-        with self.writer.begin() as connection:
-            connection.execute(statement, params)
-            connection.execute(delete, params)
+        upsert = pg_insert(Tombstone).values(**values)
+        upsert = upsert.on_conflict_do_update(
+            index_elements=[Tombstone.source_id, Tombstone.object_id],
+            set_={
+                "version": upsert.excluded.version,
+                "content_hash": upsert.excluded.content_hash,
+                "deleted_at": func.now(),
+            },
+        )
+        with Session(self.writer) as session, session.begin():
+            session.execute(upsert)
+            session.execute(
+                delete(Chunk).where(Chunk.source_id == source_id, Chunk.object_id == object_id)
+            )
 
     def count_chunks(self, source_id: str, object_id: str) -> int:
-        statement = text(
-            "SELECT count(*) AS n FROM chunks WHERE source_id = :source_id AND object_id = :object_id"
+        """Remaining chunks after a delete. Non-zero is a verified failure."""
+        statement = (
+            select(func.count())
+            .select_from(Chunk)
+            .where(Chunk.source_id == source_id, Chunk.object_id == object_id)
         )
-        with self.writer.connect() as connection:
-            return int(
-                connection.execute(
-                    statement, {"source_id": source_id, "object_id": object_id}
-                ).one().n
-            )
+        with Session(self.writer) as session:
+            return int(session.scalar(statement) or 0)
 
     def count_visible(self, principal: Principal | None) -> int:
         """No application predicate. Row-level security is the only filter."""
-        with self.reader.begin() as connection:
-            _set_principal(connection, principal)
-            return int(connection.execute(text("SELECT count(*) AS n FROM chunks")).one().n)
+        with Session(self.reader) as session, session.begin():
+            _set_principal(session, principal)
+            found = session.scalar(select(func.count()).select_from(Chunk))
+        return int(found or 0)
 
     def search(
         self,
@@ -241,58 +235,21 @@ class ChunkTable:
         request_id: str,
         semantic: bool = False,
         max_distance: float = DEFAULT_MAX_DISTANCE,
+        object_ids: list[str] | None = None,
     ) -> list[Hit]:
+        """Vector plus full-text, fused with RRF, pre-filtered by ACL, then post-checked."""
         fetch = max(limit * OVERFETCH, limit)
-        params = {
-            "model": model,
-            "query": query,
-            "vector": _vector(query_vector),
-            "groups": _pg_array(principal.groups),
-            "department": principal.department,
-            "clearance": principal.clearance,
-            "fetch": fetch,
-        }
-        vector_sql = text(
-            """
-            SELECT id, source_id, object_id, object_type, version, section_path,
-                   content, acl_rules, synced_at,
-                   embedding <=> CAST(:vector AS vector) AS distance
-            FROM chunks
-            WHERE embedding_model = :model
-              AND acl_groups && CAST(:groups AS text[])
-              AND (
-                cardinality(acl_departments) = 0
-                OR :department = ANY (acl_departments)
-              )
-              AND min_clearance <= kbs.clearance_rank(:clearance)
-            ORDER BY embedding <=> CAST(:vector AS vector)
-            LIMIT :fetch
-            """
-        )
-        lexical_sql = text(
-            """
-            SELECT id, source_id, object_id, object_type, version, section_path,
-                   content, acl_rules, synced_at
-            FROM chunks
-            WHERE embedding_model = :model
-              AND acl_groups && CAST(:groups AS text[])
-              AND (
-                cardinality(acl_departments) = 0
-                OR :department = ANY (acl_departments)
-              )
-              AND min_clearance <= kbs.clearance_rank(:clearance)
-              AND fts @@ plainto_tsquery('english', :query)
-            ORDER BY ts_rank(fts, plainto_tsquery('english', :query)) DESC
-            LIMIT :fetch
-            """
-        )
-        with self.reader.begin() as connection:
-            _set_principal(connection, principal)
+        vector_sql = _vector_select(principal, model, query_vector, fetch, object_ids)
+        lexical_sql = _lexical_select(principal, model, query, fetch, object_ids)
+        with Session(self.reader) as session, session.begin():
+            _set_principal(session, principal)
             # The ACL predicate is in each statement. It is not a separate query.
-            with span("chunks.vector", acl_prefilter=True):
-                vector_rows = list(connection.execute(vector_sql, params).mappings())
-            with span("chunks.full_text", acl_prefilter=True):
-                lexical_rows = list(connection.execute(lexical_sql, params).mappings())
+            with span("chunks.vector", acl_prefilter=True, model=model) as current:
+                vector_rows = list(session.execute(vector_sql).mappings())
+                current.set_attribute("count", len(vector_rows))
+            with span("chunks.full_text", acl_prefilter=True, model=model) as current:
+                lexical_rows = list(session.execute(lexical_sql).mappings())
+                current.set_attribute("count", len(lexical_rows))
             ranked = _fuse(vector_rows, lexical_rows)
             # A vector-only neighbor is an answer only when the model is semantic and the
             # chunk is close enough. hash-v1 never qualifies. Nearest-neighbour search
@@ -302,7 +259,7 @@ class ChunkTable:
                 int(row["id"]) for row in vector_rows if float(row["distance"]) <= max_distance
             }
             hits: list[Hit] = []
-            denied = False
+            denied = 0
             with span("audit.write") as current:
                 for row, score in ranked:
                     row_id = int(row["id"])
@@ -311,39 +268,44 @@ class ChunkTable:
                     view = view_from_rules(row["acl_rules"])
                     allowed, rule = allows(view, principal)
                     if not allowed:
-                        denied = True
-                        _audit(connection, principal, row, "deny", None, request_id)
+                        denied += 1
+                        _audit(session, principal, row, "deny", None, request_id)
                         continue
-                    _audit(connection, principal, row, "allow", rule, request_id)
+                    _audit(session, principal, row, "allow", rule, request_id)
                     hits.append(_hit(row, score))
                     if len(hits) >= limit:
                         break
                 if not hits and not denied:
-                    _audit(connection, principal, None, "deny", None, request_id)
+                    denied += 1
+                    _audit(session, principal, None, "deny", None, request_id)
                 current.set_attribute("count", len(hits))
+                current.set_attribute("denied", denied)
             return hits
 
     def get_chunk(self, chunk_id: int, principal: Principal, request_id: str) -> Hit | None:
         """One chunk the caller may read. Missing and unauthorized both return None."""
-        statement = text(
-            """
-            SELECT id, source_id, object_id, object_type, version, section_path,
-                   content, acl_rules, synced_at
-            FROM chunks
-            WHERE id = :id
-            """
-        )
-        with self.reader.begin() as connection:
-            _set_principal(connection, principal)
-            row = connection.execute(statement, {"id": chunk_id}).mappings().first()
+        statement = select(
+            Chunk.id,
+            Chunk.source_id,
+            Chunk.object_id,
+            Chunk.object_type,
+            Chunk.version,
+            Chunk.section_path,
+            Chunk.content,
+            Chunk.acl_rules,
+            Chunk.synced_at,
+        ).where(Chunk.id == chunk_id)
+        with Session(self.reader) as session, session.begin():
+            _set_principal(session, principal)
+            row = session.execute(statement).mappings().first()
             if row is None:
                 return None
             view = view_from_rules(row["acl_rules"])
             allowed, rule = allows(view, principal)
             if not allowed:
-                _audit(connection, principal, row, "deny", None, request_id)
+                _audit(session, principal, row, "deny", None, request_id)
                 return None
-            _audit(connection, principal, row, "allow", rule, request_id)
+            _audit(session, principal, row, "allow", rule, request_id)
             return _hit(row, 1.0)
 
     def record_decisions(
@@ -353,13 +315,13 @@ class ChunkTable:
         decisions: list[tuple[str, str, dict[str, str] | None, str | None]],
     ) -> None:
         """Audit graph allows and denies. An empty list is one deny with no object."""
-        with self.reader.begin() as connection:
+        with Session(self.reader) as session, session.begin():
             if not decisions:
-                _audit(connection, principal, None, "deny", None, request_id)
+                _audit(session, principal, None, "deny", None, request_id)
                 return
             for decision, source_id, rule, object_id in decisions:
                 _audit(
-                    connection,
+                    session,
                     principal,
                     None,
                     decision,
@@ -370,75 +332,165 @@ class ChunkTable:
                 )
 
     def last_success(self) -> dict[str, str | None]:
-        statement = text("SELECT source_id, last_success_at FROM sync_state")
-        with self.reader.connect() as connection:
+        """Last successful connector watermark time per source, for list_sources."""
+        statement = select(SyncState.source_id, SyncState.last_success_at)
+        with Session(self.reader) as session:
             found: dict[str, str | None] = {}
-            for row in connection.execute(statement):
-                stamp = row.last_success_at
-                found[row.source_id] = None if stamp is None else stamp.isoformat()
+            for source_id, stamp in session.execute(statement):
+                found[source_id] = None if stamp is None else stamp.isoformat()
             return found
 
     def orphans(self) -> list[tuple[str, str, str]]:
-        statement = text(
-            """
-            SELECT DISTINCT c.source_id, c.object_id, c.object_type
-            FROM chunks c
-            LEFT JOIN source_objects s
-              ON s.source_id = c.source_id AND s.object_id = c.object_id
-            WHERE s.object_id IS NULL
-            """
+        """Chunks whose source_objects row is gone. The index sweep deletes them."""
+        statement = (
+            select(Chunk.source_id, Chunk.object_id, Chunk.object_type)
+            .distinct()
+            .outerjoin(
+                SourceObject,
+                and_(
+                    SourceObject.source_id == Chunk.source_id,
+                    SourceObject.object_id == Chunk.object_id,
+                ),
+            )
+            .where(SourceObject.object_id.is_(None))
         )
-        with self.writer.connect() as connection:
+        with Session(self.writer) as session:
             return [
                 (row.source_id, row.object_id, row.object_type)
-                for row in connection.execute(statement)
+                for row in session.execute(statement)
             ]
 
     def delete_other_models(self, model: str) -> int:
-        statement = text("DELETE FROM chunks WHERE embedding_model <> :model")
-        with self.writer.begin() as connection:
-            return int(connection.execute(statement, {"model": model}).rowcount or 0)
+        """Drop chunks that are not the active embedder. Called only after reindex succeeds."""
+        statement = delete(Chunk).where(Chunk.embedding_model != model)
+        with Session(self.writer) as session, session.begin():
+            return int(session.execute(statement).rowcount or 0)
 
     def count_by_model(self) -> dict[str, int]:
-        statement = text("SELECT embedding_model, count(*) AS n FROM chunks GROUP BY 1")
-        with self.writer.connect() as connection:
-            return {row.embedding_model: int(row.n) for row in connection.execute(statement)}
+        """Chunk counts by embedding_model. make reindex prints this before and after."""
+        statement = select(Chunk.embedding_model, func.count()).group_by(Chunk.embedding_model)
+        with Session(self.writer) as session:
+            return {model: int(count) for model, count in session.execute(statement)}
 
     def missing(self, model: str) -> list[dict]:
-        statement = text(
-            """
-            SELECT s.source_id, s.object_id, s.object_type, s.version, s.content_hash, s.s3_key
-            FROM source_objects s
-            WHERE NOT EXISTS (
-                SELECT 1 FROM chunks c
-                WHERE c.source_id = s.source_id AND c.object_id = s.object_id
-                  AND c.version = s.version AND c.embedding_model = :model
+        """source_objects rows with no chunk at this version and model."""
+        indexed = (
+            select(Chunk.id)
+            .where(
+                Chunk.source_id == SourceObject.source_id,
+                Chunk.object_id == SourceObject.object_id,
+                Chunk.version == SourceObject.version,
+                Chunk.embedding_model == model,
             )
-            """
+            .exists()
         )
-        with self.writer.connect() as connection:
-            return [dict(row) for row in connection.execute(statement, {"model": model}).mappings()]
+        statement = select(
+            SourceObject.source_id,
+            SourceObject.object_id,
+            SourceObject.object_type,
+            SourceObject.version,
+            SourceObject.content_hash,
+            SourceObject.s3_key,
+        ).where(~indexed)
+        with Session(self.writer) as session:
+            return [dict(row) for row in session.execute(statement).mappings()]
 
     def drift(self) -> dict[str, tuple[int, int]]:
-        statement = text(
-            """
-            SELECT source_id, count(*) AS n, 'index' AS kind FROM (
-                SELECT DISTINCT source_id, object_id FROM chunks
-            ) indexed
-            GROUP BY source_id
-            UNION ALL
-            SELECT source_id, count(*) AS n, 'source' AS kind FROM source_objects
-            GROUP BY source_id
-            """
-        )
+        """Indexed object count and source_objects count per source."""
+        indexed_ids = select(Chunk.source_id, Chunk.object_id).distinct().subquery()
+        indexed = select(
+            indexed_ids.c.source_id.label("source_id"),
+            func.count().label("n"),
+            literal("index").label("kind"),
+        ).group_by(indexed_ids.c.source_id)
+        sourced = select(
+            SourceObject.source_id.label("source_id"),
+            func.count().label("n"),
+            literal("source").label("kind"),
+        ).group_by(SourceObject.source_id)
         found: dict[str, dict[str, int]] = {}
-        with self.writer.connect() as connection:
-            for row in connection.execute(statement):
-                found.setdefault(row.source_id, {"index": 0, "source": 0})[row.kind] = int(row.n)
+        with Session(self.writer) as session:
+            for row in session.execute(union_all(indexed, sourced)).mappings():
+                found.setdefault(row["source_id"], {"index": 0, "source": 0})[row["kind"]] = int(
+                    row["n"]
+                )
         return {key: (value["index"], value["source"]) for key, value in found.items()}
 
 
+def _columns():
+    """Hit columns shared by vector and lexical selects. Embedding is not returned."""
+    return (
+        Chunk.id,
+        Chunk.source_id,
+        Chunk.object_id,
+        Chunk.object_type,
+        Chunk.version,
+        Chunk.section_path,
+        Chunk.content,
+        Chunk.acl_rules,
+        Chunk.synced_at,
+    )
+
+
+def _acl(principal: Principal):
+    """Coarse pre-filter: group overlap, department (empty list is any), clearance rank."""
+    return and_(
+        Chunk.acl_groups.overlap(literal(list(principal.groups), type_=ARRAY(Text))),
+        or_(
+            func.cardinality(Chunk.acl_departments) == 0,
+            literal(principal.department) == any_(Chunk.acl_departments),
+        ),
+        Chunk.min_clearance <= func.kbs.clearance_rank(literal(principal.clearance)),
+    )
+
+
+def _limit_objects(statement, object_ids: list[str] | None):
+    """Restrict hybrid search to graph-named ids. An empty list returns nothing."""
+    if object_ids is None:
+        return statement
+    if not object_ids:
+        return statement.where(false())
+    return statement.where(Chunk.object_id.in_(object_ids))
+
+
+def _vector_select(
+    principal: Principal,
+    model: str,
+    query_vector: list[float],
+    fetch: int,
+    object_ids: list[str] | None,
+):
+    """Nearest neighbors for one model, already ACL-filtered. Distance is cosine."""
+    distance = Chunk.embedding.cosine_distance(query_vector).label("distance")
+    statement = (
+        select(*_columns(), distance)
+        .where(Chunk.embedding_model == model, _acl(principal))
+        .order_by(distance)
+        .limit(fetch)
+    )
+    return _limit_objects(statement, object_ids)
+
+
+def _lexical_select(
+    principal: Principal,
+    model: str,
+    query: str,
+    fetch: int,
+    object_ids: list[str] | None,
+):
+    """English full-text match, ranked with ts_rank. Not BM25."""
+    tsquery = func.plainto_tsquery("english", query)
+    statement = (
+        select(*_columns())
+        .where(Chunk.embedding_model == model, _acl(principal), Chunk.fts.op("@@")(tsquery))
+        .order_by(func.ts_rank(Chunk.fts, tsquery).desc())
+        .limit(fetch)
+    )
+    return _limit_objects(statement, object_ids)
+
+
 def _hit(row, score: float) -> Hit:
+    """Map a selected row to the public hit. Score is RRF, not raw cosine."""
     stamp = row["synced_at"]
     return Hit(
         chunk_id=int(row["id"]),
@@ -453,17 +505,18 @@ def _hit(row, score: float) -> Hit:
     )
 
 
-def _set_principal(connection, principal: Principal | None) -> None:
+def _set_principal(session: Session, principal: Principal | None) -> None:
+    """Transaction-local settings that row-level security reads. Empty means nobody."""
     groups = ",".join(principal.groups) if principal else ""
     clearance = principal.clearance if principal else ""
     department = principal.department if principal else ""
-    connection.execute(text("SELECT set_config('kbs.groups', :v, true)"), {"v": groups})
-    connection.execute(text("SELECT set_config('kbs.clearance', :v, true)"), {"v": clearance})
-    connection.execute(text("SELECT set_config('kbs.department', :v, true)"), {"v": department})
+    session.execute(select(func.set_config("kbs.groups", groups, True)))
+    session.execute(select(func.set_config("kbs.clearance", clearance, True)))
+    session.execute(select(func.set_config("kbs.department", department, True)))
 
 
 def _audit(
-    connection,
+    session: Session,
     principal: Principal,
     row,
     decision: str,
@@ -472,6 +525,7 @@ def _audit(
     source_id: str | None = None,
     object_id: str | None = None,
 ) -> None:
+    """Insert an audit row naming the attributes that justified allow or deny."""
     attributes = {
         "groups": list(principal.groups),
         "clearance": principal.clearance,
@@ -487,27 +541,21 @@ def _audit(
     else:
         chunk_id = int(row["id"])
         resolved_source = row["source_id"] if source_id is None else source_id
-    connection.execute(
-        text(
-            """
-            INSERT INTO audit_log (principal, chunk_id, attributes, request_id, decision, source_id)
-            VALUES (
-                :principal, :chunk_id, CAST(:attributes AS jsonb), :request_id, :decision, :source_id
-            )
-            """
-        ),
-        {
-            "principal": principal.subject,
-            "chunk_id": chunk_id,
-            "attributes": json.dumps(attributes),
-            "request_id": request_id,
-            "decision": decision,
-            "source_id": resolved_source,
-        },
+    # RETURNING would require SELECT, which gateway_ro does not have.
+    session.connection().execute(
+        insert(AuditLog.__table__).values(
+            principal=principal.subject,
+            chunk_id=chunk_id,
+            attributes=attributes,
+            request_id=request_id,
+            decision=decision,
+            source_id=resolved_source,
+        )
     )
 
 
 def _fuse(vector_rows: list, lexical_rows: list) -> list[tuple[object, float]]:
+    """Reciprocal rank fusion. No score calibration and no reranker."""
     scores: dict[int, float] = {}
     by_id = {}
     for rank, row in enumerate(vector_rows, start=1):
@@ -518,12 +566,3 @@ def _fuse(vector_rows: list, lexical_rows: list) -> list[tuple[object, float]]:
         by_id[int(row["id"])] = row
     ordered = sorted(scores, key=lambda key: scores[key], reverse=True)
     return [(by_id[key], scores[key]) for key in ordered]
-
-
-def _pg_array(values: tuple[str, ...] | list[str]) -> str:
-    escaped = (value.replace("\\", "\\\\").replace('"', '\\"') for value in values)
-    return "{" + ",".join(f'"{value}"' for value in escaped) + "}"
-
-
-def _vector(values: list[float]) -> str:
-    return "[" + ",".join(f"{value:.6f}" for value in values) + "]"

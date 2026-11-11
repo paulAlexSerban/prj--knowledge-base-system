@@ -82,10 +82,17 @@ class Syncer:
         self._lock = Lock()
 
     def run(self) -> SyncReport:
-        with span("connector.sync", source_id=self.contract.source_id):
-            return self._run_cycle()
+        """One poll cycle: list changes, snapshot, enqueue, then maybe advance the watermark."""
+        with span("connector.sync", source_id=self.contract.source_id) as current:
+            report = self._run_cycle()
+            current.set_attribute("written", report.written)
+            current.set_attribute("skipped", report.skipped)
+            current.set_attribute("errors", report.errors)
+            current.set_attribute("ok", report.ok)
+            return report
 
     def _run_cycle(self) -> SyncReport:
+        """Collect, map, and publish. A failed object keeps the watermark where it was."""
         source_id = self.contract.source_id
         started = time.perf_counter()
         log_event(
@@ -137,10 +144,11 @@ class Syncer:
 
     def reconcile(self) -> None:
         """Delete snapshots the source no longer lists, and backfill ids the feed missed."""
-        with span("connector.reconcile", source_id=self.contract.source_id):
-            self._reconcile_cycle()
+        with span("connector.reconcile", source_id=self.contract.source_id) as reconcile_span:
+            self._reconcile_cycle(reconcile_span)
 
-    def _reconcile_cycle(self) -> None:
+    def _reconcile_cycle(self, reconcile_span) -> None:
+        """Compare /ids to snapshots. Deletes S3 first, then enqueues delete, then drops the row."""
         source_id = self.contract.source_id
         try:
             payload = self.connector.list_ids()
@@ -197,8 +205,12 @@ class Syncer:
         metrics.SOURCE_OBJECTS.labels(source_id).set(len(live))
         metrics.SNAPSHOT_OBJECTS.labels(source_id).set(len(snapped))
         metrics.DRIFT.labels(source_id).set(len(snapped) - len(live))
+        reconcile_span.set_attribute("live", len(live))
+        reconcile_span.set_attribute("snapshots", len(snapped))
+        reconcile_span.set_attribute("drift", len(snapped) - len(live))
 
     def _collect(self) -> tuple[list[dict], str]:
+        """Page through list_changes from the stored watermark. Returns items and the new cursor."""
         since = self.state.get_watermark(self.contract.source_id)
         items: list[dict] = []
         token: str | None = None
@@ -213,6 +225,7 @@ class Syncer:
                 return items, server_time
 
     def _map(self, items: list[dict]) -> list[ItemOutcome]:
+        """Snapshot each item. Threads inherit the current trace context."""
         parent = otel_context.get_current()
 
         def run(item: dict) -> ItemOutcome:
@@ -228,6 +241,7 @@ class Syncer:
             return list(pool.map(run, items))
 
     def _one(self, item: dict, force: bool = False) -> ItemOutcome:
+        """Fetch, hash, put S3, enqueue, then write state. Unchanged version+ACL is skipped."""
         if item.get("op") == "delete":
             return self._feed_delete(item)
         source_id = self.contract.source_id
@@ -336,6 +350,7 @@ class Syncer:
         )
 
     def _body(self, item: dict) -> tuple[bytes, str, str]:
+        """Bytes, content type, and extension. Connectors may snapshot from the change record."""
         return self.connector.snapshot_body(item)
 
     def _feed_delete(self, item: dict) -> ItemOutcome:
@@ -360,6 +375,7 @@ class Syncer:
         return ItemOutcome("deleted", object_type=object_type)
 
     def _delete(self, object_id: str, key: str) -> None:
+        """Hard-delete S3, verify the key is gone, enqueue delete, then drop the state row."""
         source_id = self.contract.source_id
         try:
             self.snapshots.delete_all_versions(key)
@@ -398,6 +414,7 @@ class Syncer:
         log_event(LOG, "delete verified", source_id=source_id, object_type=key)
 
     def _resync(self, object_type: str, object_id: str) -> None:
+        """Fetch one live id the feed missed and force a snapshot."""
         try:
             fetched = self.connector.fetch(object_type, object_id)
         except ConnectorError as exc:
@@ -430,6 +447,7 @@ class Syncer:
             metrics.ERRORS.labels(source_id, outcome.stage).inc()
 
     def _note_extra(self, record: dict) -> None:
+        """Log fields outside the contract once per process. Extra fields are still snapshotted."""
         allowed = set(self.contract.in_scope_fields)
         extra = sorted(set(record) - allowed)
         with self._lock:
@@ -444,6 +462,7 @@ class Syncer:
             )
 
     def _fail(self, started: float, stage: str, error: str) -> SyncReport:
+        """List-stage failure. Nothing was written and the watermark stays put."""
         source_id = self.contract.source_id
         metrics.ERRORS.labels(source_id, stage).inc()
         self.state.mark_error(source_id, error)
@@ -464,6 +483,7 @@ class Syncer:
         return SyncReport(False, 0, 0, 1, self.state.get_watermark(source_id))
 
     def _publish(self, event: ChangeEvent) -> bool:
+        """Enqueue the change event. False leaves state unchanged so the next cycle retries."""
         if self.publisher is None:
             return True
         try:
@@ -490,6 +510,7 @@ class Syncer:
         return True
 
     def _observe_lag(self, watermark: str | None) -> None:
+        """Set watermark lag only when the watermark is an ISO timestamp, not a sales cursor."""
         if not watermark:
             return
         try:
@@ -500,6 +521,7 @@ class Syncer:
 
 
 def _event_type(existing: ObjectRow | None, version: str, acl_text: str) -> EventType:
+    """create, update, or acl_change. ACL-only still publishes so the worker can patch grants."""
     if existing is None:
         return EventType.CREATE
     if existing.version != version:
@@ -510,6 +532,7 @@ def _event_type(existing: ObjectRow | None, version: str, acl_text: str) -> Even
 
 
 def _occurred_at(stamp: str) -> datetime:
+    """Source updated_at as UTC. Empty stamps use now so lag metrics stay defined."""
     if not stamp:
         return datetime.now(UTC)
     moment = datetime.fromisoformat(stamp)
@@ -519,11 +542,13 @@ def _occurred_at(stamp: str) -> datetime:
 
 
 def _forbidden(record: dict, contract: SourceContract) -> list[str]:
+    """salary, compensation, ssn, national_id plus the contract's excluded_fields. Never ingested."""
     excluded = {name.lower() for name in contract.excluded_fields} | HARD_EXCLUDED
     return sorted(key for key in record if str(key).lower() in excluded)
 
 
 def _seconds_since(stamp: str) -> float:
+    """Age of a source timestamp. Raises ValueError on a cursor that is not ISO-8601."""
     moment = datetime.fromisoformat(stamp)
     if moment.tzinfo is None:
         moment = moment.replace(tzinfo=UTC)

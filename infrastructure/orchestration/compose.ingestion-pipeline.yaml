@@ -7,7 +7,10 @@ services:
   connector-hr:
     build:
       context: ../..
-      dockerfile: backend/connectors/hr/Dockerfile
+      dockerfile: docker/python-service.Dockerfile
+      args:
+        PACKAGE: connector-hr
+        ENTRYPOINT_MODULE: connector_hr
     command: ["python", "-m", "connector_hr"]
     depends_on:
       floci-ready:
@@ -50,7 +53,10 @@ services:
   connector-engineering:
     build:
       context: ../..
-      dockerfile: backend/connectors/engineering/Dockerfile
+      dockerfile: docker/python-service.Dockerfile
+      args:
+        PACKAGE: connector-engineering
+        ENTRYPOINT_MODULE: connector_engineering
     command: ["python", "-m", "connector_engineering"]
     depends_on:
       floci-ready:
@@ -93,7 +99,10 @@ services:
   connector-sales:
     build:
       context: ../..
-      dockerfile: backend/connectors/sales/Dockerfile
+      dockerfile: docker/python-service.Dockerfile
+      args:
+        PACKAGE: connector-sales
+        ENTRYPOINT_MODULE: connector_sales
     command: ["python", "-m", "connector_sales"]
     depends_on:
       floci-ready:
@@ -135,7 +144,10 @@ services:
   connector-product:
     build:
       context: ../..
-      dockerfile: backend/connectors/product/Dockerfile
+      dockerfile: docker/python-service.Dockerfile
+      args:
+        PACKAGE: connector-product
+        ENTRYPOINT_MODULE: connector_product
     command: ["python", "-m", "connector_product"]
     depends_on:
       floci-ready:
@@ -176,7 +188,11 @@ services:
   ingestion-worker:
     build:
       context: ../..
-      dockerfile: backend/workers/ingestion-worker/Dockerfile
+      dockerfile: docker/python-service.Dockerfile
+      args:
+        PACKAGE: ingestion-worker
+        ENTRYPOINT_MODULE: ingestion_worker
+        BAKE_FASTEMBED: "1"
     command: ["python", "-m", "ingestion_worker"]
     depends_on:
       floci-ready:
@@ -191,9 +207,10 @@ services:
       CONTRACTS_DIR: /contracts
       RAW_BUCKET: kbs-raw-snapshots
       EMBEDDER: ${EMBEDDER:-fastembed}
+      ORT_DISABLE_TELEMETRY: "1"
       # Only used if EMBEDDER is fastembed.
       # set higher for more diverse results and lower for more similar results
-      VECTOR_MAX_DISTANCE: ${VECTOR_MAX_DISTANCE:-0.40}
+      VECTOR_MAX_DISTANCE: ${VECTOR_MAX_DISTANCE:-0.20}
       POSTGRES_HOST: postgres
       POSTGRES_DB: kbs
       POSTGRES_USER: ingestion_rw
@@ -225,7 +242,10 @@ services:
   webhook-receiver:
     build:
       context: ../..
-      dockerfile: backend/apis/webhook-receiver/Dockerfile
+      dockerfile: docker/python-service.Dockerfile
+      args:
+        PACKAGE: webhook-receiver
+        ENTRYPOINT_MODULE: webhook_receiver
     command: ["python", "-m", "webhook_receiver"]
     depends_on:
       floci-ready:

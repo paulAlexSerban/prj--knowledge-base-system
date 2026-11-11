@@ -25,7 +25,7 @@ from gateway_core.auth import AuthError, principal_from_token
 from gateway_core.metrics import AUTH_FAILURES
 from gateway_core.runtime import open_gateway
 from gateway_core.service import GatewayService
-from gateway_core.tools import FIND_RELATED, GET_DOCUMENT, LIST_SOURCES, SEARCH
+from gateway_core.tools import ASK, FIND_RELATED, GET_DOCUMENT, LIST_SOURCES, SEARCH
 from knowledge_store.acl import Principal
 from shared.http_metrics import HttpMetricsMiddleware
 from shared.logging import configure, log_event
@@ -37,7 +37,9 @@ HTTP_ROUTES = ("/health", "/metrics", "/mcp")
 
 
 class JwtVerifier(TokenVerifier):
+    """HS256 verifier for FastMCP. Claims become the tool principal; MCP is not the ACL boundary."""
     async def verify_token(self, token: str) -> AccessToken | None:
+        """HS256 claims for the tool. FastMCP stores them; the tool rebuilds the principal."""
         secret = os.environ.get("GATEWAY_JWT_SECRET", "")
         try:
             principal = principal_from_token(token, secret)
@@ -57,8 +59,26 @@ class JwtVerifier(TokenVerifier):
 
 
 def build_server(service: GatewayService) -> FastMCP:
+    """Same five tools as the REST routes. There is no write tool."""
     service.surface = "mcp"
     server = FastMCP("knowledge-gateway", auth=JwtVerifier())
+
+    @server.tool(description=ASK)
+    async def ask_knowledge(query: str, limit: int = 5) -> dict[str, object]:
+        """Route one question, then search or walk a bounded graph template."""
+        principal = _caller()
+        request_id = _request_id()
+        bounded = max(1, min(limit, 20))
+        with span("mcp.tool", tool="ask", request_id=request_id) as current:
+            try:
+                body = await anyio.to_thread.run_sync(
+                    _with_trace(partial(service.ask, principal, query, bounded, request_id))
+                )
+            except ValueError as exc:
+                current.set_attribute("error", True)
+                return {"request_id": request_id, "error": str(exc)}
+            _mark_tool(current, body)
+            return body
 
     @server.tool(description=SEARCH)
     async def search_knowledge(query: str, limit: int = 5) -> dict[str, object]:
@@ -67,23 +87,27 @@ def build_server(service: GatewayService) -> FastMCP:
         request_id = _request_id()
         bounded = max(1, min(limit, 20))
         # Read the principal on the event loop, then run the blocking search on a worker thread.
-        with span("mcp.tool", tool="search"):
-            return await anyio.to_thread.run_sync(
+        with span("mcp.tool", tool="search", request_id=request_id) as current:
+            body = await anyio.to_thread.run_sync(
                 _with_trace(partial(service.search, principal, query, bounded, request_id))
             )
+            _mark_tool(current, body)
+            return body
 
     @server.tool(description=GET_DOCUMENT)
     async def get_document(chunk_id: int) -> dict[str, object]:
         """One authorized chunk, or a not-found error when the caller cannot read it."""
         principal = _caller()
         request_id = _request_id()
-        with span("mcp.tool", tool="get_document"):
+        with span("mcp.tool", tool="get_document", request_id=request_id) as current:
             found = await anyio.to_thread.run_sync(
                 _with_trace(partial(service.get_document, principal, chunk_id, request_id))
             )
-        if found is None:
-            return {"request_id": request_id, "error": "not found"}
-        return found
+            if found is None:
+                body = {"request_id": request_id, "error": "not found"}
+                _mark_tool(current, body)
+                return body
+            return found
 
     @server.tool(description=FIND_RELATED)
     async def find_related(
@@ -97,9 +121,9 @@ def build_server(service: GatewayService) -> FastMCP:
         principal = _caller()
         request_id = _request_id()
         bounded = max(1, min(limit, 25))
-        try:
-            with span("mcp.tool", tool="find_related"):
-                return await anyio.to_thread.run_sync(
+        with span("mcp.tool", tool="find_related", request_id=request_id) as current:
+            try:
+                body = await anyio.to_thread.run_sync(
                     _with_trace(
                         partial(
                             service.find_related,
@@ -113,33 +137,54 @@ def build_server(service: GatewayService) -> FastMCP:
                         )
                     )
                 )
-        except ValueError as exc:
-            return {"request_id": request_id, "error": str(exc)}
+            except ValueError as exc:
+                current.set_attribute("error", True)
+                return {"request_id": request_id, "error": str(exc)}
+            _mark_tool(current, body)
+            return body
 
     @server.tool(description=LIST_SOURCES)
     async def list_sources() -> list[dict[str, object]]:
         """Registered sources and last sync. No document text."""
         _caller()
-        _request_id()
-        with span("mcp.tool", tool="list_sources"):
-            return await anyio.to_thread.run_sync(_with_trace(service.list_sources))
+        request_id = _request_id()
+        with span("mcp.tool", tool="list_sources", request_id=request_id) as current:
+            body = await anyio.to_thread.run_sync(_with_trace(service.list_sources))
+            _mark_tool(current, body)
+            return body
 
     @server.custom_route("/health", methods=["GET"])
     async def health(_: Request) -> Response:
+        """Open probe. Bearer auth applies only to /mcp."""
         return Response('{"status":"ok"}', media_type="application/json")
 
     @server.custom_route("/metrics", methods=["GET"])
     async def metrics(_: Request) -> Response:
+        """Prometheus scrape. Same registry as the REST process labels."""
         return Response(generate_latest(), media_type="text/plain; version=0.0.4")
 
     return server
 
 
+def _mark_tool(current, body: object) -> None:
+    """Record error and route on the MCP span. Does not log snippet text."""
+    if isinstance(body, dict) and "error" in body:
+        current.set_attribute("error", True)
+    route = body.get("route") if isinstance(body, dict) else None
+    if isinstance(route, dict) and route.get("class"):
+        current.set_attribute("route", str(route["class"]))
+
+
 def _with_trace[T](fn: Callable[[], T]) -> Callable[[], T]:
-    """Run fn on a worker thread without dropping the current trace."""
+    """Run fn on a worker thread without dropping the current trace.
+
+    anyio.to_thread does not inherit the OTel context. Attach it on the
+    worker and detach when the call returns.
+    """
     parent = otel_context.get_current()
 
     def run():
+        """Worker-thread body. Attach the parent context, then detach."""
         token = otel_context.attach(parent)
         try:
             return fn()
@@ -150,6 +195,7 @@ def _with_trace[T](fn: Callable[[], T]) -> Callable[[], T]:
 
 
 def _caller() -> Principal:
+    """Principal from the verified token. Tools never take store credentials."""
     access = get_access_token()
     if access is None or not access.client_id or not access.claims:
         raise PermissionError("unauthorized")
@@ -163,6 +209,7 @@ def _caller() -> Principal:
 
 
 def _request_id() -> str:
+    """Reuse x-request-id when the client sent one, otherwise mint a hex id."""
     found = get_http_headers().get("x-request-id")
     return found or uuid.uuid4().hex
 
@@ -173,10 +220,12 @@ def _middleware() -> list[Middleware]:
 
 
 def http_app(server: FastMCP):
+    """ASGI app for tests. Production calls server.run in main."""
     return server.http_app(path="/mcp", transport="streamable-http", middleware=_middleware())
 
 
 def main() -> None:
+    """Serve streamable HTTP on 8001. The store opens before the server accepts traffic."""
     configure("gateway-mcp", "access")
     init_telemetry("gateway-mcp")
     log_event(LOG, "mcp server started")

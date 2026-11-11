@@ -12,6 +12,7 @@ import logging
 from datetime import UTC, datetime
 
 from botocore.exceptions import BotoCoreError, ClientError
+from opentelemetry.trace import SpanKind
 from pydantic import ValidationError
 
 from ingest_contract.events import DLQ_FOR, TIER_ORDER, ChangeEvent, fit_sqs_id
@@ -43,6 +44,7 @@ class Consumer:
         self._urls: dict[str, str] = {}
 
     def queues_ready(self) -> bool:
+        """Resolve tier and DLQ URLs. False keeps the process up while floci starts."""
         try:
             for name in (*TIER_ORDER, *DLQ_FOR.values()):
                 self.queue_url(name)
@@ -53,6 +55,7 @@ class Consumer:
         return True
 
     def queue_url(self, name: str) -> str:
+        """Cached queue URL. Construction does not call SQS until the first poll."""
         if name not in self._urls:
             self._urls[name] = self.client.get_queue_url(QueueName=name)["QueueUrl"]
         return self._urls[name]
@@ -79,12 +82,14 @@ class Consumer:
         return 0
 
     def observe_depths(self) -> None:
+        """Approximate visible depth on each tier and DLQ."""
         for name in TIER_ORDER:
             self._set_depth(metrics.QUEUE_DEPTH, name)
         for name in DLQ_FOR.values():
             self._set_depth(metrics.DLQ_DEPTH, name)
 
     def _set_depth(self, gauge, name: str) -> None:
+        """One ApproximateNumberOfMessages sample. A miss is logged, not fatal."""
         try:
             attributes = self.client.get_queue_attributes(
                 QueueUrl=self.queue_url(name),
@@ -98,6 +103,7 @@ class Consumer:
         )
 
     def _receive(self, name: str, wait: int) -> list[dict]:
+        """Receive up to 10. P0 long-polls; P1 and P2 do not wait if empty."""
         kwargs = {
             "QueueUrl": self.queue_url(name),
             "MaxNumberOfMessages": 10,
@@ -116,16 +122,25 @@ class Consumer:
 
     def _handle_message(self, queue_name: str, message: dict) -> bool:
         """True when the message was deleted. False when it stays in flight."""
-        with span("sqs.consume", context=sqs_parent(message), queue=queue_name) as current:
+        with span(
+            "sqs.consume",
+            context=sqs_parent(message),
+            span_kind=SpanKind.CONSUMER,
+            queue=queue_name,
+        ) as current:
             return self._apply(queue_name, message, current)
 
     def _apply(self, queue_name: str, message: dict, current) -> bool:
+        """Dispatch one event. On failure leave it in flight; after 5 receives copy to the DLQ."""
         count = int(message.get("Attributes", {}).get("ApproximateReceiveCount", "1"))
+        current.set_attribute("receive_count", count)
         if count > MAX_RECEIVE:
+            current.set_attribute("result", "dlq")
             return self._move_to_dlq(queue_name, message)
         try:
             event = ChangeEvent.from_json(message["Body"])
         except (ValidationError, ValueError):
+            current.set_attribute("result", "invalid")
             metrics.EVENTS.labels(source_id="unknown", event_type="invalid", result="invalid").inc()
             log_event(
                 LOG,
@@ -137,6 +152,9 @@ class Consumer:
             return False
         current.set_attribute("source_id", event.source_id)
         current.set_attribute("event_type", event.event_type.value)
+        object_type = _type_from_pointer(event.s3_pointer)
+        if object_type:
+            current.set_attribute("object_type", object_type)
         try:
             if self.fail_object_id and event.object_id == self.fail_object_id:
                 raise HandlerError(f"FAIL_OBJECT_ID matched {event.object_id}")
@@ -147,6 +165,7 @@ class Consumer:
                 event_type=event.event_type.value,
                 result="retry",
             ).inc()
+            current.set_attribute("result", "retry")
             log_event(
                 LOG,
                 "event retry",
@@ -159,6 +178,7 @@ class Consumer:
             )
             return False
         self._delete(queue_name, message)
+        current.set_attribute("result", "ok")
         metrics.EVENTS.labels(
             source_id=event.source_id,
             event_type=event.event_type.value,
@@ -177,6 +197,7 @@ class Consumer:
         return True
 
     def _move_to_dlq(self, queue_name: str, message: dict) -> bool:
+        """Copy the body to the tier DLQ, then delete. Covers a floci redrive that is not applied."""
         dlq_name = DLQ_FOR[queue_name]
         attributes = message.get("Attributes", {})
         group = attributes.get("MessageGroupId") or "poison"
@@ -211,12 +232,22 @@ class Consumer:
         return True
 
     def _delete(self, queue_name: str, message: dict) -> None:
+        """Ack. Called only after a successful write or a successful DLQ copy."""
         self.client.delete_message(
             QueueUrl=self.queue_url(queue_name),
             ReceiptHandle=message["ReceiptHandle"],
         )
 
 
+def _type_from_pointer(key: str | None) -> str:
+    """Span label from the S3 key. Empty on a delete."""
+    parts = (key or "").split("/")
+    if len(parts) < 4 or parts[0] != "raw":
+        return ""
+    return parts[2]
+
+
 def _lag(occurred_at: datetime) -> float:
+    """Seconds from event time to handle time. The freshness histogram uses this."""
     moment = occurred_at if occurred_at.tzinfo is not None else occurred_at.replace(tzinfo=UTC)
     return max(0.0, (datetime.now(UTC) - moment).total_seconds())
